@@ -66,8 +66,10 @@ namespace RedFish::ActivationFn {
     public:
         static Algebra::Matrix fn(const Algebra::Matrix& n)
         {
-            double sum = n.forEach(std::exp).sum();
-            return n.forEach([sum](double x){ return std::exp(x) / sum; });
+            double max = n.max();
+            double sum = n.forEach([max](double x){ return std::exp(x - max); }).sum();
+            double offset = max + log(sum);
+            return n.forEach([offset](double x){ return std::exp(x - offset); });
         }
         static Algebra::Matrix bn(const Algebra::Matrix& n)
         {

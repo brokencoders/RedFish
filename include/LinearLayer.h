@@ -78,6 +78,7 @@ namespace RedFish {
 
         for (auto& neuron : neurons)
             linout.setCol(col++, neuron.farward(X));
+        std::cout <<"HasNaN " << linout.hasNaN() << "\n";
         
         return ActivationFn::farward<ActFn>(linout);
     }

@@ -15,6 +15,8 @@
 #include <vector>
 #include <functional>
 
+#include <signal.h>
+
 namespace Algebra
 {
     class Matrix
@@ -78,6 +80,7 @@ namespace Algebra
 
         double max() const;
         double absMax() const;
+        bool hasNaN() const;
 
         Matrix  hom() const &;
         Matrix& hom() &&;
@@ -692,7 +695,11 @@ namespace Algebra
         Matrix ret(row, col);
 
         for (size_t i = 0; i < size; i++)
-            ret(i) = fn(m[i]);
+        {
+            double tmp = fn(m[i]);
+            if (std::isnan(tmp)) raise(SIGTRAP);
+            ret(i) = tmp;
+        }
         
         return ret;
     }
@@ -702,7 +709,11 @@ namespace Algebra
         Matrix ret(row, col);
 
         for (size_t i = 0; i < size; i++)
-            ret(i) = fn(m[i]);
+        {
+            double tmp = fn(m[i]);
+            if (std::isnan(tmp)) raise(SIGTRAP);
+            ret(i) = tmp;
+        }
         
         return ret;
     }
@@ -729,7 +740,7 @@ namespace Algebra
 
     double Matrix::max() const
     {
-        double max = m[0];
+        double max = -INFINITY;
         for(int i = 0; i < size; i++)
             if(m[i] > max) max = m[i];
         return max;
@@ -744,6 +755,13 @@ namespace Algebra
         return max;
     }
 
+    bool Matrix::hasNaN() const
+    {
+        for (size_t i = 0; i < size; i++)
+            if (std::isnan(m[i]))
+                return true;
+        return false;
+    }
 
     Matrix Matrix::hom() const &
     {

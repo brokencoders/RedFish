@@ -18,38 +18,32 @@ This data set has a number of features, including:
 #include <vector>
 #include <utility>
 #include <unordered_map>
+#include <cstdarg>
 
 #include "gnuplot-iostream.h"
 
 #include "Math.h"
 #include "LinearRegression.h"
 #include "LinearLayer.h"
+#include "swap_endian.h"
 
 
 char grayscale[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 
-template<typename T>
-T swap32(T n)
+std::tuple<Matrix, Matrix> readDataset(const std::string& path_labels, const std::string& path_img)
 {
-    char* b = (char*)&n;
-    std::swap(b[0], b[3]);
-    std::swap(b[1], b[2]);
-    return *((T*)b);
-}
-
-void readDataset(const std::string& path_labels, const std::string& path_img)
-{
+    /* Labels */
+    
     std::ifstream file_labels(path_labels, std::ios::binary);
+    int32_t magic_number, size, w, h;
 
     if (!file_labels.is_open())
         throw std::runtime_error("Error opening file_labels: " + path_labels + "\n");
 
-    int32_t magic_number, size;
 
     file_labels.read((char*)(&magic_number), sizeof(int));
     file_labels.read((char*)(&size), sizeof(int));
-    magic_number = swap32(magic_number);
-    size = swap32(size);
+    swap_endian(magic_number, size);
 
     std::vector<char> labels(size);
     file_labels.read(labels.data(), size);
@@ -58,39 +52,48 @@ void readDataset(const std::string& path_labels, const std::string& path_img)
 
     file_labels.close();
 
+    /* Images */
+
     std::ifstream file_img(path_img, std::ios::binary);
 
     if (!file_img.is_open())
         throw std::runtime_error("Error opening file_labels: " + path_img + "\n");
 
-    int w, h;
-
     file_img.read((char*)(&magic_number), sizeof(int));
     file_img.read((char*)(&size), sizeof(int));
     file_img.read((char*)(&w), sizeof(int));
     file_img.read((char*)(&h), sizeof(int));
-    magic_number = swap32(magic_number);
-    size = swap32(size);
-    w = swap32(w);
-    h = swap32(h);
+    swap_endian(magic_number, size, w, h);
 
     std::vector<char> imgs(size*w*h);
     file_img.read(imgs.data(), size*w*h);
 
     std::cout << magic_number << " " << size << " " << w << " " << h << "\n";
 
-    for (size_t i = 0; i < 60; i++) {
-    std::cout << "\n" << (int)labels[i] << "\n";
-    for (size_t r = 0; r < h; r++)
-    {
-        for (size_t c = 0; c < w; c++)
+    for (size_t i = 0; i < 2; i++) {
+        std::cout << "\n" << (int)labels[i] << "\n";
+        for (size_t r = 0; r < h; r++)
         {
-            std::cout << grayscale[(size_t)((unsigned char)imgs[r*w + c + w*h*i]) * 68 / 255];
+            for (size_t c = 0; c < w; c++)
+            {
+                std::cout << grayscale[(size_t)((unsigned char)imgs[r*w + c + w*h*i]) * 68 / 255];
+            }
+            std::cout << "\n";
         }
-        std::cout << "\n";
-    }
     }
     
+    Matrix in(size, w*h);
+    for (size_t i = 0; i < size; i++)
+        for (size_t j = 0; j < w*h; j++)
+            in(i,j) = imgs[i*w*h + j] / 255.;
+
+    Matrix out(size, 10);
+    zero(out);
+
+    for (size_t i = 0; i < size; i++)
+        out(i,labels[i]) = 1.;
+
+    return {in, out};
 }
 
 
@@ -98,19 +101,37 @@ class DigitsModel
 {
 private:
     RedFish::LinearLayer<784, 784, RedFish::ActivationFn::ReLU>  hidden;
-    RedFish::LinearLayer<784, 10, RedFish::ActivationFn::Softmax> last;
+    RedFish::LinearLayer<784, 10,  RedFish::ActivationFn::Softmax> last;
 
 public:
-    DigitsModel();
 
-    void train();
+    void train(const Matrix& in, const Matrix& out, uint epochs = 100, double learning_rate = .01);
     int estimate();
 };
+
+void DigitsModel::train(const Matrix& in, const Matrix& out, uint epochs, double learning_rate)
+{
+    double lloss = 100.;
+    for (int i = 0; i < epochs; i++)
+    {
+        auto m1 = hidden.farward(in);
+        auto m2 = last.farward(m1);
+        double loss = (m2 - out).normSquare() / out.rows();
+        std::cout << "Epoch " << i << " - loss: " << loss << "\n";
+        lloss = loss;
+        auto dm2dm1 = last.backward(m1, m2 - out, learning_rate);
+        hidden.backward(in, dm2dm1, learning_rate);
+    }
+}
+
 
 
 int main(int, char**)
 {
-    readDataset("../dataset/train_labels", "../dataset/train_images");
+    auto [input, output] = readDataset("../dataset/train_labels", "../dataset/train_images");
+
+    DigitsModel dm;
+    dm.train(input.subMatrix(0,0, 10), output.subMatrix(0,0, 10), 1000, .001);
 
     exit(0);
 
