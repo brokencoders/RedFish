@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+Deep Learning from Scratch_ Building with Python from First Principles.pdf
+
+build
+.cache
+.vscode
