@@ -12,7 +12,7 @@ namespace RedFish {
     template<int I>
     class Neuron {
     public:
-        Neuron() : weights(I), bias(random()/1073741823.5) {for (size_t i = 0; i < I; i++) weights(i) = random()/1073741823.5;}
+        Neuron() : weights(I), bias(random()/2147483647. - 0.5) {for (size_t i = 0; i < I; i++) weights(i) = random()/2147483647. - 0.5;}
 
         Matrix farward(const Matrix& X);
         Matrix backward(const Matrix& X, const Matrix& d, double learning_rate = 0.001);
@@ -78,7 +78,6 @@ namespace RedFish {
 
         for (auto& neuron : neurons)
             linout.setCol(col++, neuron.farward(X));
-        std::cout <<"HasNaN " << linout.hasNaN() << "\n";
         
         return ActivationFn::farward<ActFn>(linout);
     }
