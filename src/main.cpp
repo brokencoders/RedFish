@@ -89,35 +89,30 @@ void print_number(const Matrix& n)
 int main(int, char**)
 {
     using namespace RedFish;
-    RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Identity}});
-    //RedFish::Model model("model");
+    RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Softmax}});
+    // RedFish::Model model("model");
 
     auto [input, output] = readDataset("../dataset/train_labels", "../dataset/train_images");
 
-    model.train(input, output, 300, .1, 200);
-    //model.save("model");
+    model.train(input, output, 100, .01, 100);
+    // model.save("model");
     auto [input_test, output_test] = readDataset("../dataset/test_labels", "../dataset/test_images");
 
-    for (int i = 0; i < 10; i++)
-    {
-        print_number(input_test.getRow(i).reshape(28, 28));
-        model.estimate(input_test.getRow(i)).print();
-        //std::cout << model.estimate(input_test.getRow(i)).max() << "\n";
-    }
+    double accuracy = model.test(input_test, output_test, [](const Algebra::Matrix& m1, const Algebra::Matrix& m2) {
+        double max = 0; 
+        int max_index = 0;
+        int result_index = 0;
+        for (size_t i = 0; i < m1.getSize(); i++)
+        {
+            if (m2(i) == 1) result_index = i;
+            if (m1(i) > max) max = m1(i), max_index = i; 
+        }
+        return result_index == max_index;
+    });
+
+    std::cout << "Accuracy: " << accuracy * 100 << " %\n";
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 /*     Gnuplot gp;
     std::vector<std::pair<double, double>> pts_A_xy;

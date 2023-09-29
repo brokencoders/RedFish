@@ -18,7 +18,7 @@ namespace RedFish {
         Model(const std::string& file_path);
 
         void train(const Algebra::Matrix& in, const Algebra::Matrix& out, uint epochs = 100, double learning_rate = .01, int mini_batch_size = 3);
-        void test(const Algebra::Matrix& in, const Algebra::Matrix& out);
+        double test(const Algebra::Matrix& in, const Algebra::Matrix& out, std::function<double(const Algebra::Matrix&, const Algebra::Matrix&)> accuracy);
         Algebra::Matrix estimate(const Algebra::Matrix& in);
 
         int save(const std::string& file_path);
@@ -106,9 +106,16 @@ namespace RedFish {
         }
     }
 
-    inline void Model::test(const Algebra::Matrix &in, const Algebra::Matrix &out)
+    inline double Model::test(const Algebra::Matrix &in, const Algebra::Matrix &out, std::function<double(const Algebra::Matrix&, const Algebra::Matrix&)> accuracy)
     {
+        Algebra::Matrix ris = this->estimate(in);
+        double sum = 0;
+        for (size_t i = 0; i < in.rows(); i++)
+        {
+            sum += accuracy(ris.getRow(i), out.getRow(i));
+        }
 
+        return sum / in.rows();
     }
 
     inline Algebra::Matrix Model::estimate(const Algebra::Matrix &in)

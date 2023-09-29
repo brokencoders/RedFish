@@ -66,6 +66,7 @@ namespace RedFish::Activation {
         class Softmax
         {
         public:
+            
             inline static Algebra::Matrix fn(const Algebra::Matrix& n)
             {
                 double max = n.max();
@@ -73,6 +74,7 @@ namespace RedFish::Activation {
                 double offset = max + log(sum);
                 return n.forEach([offset](double x){ return std::exp(x - offset); });
             }
+
             inline static Algebra::Matrix bn(const Algebra::Matrix& n)
             {
                 Algebra::Matrix d(1, n.cols());
@@ -81,7 +83,7 @@ namespace RedFish::Activation {
                 zero(d);
                 for (int i = 0; i < n.cols(); i++)
                     for(int j = 0; j < n.cols(); j++)
-                        d(0, i) += g(i) * ((j != i) - g(j));
+                        d(0, i) += g(j) * ((j != i) - g(i));
 
                 d /= n.cols();
 
@@ -181,6 +183,8 @@ namespace RedFish::Activation {
 
         inline Algebra::Matrix backwardSoftmax(const Algebra::Matrix& X, const Algebra::Matrix& d)
         {
+            // return d;
+
             Algebra::Matrix grad(d.rows(), X.cols());
 
             for (size_t i = 0; i < d.rows(); i++)
