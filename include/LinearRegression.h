@@ -19,10 +19,10 @@ namespace RedFish {
         Algebra::Matrix x_train;
         Algebra::Matrix y_train;
         //Algebra::Matrix weights;
-        Neuron<1> ne;
+        Neuron ne;
     };
 
-    LinearRegression::LinearRegression() { }
+    LinearRegression::LinearRegression() : ne(1) { }
 
     void LinearRegression::splitTrainTestBatch(Parser::CSV::File& csv, int percentageTest)
     {

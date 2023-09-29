@@ -3,122 +3,191 @@
 #include "Algebra.h"
 #include <functional>
 
-namespace RedFish::ActivationFn {
+namespace RedFish::Activation {
 
-    class Identity
-    {
-    public:
-        static double fn(double n) { return n; }
-        static double bn(double n) { return 1.; }
-    };
+    namespace Private {
 
-    class ReLU
-    {
-    public:
-        static double fn(double n) { return n < 0. ? 0. : n; }
-        static double bn(double n) { return n < 0. ? 0. : 1.; }
-    };
-
-    class LeakyReLU
-    {
-    public:
-        static double fn(double n) { return n < 0. ? 0.01 * n : n; }
-        static double bn(double n) { return n < 0. ? 0.01 : 1.; }
-    };
-
-    class Sigmoid
-    {
-    public:
-        static double fn(double n) { return 1. / (1. + std::exp(-n)); }
-        static double bn(double n) { return fn(n) * (1 - fn(n)); }
-    };
-    
-    class TanH
-    {
-    public:
-        static double fn(double n) { return (std::exp(n) - std::exp(-n)) / (std::exp(n) + std::exp(-n)); }
-        static double bn(double n) { return 1 - std::pow(fn(n), 2); }
-    };
-
-    class Softplus
-    {
-    public:
-        static double fn(double n) { return std::log(1 + std::exp(n)); }
-        static double bn(double n) { return 1 / (1 + std::exp(-n)); }
-    };
-
-    class SiLU
-    {
-    public:
-        static double fn(double n) { return n / (1 + std::exp(-n)); }
-        static double bn(double n) { return (1 +std::exp(-n) + n * std::exp(-n)) / std::pow(1 + std::exp(-n), 2); }
-    };
-    
-    class Gaussian
-    {
-    public:
-        static double fn(double n) { return std::exp(-std::pow(n, 2)); }
-        static double bn(double n) { return -2 * n * fn(n); }
-    };
-    
-    class Softmax
-    {
-    public:
-        static Algebra::Matrix fn(const Algebra::Matrix& n)
+        class Identity
         {
-            double max = n.max();
-            double sum = n.forEach([max](double x){ return std::exp(x - max); }).sum();
-            double offset = max + log(sum);
-            return n.forEach([offset](double x){ return std::exp(x - offset); });
-        }
-        static Algebra::Matrix bn(const Algebra::Matrix& n)
+        public:
+            inline static double fn(double n) { return n; }
+            inline static double bn(double n) { return 1.; }
+        };
+
+        class ReLU
         {
-            Algebra::Matrix d(1, n.cols());
-            Algebra::Matrix g = fn(n);
+        public:
+            inline static double fn(double n) { return n < 0. ? 0. : n; }
+            inline static double bn(double n) { return n < 0. ? 0. : 1.; }
+        };
 
-            zero(d);
-            for (int i = 0; i < n.cols(); i++)
-                for(int j = 0; j < n.cols(); j++)
-                    d(0, i) += g(i) * ((j != i) - g(j));
+        class LeakyReLU
+        {
+        public:
+            inline static double fn(double n) { return n < 0. ? 0.01 * n : n; }
+            inline static double bn(double n) { return n < 0. ? 0.01 : 1.; }
+        };
 
-            d /= n.cols();
-
-            return d;
-        }
-    };
-
-    template<typename ActFn>
-    Algebra::Matrix farward(const Algebra::Matrix& X)
-    {
-        return X.forEach(ActFn::fn);
-    }
-    
-    template<typename ActFn>
-    Algebra::Matrix backward(const Algebra::Matrix& X, const Algebra::Matrix& d)
-    {
-        Algebra::Matrix ret(X.rows(), X.cols());
-
-        for (size_t r = 0; r < X.rows(); r++)
-            for (size_t c = 0; c < X.cols(); c++)
-                ret(r,c) = d(r,c) * ActFn::bn(X(r,c));
+        class Sigmoid
+        {
+        public:
+            inline static double fn(double n) { return 1. / (1. + std::exp(-n)); }
+            inline static double bn(double n) { return fn(n) * (1 - fn(n)); }
+        };
         
-        return ret;
+        class TanH
+        {
+        public:
+            inline static double fn(double n) { return (std::exp(n) - std::exp(-n)) / (std::exp(n) + std::exp(-n)); }
+            inline static double bn(double n) { return 1 - std::pow(fn(n), 2); }
+        };
+
+        class Softplus
+        {
+        public:
+            inline static double fn(double n) { return std::log(1 + std::exp(n)); }
+            inline static double bn(double n) { return 1 / (1 + std::exp(-n)); }
+        };
+
+        class SiLU
+        {
+        public:
+            inline static double fn(double n) { return n / (1 + std::exp(-n)); }
+            inline static double bn(double n) { return (1 +std::exp(-n) + n * std::exp(-n)) / std::pow(1 + std::exp(-n), 2); }
+        };
+        
+        class Gaussian
+        {
+        public:
+            inline static double fn(double n) { return std::exp(-std::pow(n, 2)); }
+            inline static double bn(double n) { return -2 * n * fn(n); }
+        };
+        
+        class Softmax
+        {
+        public:
+            inline static Algebra::Matrix fn(const Algebra::Matrix& n)
+            {
+                double max = n.max();
+                double sum = n.forEach([max](double x){ return std::exp(x - max); }).sum();
+                double offset = max + log(sum);
+                return n.forEach([offset](double x){ return std::exp(x - offset); });
+            }
+            inline static Algebra::Matrix bn(const Algebra::Matrix& n)
+            {
+                Algebra::Matrix d(1, n.cols());
+                Algebra::Matrix g = fn(n);
+
+                zero(d);
+                for (int i = 0; i < n.cols(); i++)
+                    for(int j = 0; j < n.cols(); j++)
+                        d(0, i) += g(i) * ((j != i) - g(j));
+
+                d /= n.cols();
+
+                return d;
+            }
+        };
+
     }
 
-    template<>
-    Algebra::Matrix farward<Softmax>(const Algebra::Matrix& X)
-    {
-        return X.forEachRow(Softmax::fn);
-    }
+    enum AF : uint32_t {
+        Identity = 0,
+        ReLU,
+        LeakyReLU,
+        Sigmoid,
+        TanH,
+        Softplus,
+        SiLU, 
+        Gaussian,
+        Softmax
+    };
 
-    template<>
-    Algebra::Matrix backward<Softmax>(const Algebra::Matrix& X, const Algebra::Matrix& d)
-    {
-        Algebra::Matrix grad(d.rows(), X.cols());
+    class Function {
+    public:
+        Function(AF activation_function)
+        {
+            using namespace Private;
+            farward_ = &RedFish::Activation::Function::farwardStd;
+            backward_ = &RedFish::Activation::Function::backwardStd;
+            switch (activation_function)
+            {
+            case AF::Identity:
+                fn = Identity::fn, bn = Identity::bn;
+                break;
+            case AF::ReLU:
+                fn = ReLU::fn, bn = ReLU::bn;
+                break;
+            case AF::LeakyReLU:
+                fn = LeakyReLU::fn, bn = LeakyReLU::bn;
+                break;
+            case AF::Sigmoid:
+                fn = Sigmoid::fn, bn = Sigmoid::bn;
+                break;
+            case AF::TanH:
+                fn = TanH::fn, bn = TanH::bn;
+                break;
+            case AF::Softplus:
+                fn = Softplus::fn, bn = Softplus::bn;
+                break;
+            case AF::SiLU:
+                fn = SiLU::fn, bn = SiLU::bn;
+                break;
+            case AF::Gaussian:
+                fn = Gaussian::fn, bn = Gaussian::bn;
+                break;
+            case AF::Softmax:
+                fn = nullptr, bn = nullptr;
+                farward_ = &RedFish::Activation::Function::farwardSoftmax;
+                backward_ = &RedFish::Activation::Function::backwardSoftmax;
+                break;
+            default:
+                fn = nullptr, bn = nullptr;
+                farward_ = nullptr, backward_ = nullptr;
+                break;
+            }
+        }
 
-        for (size_t i = 0; i < d.rows(); i++)
-            grad.setRow(i, Softmax::bn(X.getRow(i)));
+        Algebra::Matrix farward(const Algebra::Matrix& X) { return (this->*farward_)(X); }
+        Algebra::Matrix backward(const Algebra::Matrix& X, const Algebra::Matrix& d) { return (this->*backward_)(X, d); }
 
-        return grad;
-    }
+    private:
+
+        Algebra::Matrix(Function::*farward_)(const Algebra::Matrix&);
+        Algebra::Matrix(Function::*backward_)(const Algebra::Matrix&, const Algebra::Matrix&);
+        double(*fn)(double);
+        double(*bn)(double);
+
+        inline Algebra::Matrix farwardStd(const Algebra::Matrix& X)
+        {
+            return X.forEach(fn);
+        }
+        
+        inline Algebra::Matrix backwardStd(const Algebra::Matrix& X, const Algebra::Matrix& d)
+        {
+            Algebra::Matrix ret(X.rows(), X.cols());
+
+            for (size_t r = 0; r < X.rows(); r++)
+                for (size_t c = 0; c < X.cols(); c++)
+                    ret(r,c) = d(r,c) * bn(X(r,c));
+            
+            return ret;
+        }
+
+        inline Algebra::Matrix farwardSoftmax(const Algebra::Matrix& X)
+        {
+            return X.forEachRow(Private::Softmax::fn);
+        }
+
+        inline Algebra::Matrix backwardSoftmax(const Algebra::Matrix& X, const Algebra::Matrix& d)
+        {
+            Algebra::Matrix grad(d.rows(), X.cols());
+
+            for (size_t i = 0; i < d.rows(); i++)
+                grad.setRow(i, Private::Softmax::bn(X.getRow(i)));
+
+            return grad;
+        }
+    };
+
 }
