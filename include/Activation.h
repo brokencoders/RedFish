@@ -2,6 +2,7 @@
 
 #include "Algebra.h"
 #include <functional>
+#include <cstdint>
 
 namespace RedFish::Activation {
 
@@ -183,7 +184,7 @@ namespace RedFish::Activation {
 
         inline Algebra::Matrix backwardSoftmax(const Algebra::Matrix& X, const Algebra::Matrix& d)
         {
-            // return d;
+            return d;
 
             Algebra::Matrix grad(d.rows(), X.cols());
 

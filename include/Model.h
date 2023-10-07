@@ -4,6 +4,7 @@
 #include "LinearLayer.h"
 #include <iostream>
 #include <fstream>
+#include <cstdint>
 
 namespace RedFish {
 
@@ -28,7 +29,7 @@ namespace RedFish {
         std::vector<LinearLayer> layers;
     };
 
-    RedFish::Model::Model(int input_size, const std::vector<Layer> &l) 
+    inline Model::Model(int input_size, const std::vector<Layer> &l) 
         :input_size(input_size)
     {
         layers.reserve(l.size());
@@ -40,7 +41,7 @@ namespace RedFish {
         
     }
 
-    RedFish::Model::Model(const std::string &file_path)
+    inline Model::Model(const std::string &file_path)
     {
         std::ifstream file(file_path, std::ios::binary);
 

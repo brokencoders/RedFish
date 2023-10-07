@@ -1,22 +1,17 @@
 #include <iostream>
-#include <map>
-#include <vector>
 #include <cmath>
-
 #include <fstream>
-#include <sstream>
 #include <vector>
-#include <utility>
-#include <unordered_map>
-#include <cstdarg>
 
 #include "gnuplot-iostream.h"
-
-#include "Math.h"
-#include "LinearRegression.h"
+#define ALGEBRA_IMPL
+#include "Algebra.h"
 #include "LinearLayer.h"
 #include "Model.h"
 #include "swap_endian.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 using namespace Algebra;
 
@@ -89,12 +84,24 @@ void print_number(const Matrix& n)
 int main(int, char**)
 {
     using namespace RedFish;
+    int width, height, channels;
+    unsigned char *img = stbi_load("sky.jpg", &width, &height, &channels, 0);
+	
+    Gnuplot gp("gnuplot -persist");
+
+    std::ofstream file("tst.rgb", std::ios::binary);
+    file.write((char*)img, width*height*channels);
+
+	gp << "plot 'tst.rgb' binary format='%uchar' array=(" << width << "," << height << ") with rgbimage notitle" << std::endl;
+
+    return 0;
     RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Softmax}});
     // RedFish::Model model("model");
 
     auto [input, output] = readDataset("../dataset/train_labels", "../dataset/train_images");
 
-    model.train(input, output, 100, .01, 100);
+    model.train(input, output, 100, .1, 10);
+    return 0;
     // model.save("model");
     auto [input_test, output_test] = readDataset("../dataset/test_labels", "../dataset/test_images");
 

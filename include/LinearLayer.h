@@ -1,8 +1,8 @@
 #pragma once 
 
-#include "Algebra.h"
 #include "Activation.h"
 #include <iostream>
+#include "Layer.h"
 
 namespace RedFish {
     
@@ -40,7 +40,7 @@ namespace RedFish {
         friend class Model;
     };
 
-    class LinearLayer {
+    class LinearLayer : public Layer  {
     public:
         LinearLayer(int input_size, int neuron_size, Activation::AF af) 
             : neurons(), act_fn(af), af(af)
