@@ -1,29 +1,20 @@
 #pragma once
 
 #include <iostream>
-#include <cmath>
-#include <stdexcept>
-#include <initializer_list>
-#include <cstring>
-#include <cmath>
-#include <utility>
-#include <cstdlib>
-#include <immintrin.h>
-#include <tuple>
-#include <algorithm>
-#include <cfloat>
-#include <vector>
 #include <functional>
+#include <immintrin.h>
+#include <algorithm>
 
-#include <signal.h>
+#ifdef _WIN32
+namespace std
+{
+    inline void* aligned_alloc(size_t alignment, size_t size) { return _aligned_malloc(size, alignment); }
+}
+#endif
 
 namespace Algebra
 {
-#ifdef _WIN32
-    typedef long double float64;
-#else
     typedef double float64;
-#endif
 
     class MatrixView;
 
@@ -142,6 +133,13 @@ namespace Algebra
     private:
 
         inline static float64* alloc(size_t size) { return (float64*)std::aligned_alloc(byte_alignment, size * sizeof(float64)); }
+        inline static void   dealloc(void* ptr) {
+#ifdef _WIN32
+            _aligned_free(ptr);
+#else
+            std::free(ptr);
+#endif
+        }
         inline static constexpr size_t aligned(size_t len)  { return len == 1 ? 1 : ((float_alignment-1) & len ? (len & ~(float_alignment-1)) + float_alignment : len); }
 
         inline bool isVector() { return col == 1 || row == 1; }
@@ -328,7 +326,7 @@ namespace Algebra
     inline Matrix::~Matrix()
     {
         if (m != buff && m && own)
-            std::free(m);
+            dealloc(m);
         own = false;
         // std::cout << "Matrix destructor\n";
     }
@@ -339,7 +337,7 @@ namespace Algebra
         if (mat_capacity > capacity || mat_capacity < capacity * .75)
         {
             if (m != buff)
-                std::free(m);
+                dealloc(m);
             if (mat_capacity > buff_size)
                 m = alloc(mat_capacity);
             else
@@ -359,7 +357,7 @@ namespace Algebra
         if (mat_capacity > capacity || mat_capacity < capacity * .75)
         {
             if (m != buff)
-                std::free(m);
+                dealloc(m);
             if (mat_capacity > buff_size)
                 m = alloc(mat_capacity);
             else
@@ -459,7 +457,7 @@ namespace Algebra
             throw std::length_error("Matrix sizes not matching in sub operation");
         Matrix sub(row, col);
         
-        __m256d thisv, matv;
+        /* __m256d thisv, matv;
         const float64* matp = mat.m, *thisp = m;
         for (float64* subp = sub.m, *end = sub.m + row*roff; subp < end; subp+=4, matp+=4, thisp+=4)
         {
@@ -467,7 +465,12 @@ namespace Algebra
             matv  = _mm256_load_pd(matp);
             thisv = _mm256_sub_pd(thisv, matv);
             _mm256_store_pd(subp, thisv);
+        } */
+        for (size_t i = 0; i < row*roff; i++)
+        {
+            sub.m[i] = m[i] - mat.m[i];
         }
+        
         return sub;
     }
 
@@ -616,7 +619,7 @@ namespace Algebra
 
         
         if (t != tmp_buff)
-            std::free(t);
+            dealloc(t);
         return mul;
     }
 
@@ -677,8 +680,8 @@ namespace Algebra
         col = mat.col;
         size = row*col;
         roff = n_roff;
-        if (t != tmp_buff) std::free(t);
-        if (m != buff)     std::free(m);
+        if (t != tmp_buff) dealloc(t);
+        if (m != buff)     dealloc(m);
         if (new_m == new_tmp_buff)
             std::copy(new_m, new_m + row*roff, buff),
             new_m = buff;
@@ -813,7 +816,7 @@ namespace Algebra
 
     inline float64 Matrix::norm() const
     {
-        return sqrt(normSquare());
+        return std::sqrt(normSquare());
     }
 
     inline float64 Matrix::pnorm(size_t p) const
@@ -1011,9 +1014,9 @@ namespace Algebra
         if (row*col > size || row*col < size * .75)
         {
             if (m != buff)
-                std::free(m);
+                dealloc(m);
             if (row*col > buff_size)
-                m = new float64[row*col];
+                m = alloc(row*col);
             else
                 m = buff;
         }
@@ -1069,7 +1072,7 @@ namespace Algebra
         if (col * (row + mat.row) < buff_size)
             new_buf = buff;
         else
-            new_buf = new float64[roff * (row + mat.row)];
+            new_buf = alloc(roff * (row + mat.row));
         
         if (new_buf != m)
             std::copy(m, m + row*roff, new_buf);
@@ -1079,7 +1082,7 @@ namespace Algebra
             std::copy(mat.m + r*mat.roff, mat.m + r*mat.roff + mat.col, new_buf + (row + r)*roff),
             std::fill(new_buf + (row + r)*roff + col, new_buf + (row + r + 1)*roff, 0.);
 
-        if (m != buff && m != new_buf) std::free(m);
+        if (m != buff && m != new_buf) dealloc(m);
         m = new_buf;
         row += mat.row;
         size += mat.size;
@@ -1102,7 +1105,7 @@ namespace Algebra
         if (roff * (row + new_row) < buff_size)
             new_buf = buff;
         else
-            new_buf = new float64[roff * (row + new_row)];
+            new_buf = alloc(roff * (row + new_row));
         
         if (new_buf != m)
             std::copy(m, m + row*roff, new_buf);
@@ -1118,7 +1121,7 @@ namespace Algebra
             tmp_buff += mat.row * roff;
         }
 
-        if (m != buff && m != new_buf) std::free(m);
+        if (m != buff && m != new_buf) dealloc(m);
         m = new_buf;
         row += new_row;
         size = row*col;
@@ -1163,7 +1166,7 @@ namespace Algebra
         if (row * (col + mat.col) < buff_size)
             new_buf = buff;
         else
-            new_buf = new float64[row * (col + mat.col)];
+            new_buf = alloc(row * (col + mat.col));
         
         if (new_buf == m)
             /* NOT parallelizable */
@@ -1176,7 +1179,7 @@ namespace Algebra
         for (size_t i = 0; i < row; i++)
             std::copy(mat.m + i*mat.col, mat.m + (i+1)*mat.col, new_buf + i*(col+mat.col) + col);
 
-        if (m != buff && m != new_buf) std::free(m);
+        if (m != buff && m != new_buf) dealloc(m);
         m = new_buf;
         col += mat.col;
         size += mat.size;
@@ -1371,7 +1374,7 @@ namespace Algebra
             realTranspose(m, t, row, col, roff, new_roff);
             if (m == buff && new_size <= buff_size) std::copy(t, t + new_size, buff), t = buff;
             if (m != buff)
-                std::free(m);
+                dealloc(m);
             m = t;
         }
         roff = new_roff;
@@ -1469,9 +1472,9 @@ namespace Algebra
         }
         else
         {
-            float64* tmp_buff = new float64[r*c];
+            float64* tmp_buff = alloc(r*c);
             realTranspose(A, tmp_buff, r, c, lda, r);
-            std::free(A);
+            dealloc(A);
             A = tmp_buff;
         }
     }
@@ -1670,7 +1673,7 @@ namespace Algebra
         for (size_t i = 0; i < L.col; i++)
         {
             float64& a11 = L[i][i];
-            a11 = sqrt(a11);
+            a11 = std::sqrt(a11);
             if (std::isnan(a11))
                 throw std::invalid_argument("Matrix not positive defined in Matrix::cholesky()");
 
@@ -1752,7 +1755,7 @@ namespace Algebra
         for (size_t i = 0; i < row-1; i++)
         {
             float64 x1 = R.m[i*col + i], x2 = R.m[(i+1)*col + i];
-            R.m[i*col + i] = sqrt(x1*x1+x2*x2);
+            R.m[i*col + i] = std::sqrt(x1*x1+x2*x2);
             R.m[(i+1)*col + i] = 0;
             float64 norm_i = 1./R.m[i*col + i];
             float64 c = x1*norm_i, s = -x2*norm_i;
@@ -2161,7 +2164,7 @@ namespace Algebra
         float64 theta = rod_v.norm();
         if (theta > DBL_EPSILON)
         {
-            float64 costh = cos(theta), sinth = sin(theta);
+            float64 costh = std::cos(theta), sinth = std::sin(theta);
             rot(0,0) = rot(1,0) = rot(2,2) = costh;
             rod_v /= theta;
             for (size_t i = 0; i < 3; i++)
@@ -2181,7 +2184,7 @@ namespace Algebra
         float64 s = r.norm()*.5;
         float64 c = (R(0,0) + R(1,1) + R(2,2) - 1.) * .5;
         c = c > 1. ? 1. : c < -1. ? -1. : c;
-        float64 theta = acos(c);
+        float64 theta = std::acos(c);
 
         if(s < 1e-5)
         {
@@ -2197,7 +2200,7 @@ namespace Algebra
                 r(0,1) = std::sqrt(std::max(t, 0.)) * (R(0,1) < 0 ? -1. : 1.);
                 t = (R(2,2) + 1) * 0.5;
                 r(0,2) = std::sqrt(std::max(t, 0.)) * (R(0,2) < 0 ? -1. : 1.);
-                if( fabs(r(0,0)) < fabs(r(0,1)) && fabs(r(0,0)) < fabs(r(0,2)) && (R(1,2) > 0) != (r(0,1)*r(0,2) > 0) )
+                if(std::fabs(r(0,0)) < std::fabs(r(0,1)) && std::fabs(r(0,0)) < std::fabs(r(0,2)) && (R(1,2) > 0) != (r(0,1)*r(0,2) > 0) )
                     r(0,2) = -r(0,2);
                 theta /= r.norm();
                 r *= theta;

@@ -62,11 +62,10 @@ std::tuple<Matrix, Matrix> readDataset(const std::string& path_labels, const std
         for (size_t j = 0; j < w*h; j++)
             in(i,j) = imgs[i*w*h + j] / 255.;
 
-    Matrix out(size, 10);
-    zero(out);
+    Matrix out(size);
 
     for (size_t i = 0; i < size; i++)
-        out(i,labels[i]) = 1.;
+        out(i) = labels[i];
 
     return {in, out};
 }
@@ -83,8 +82,9 @@ void print_number(const Matrix& n)
 
 int main(int, char**)
 {
+    std::srand(std::time(nullptr));
     using namespace RedFish;
-    int width, height, channels;
+    /* int width, height, channels;
     unsigned char *img = stbi_load("sky.jpg", &width, &height, &channels, 0);
 	
     Gnuplot gp("gnuplot -persist");
@@ -94,31 +94,33 @@ int main(int, char**)
 
 	gp << "plot 'tst.rgb' binary format='%uchar' array=(" << width << "," << height << ") with rgbimage notitle" << std::endl;
 
-    return 0;
-    RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Softmax}});
-    // RedFish::Model model("model");
+    return 0; */
 
-    auto [input, output] = readDataset("../dataset/train_labels", "../dataset/train_images");
+    RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Softmax}}, RedFish::CrossEntropyLoss::get());
+    //RedFish::LinearLayer ll1(784, 784, RedFish::Activation::ReLU);
+    //RedFish::LinearLayer ll2(784, 10, RedFish::Activation::Softmax);
+    //RedFish::Model model("model",  RedFish::CrossEntropyLoss::get());
 
-    model.train(input, output, 100, .1, 10);
-    return 0;
-    // model.save("model");
-    auto [input_test, output_test] = readDataset("../dataset/test_labels", "../dataset/test_images");
+    auto [input, output] = readDataset("../../../dataset/train_labels", "../../../dataset/train_images");
+
+    model.train(input, output, 1000, .02, 20);
+    
+    //model.save("model");
+    auto [input_test, output_test] = readDataset("../../../dataset/test_labels", "../../../dataset/test_images");
 
     double accuracy = model.test(input_test, output_test, [](const Algebra::Matrix& m1, const Algebra::Matrix& m2) {
         double max = 0; 
         int max_index = 0;
-        int result_index = 0;
+        int result_index = m2(0);
         for (size_t i = 0; i < m1.getSize(); i++)
         {
-            if (m2(i) == 1) result_index = i;
             if (m1(i) > max) max = m1(i), max_index = i; 
         }
         return result_index == max_index;
     });
 
     std::cout << "Accuracy: " << accuracy * 100 << " %\n";
-
+    std::cin.get();
 }
 
 /*     Gnuplot gp;

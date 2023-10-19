@@ -71,22 +71,26 @@ namespace RedFish::Activation {
             inline static Algebra::Matrix fn(const Algebra::Matrix& n)
             {
                 double max = n.max();
-                double sum = n.forEach([max](double x){ return std::exp(x - max); }).sum();
-                double offset = max + log(sum);
-                return n.forEach([offset](double x){ return std::exp(x - offset); });
+                auto expv = n.forEach([max](double x){ return std::exp(x - max); });
+                double sum = expv.sum();
+                double div = 1. / sum;
+                expv *= div;
+                return expv;
             }
 
             inline static Algebra::Matrix bn(const Algebra::Matrix& n)
             {
-                Algebra::Matrix d(1, n.cols());
+                Algebra::Matrix d(n.cols(), n.cols());
                 Algebra::Matrix g = fn(n);
 
-                zero(d);
+                Algebra::float64 g_i;
                 for (int i = 0; i < n.cols(); i++)
-                    for(int j = 0; j < n.cols(); j++)
-                        d(0, i) += g(j) * ((j != i) - g(i));
-
-                d /= n.cols();
+                {
+                    g_i = g(i);
+                    d(i, i) = g_i * (1. - g_i);
+                    for(int j = i + 1; j < n.cols(); j++)
+                        d(j, i) = d(i, j) = -g_i*g(j);
+                }
 
                 return d;
             }
@@ -184,13 +188,19 @@ namespace RedFish::Activation {
 
         inline Algebra::Matrix backwardSoftmax(const Algebra::Matrix& X, const Algebra::Matrix& d)
         {
-            return d;
-
+            //return d;
+            
             Algebra::Matrix grad(d.rows(), X.cols());
 
-            for (size_t i = 0; i < d.rows(); i++)
-                grad.setRow(i, Private::Softmax::bn(X.getRow(i)));
-
+            for (size_t r = 0; r < d.rows(); r++)
+            {
+                //Private::Softmax::bn(X.getRow(r)).print();
+                grad.setRow(r, d.getRow(r) * Private::Softmax::bn(X.getRow(r)));
+                /* for (size_t c = 0; c < d.cols(); c++)
+                    grad(r,c) *= d(r,c); */
+            }
+//grad.print();
+//d.print();
             return grad;
         }
     };

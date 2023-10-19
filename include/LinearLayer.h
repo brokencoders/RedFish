@@ -2,18 +2,19 @@
 
 #include "Activation.h"
 #include <iostream>
-#include "Layer.h"
+#include <cstdlib>
+/* #include "Layer.h" */
 
 namespace RedFish {
     
     class Neuron {
     public:
         Neuron(int input_size) 
-            : weights(input_size), bias(random()/2147483647. - 0.5), 
+            : weights(input_size), bias((double)std::rand()/RAND_MAX - 0.5), 
             mw(input_size), vw(input_size), mw_b(0), vw_b(0), t(1)
         {
             for (size_t i = 0; i < input_size; i++) 
-                weights(i) = random()/2147483647. - 0.5;
+                weights(i) = (double)std::rand()/RAND_MAX - 0.5;
 
             Algebra::zero(mw);
             Algebra::zero(vw);
@@ -134,8 +135,6 @@ namespace RedFish {
         for (size_t i = 1; i < neurons.size(); i++)
             grad += neurons[i].backward(X, dd.getCol(i), learning_rate);
         
-        grad *= 1./neurons.size();
-
         return grad;
     }
 

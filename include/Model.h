@@ -2,6 +2,7 @@
 
 #include "Activation.h"
 #include "LinearLayer.h"
+#include "Loss.h"
 #include <iostream>
 #include <fstream>
 #include <cstdint>
@@ -15,10 +16,10 @@ namespace RedFish {
 
     class Model {
     public:
-        Model(int input_size, const std::vector<Layer>& layers);
-        Model(const std::string& file_path);
+        Model(int input_size, const std::vector<Layer>& layers, const Loss* loss);
+        Model(const std::string& file_path, const Loss* loss);
 
-        void train(const Algebra::Matrix& in, const Algebra::Matrix& out, uint epochs = 100, double learning_rate = .01, int mini_batch_size = 3);
+        void train(const Algebra::Matrix& in, const Algebra::Matrix& out, uint32_t epochs = 100, double learning_rate = .01, int mini_batch_size = 3);
         double test(const Algebra::Matrix& in, const Algebra::Matrix& out, std::function<double(const Algebra::Matrix&, const Algebra::Matrix&)> accuracy);
         Algebra::Matrix estimate(const Algebra::Matrix& in);
 
@@ -27,10 +28,11 @@ namespace RedFish {
     private:
         uint32_t input_size;
         std::vector<LinearLayer> layers;
+        const Loss* loss;
     };
 
-    inline Model::Model(int input_size, const std::vector<Layer> &l) 
-        :input_size(input_size)
+    inline Model::Model(int input_size, const std::vector<Layer> &l, const Loss* loss) 
+        :input_size(input_size), loss(loss)
     {
         layers.reserve(l.size());
         for (auto& layer : l)
@@ -41,7 +43,8 @@ namespace RedFish {
         
     }
 
-    inline Model::Model(const std::string &file_path)
+    inline Model::Model(const std::string &file_path, const Loss* loss)
+        : loss(loss)
     {
         std::ifstream file(file_path, std::ios::binary);
 
@@ -75,7 +78,7 @@ namespace RedFish {
 
     }
 
-    inline void Model::train(const Algebra::Matrix &in, const Algebra::Matrix &out, uint epochs, double learning_rate, int mini_batch_size)
+    inline void Model::train(const Algebra::Matrix &in, const Algebra::Matrix &out, uint32_t epochs, double learning_rate, int mini_batch_size)
     {
         for (int i = 0; i < epochs; i++)
         {
@@ -83,7 +86,7 @@ namespace RedFish {
             Algebra::Matrix mini_batch_out(0, out.cols());
             for (int j = 0; j < mini_batch_size; j++)
             {
-                int n = random() % in.rows();
+                int n = rand() % in.rows();
                 mini_batch_in.vstack(in.getRow(n));
                 mini_batch_out.vstack(out.getRow(n));
             }   
@@ -96,10 +99,10 @@ namespace RedFish {
             for (size_t j = 1; j < layers.size(); j++)
                 fw_res.push_back(layers[j].farward(fw_res[j - 1]));
 
-            double loss = (fw_res.back() - mini_batch_out).normSquare() / mini_batch_out.rows();
-            std::cout << "Epoch " << i << " - loss: " << loss << "\n";
+            double lossV = loss->farward(fw_res.back(), mini_batch_out);
+            std::cout << "Epoch " << i << " - loss: " << lossV << "\n";
 
-            auto bw_res = layers.back().backward(fw_res[fw_res.size()-2], fw_res[fw_res.size()-1] - mini_batch_out, learning_rate);
+            auto bw_res = layers.back().backward(fw_res[fw_res.size()-2], loss->backward(fw_res[fw_res.size()-1], mini_batch_out), learning_rate);
             for (size_t j = layers.size() - 2; j > 0; j--)
                 bw_res = layers[j].backward(fw_res[j-1], bw_res, learning_rate);
             

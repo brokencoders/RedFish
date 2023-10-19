@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.9.0)
 project(RedFish VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SOURCE_FOLDER "src")
 set(HEADER_FOLDER "include")
