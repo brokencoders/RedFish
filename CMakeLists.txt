@@ -8,7 +8,6 @@ find_package(Boost REQUIRED COMPONENTS iostreams system filesystem)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(RedFish "${SOURCE_FOLDER}/main.cpp")
-add_executable(AlgTest "${SOURCE_FOLDER}/test.cpp")
 
 target_link_libraries(RedFish PRIVATE Boost::iostreams Boost::system Boost::filesystem)
 
@@ -23,4 +22,6 @@ set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
 target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/)
+
+add_subdirectory(test)
 
