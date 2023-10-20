@@ -1,24 +1,24 @@
 #pragma once 
 
-#include "Activation.h"
 #include <iostream>
 #include <cstdlib>
-/* #include "Layer.h" */
+#include <vector>
+#include <memory>
+#include "Layer.h"
+#include "Activation.h"
+#include "Optimizer.h"
 
 namespace RedFish {
     
     class Neuron {
     public:
-        Neuron(int input_size) 
-            : weights(input_size), bias((double)std::rand()/RAND_MAX - 0.5), 
-            mw(input_size), vw(input_size), mw_b(0), vw_b(0), t(1)
+        Neuron(int input_size, const Optimizer* optimizer) 
+            : weights(input_size), bias((double)std::rand()/RAND_MAX - 0.5), opt(optimizer->instanziate(input_size + 1))
         {
             for (size_t i = 0; i < input_size; i++) 
                 weights(i) = (double)std::rand()/RAND_MAX - 0.5;
-
-            Algebra::zero(mw);
-            Algebra::zero(vw);
         }
+        Neuron(const Neuron& n) : weights(n.weights), bias(n.bias), opt(n.opt->instanziate(n.weights.getSize() + 1)) {}
 
         Algebra::Matrix farward(const Algebra::Matrix& X);
         Algebra::Matrix backward(const Algebra::Matrix& X, const Algebra::Matrix& d, double learning_rate = 0.001);
@@ -30,25 +30,20 @@ namespace RedFish {
     private:
         Algebra::Matrix weights;
         double bias;
-        int t;
 
-        Algebra::Matrix mw, vw;
-        double mw_b, vw_b;
-        const double b1 = 0.9;
-        const double b2 = 0.999;
-        const double epsilon = 1e-8;
+        std::unique_ptr<Optimizer> opt;
 
         friend class Model;
     };
 
     class LinearLayer : public Layer  {
     public:
-        LinearLayer(int input_size, int neuron_size, Activation::AF af) 
+        LinearLayer(int input_size, int neuron_size, Activation::AF af, const Optimizer* optimizer) 
             : neurons(), act_fn(af), af(af)
         {
             neurons.reserve(neuron_size);
             for (size_t i = 0; i < neuron_size; i++)
-                neurons.emplace_back(input_size);
+                neurons.emplace_back(input_size, optimizer);
         }
 
         Algebra::Matrix farward(const Algebra::Matrix& X);
@@ -74,26 +69,14 @@ namespace RedFish {
     {
         Algebra::Matrix dX = d * weights.T();
         auto grad = X.T() * d * (1./d.rows());
-
-        mw = b1 * mw + (1 - b1) * grad;
-        vw = b2 * vw + (1 - b2) * grad.forEach([](double d) { return d * d; }); 
-
-        Algebra::Matrix m_hat = mw * (1 / (1 - std::pow(b1, t))); 
-        Algebra::Matrix v_hat = vw * (1 / (1 - std::pow(b2, t)));
-
-        weights -= learning_rate * (m_hat / (v_hat.forEach([](double d) { return std::sqrt(d); }) - epsilon));
-
         double bias_der = d.sum() / d.rows();
 
-        mw_b = b1 * mw_b + (1 - b1) * bias_der;
-        vw_b = b2 * vw_b + (1 - b2) * std::pow(bias_der, 2); 
+        for (size_t i = 0; i < weights.getSize(); i++)
+            weights(i) += opt->updateParameter(i, weights(i), grad(i), learning_rate);
+        
+        bias += opt->updateParameter(weights.getSize(), bias, bias_der, learning_rate);
 
-        double m_hat_b = mw_b * (1 / (1 - std::pow(b1, t))); 
-        double v_hat_b = vw_b * (1 / (1 - std::pow(b2, t)));
-
-        bias    -= learning_rate * m_hat_b / ( std::sqrt(vw_b) - epsilon);
-
-        t++;
+        opt->step();
 
         return dX;
     }

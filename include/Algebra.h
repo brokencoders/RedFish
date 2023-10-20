@@ -4,6 +4,8 @@
 #include <functional>
 #include <immintrin.h>
 #include <algorithm>
+#include <cmath>
+#include <cfloat>
 
 #ifdef _WIN32
 namespace std
