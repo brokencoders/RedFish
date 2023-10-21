@@ -9,15 +9,15 @@
 
 namespace RedFish {
 
-    struct Layer {
+    struct LayerDesc {
         int neuron_count;
         Activation::AF activation_func;
     };
 
     class Model {
     public:
-        Model(int input_size, const std::vector<Layer>& layers, const Loss* loss);
-        Model(const std::string& file_path, const Loss* loss);
+        Model(int input_size, const std::vector<LayerDesc>& layers, const Loss* loss, const Optimizer* optimizer);
+        Model(const std::string& file_path, const Loss* loss, const Optimizer* optimizer);
 
         void train(const Algebra::Matrix& in, const Algebra::Matrix& out, uint32_t epochs = 100, double learning_rate = .01, int mini_batch_size = 3);
         double test(const Algebra::Matrix& in, const Algebra::Matrix& out, std::function<double(const Algebra::Matrix&, const Algebra::Matrix&)> accuracy);
@@ -31,19 +31,20 @@ namespace RedFish {
         const Loss* loss;
     };
 
-    inline Model::Model(int input_size, const std::vector<Layer> &l, const Loss* loss) 
+    inline Model::Model(int input_size, const std::vector<LayerDesc> &l, const Loss* loss, const Optimizer* optimizer) 
         :input_size(input_size), loss(loss)
     {
         layers.reserve(l.size());
         for (auto& layer : l)
             layers.emplace_back(input_size, 
                                 layer.neuron_count, 
-                                layer.activation_func), 
+                                layer.activation_func,
+                                optimizer), 
             input_size = layer.neuron_count; 
         
     }
 
-    inline Model::Model(const std::string &file_path, const Loss* loss)
+    inline Model::Model(const std::string &file_path, const Loss* loss, const Optimizer* optimizer)
         : loss(loss)
     {
         std::ifstream file(file_path, std::ios::binary);
@@ -65,7 +66,7 @@ namespace RedFish {
             file.read((char*)&neuron_count, 4);
             file.read((char*)&af, 4);
 
-            layers.emplace_back(layer_input_size, neuron_count, af);
+            layers.emplace_back(layer_input_size, neuron_count, af, optimizer);
 
             for (auto& neuron : layers.back().neurons)
             {

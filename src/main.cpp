@@ -2,6 +2,7 @@
 #include <cmath>
 #include <fstream>
 #include <vector>
+#include <ctime>
 
 #include "gnuplot-iostream.h"
 #define ALGEBRA_IMPL
@@ -82,7 +83,7 @@ void print_number(const Matrix& n)
 
 int main(int, char**)
 {
-    std::srand(std::time(nullptr));
+        std::srand(std::time(nullptr));
     using namespace RedFish;
     /* int width, height, channels;
     unsigned char *img = stbi_load("sky.jpg", &width, &height, &channels, 0);
@@ -96,17 +97,17 @@ int main(int, char**)
 
     return 0; */
 
-    RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Softmax}}, RedFish::CrossEntropyLoss::get());
+    RedFish::Model model(784, {{784, RedFish::Activation::ReLU}, {10, RedFish::Activation::Softmax}}, RedFish::CrossEntropyLoss::get(), RedFish::Adam::get());
     //RedFish::LinearLayer ll1(784, 784, RedFish::Activation::ReLU);
     //RedFish::LinearLayer ll2(784, 10, RedFish::Activation::Softmax);
     //RedFish::Model model("model",  RedFish::CrossEntropyLoss::get());
 
-    auto [input, output] = readDataset("../../../dataset/train_labels", "../../../dataset/train_images");
+    auto [input, output] = readDataset("../dataset/train_labels", "../dataset/train_images");
 
     model.train(input, output, 1000, .02, 20);
     
     //model.save("model");
-    auto [input_test, output_test] = readDataset("../../../dataset/test_labels", "../../../dataset/test_images");
+    auto [input_test, output_test] = readDataset("../dataset/test_labels", "../dataset/test_images");
 
     double accuracy = model.test(input_test, output_test, [](const Algebra::Matrix& m1, const Algebra::Matrix& m2) {
         double max = 0; 
@@ -120,7 +121,6 @@ int main(int, char**)
     });
 
     std::cout << "Accuracy: " << accuracy * 100 << " %\n";
-    std::cin.get();
 }
 
 /*     Gnuplot gp;
