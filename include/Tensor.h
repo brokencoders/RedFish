@@ -7,10 +7,25 @@
 #include <cstdlib>
 #include <memory>
 #include <stdexcept>
+#include <functional>
+#include <algorithm>
+
+namespace RedFish
+{
+    class Tensor;
+    typedef double float64;
+}
+
+namespace std
+{
+    RedFish::Tensor sqrt(const RedFish::Tensor&);
+    RedFish::Tensor exp(const RedFish::Tensor&);
+    RedFish::Tensor log(const RedFish::Tensor&);
+    RedFish::Tensor pow(const RedFish::Tensor&, RedFish::float64);
+    RedFish::Tensor pow(const RedFish::Tensor&, const RedFish::Tensor&);
+}
 
 namespace RedFish {
-
-    typedef double float64;
 
     class Tensor
     {
@@ -35,6 +50,7 @@ namespace RedFish {
         Tensor& operator+=(const double val);
         Tensor  operator-(const Tensor& t)  const;
         Tensor  operator-(const double val) const;
+        Tensor  operator-() const;
         Tensor& operator-=(const Tensor& t);
         Tensor& operator-=(const double val);
         Tensor  operator*(const Tensor& t)  const;
@@ -46,6 +62,12 @@ namespace RedFish {
         Tensor& operator/=(const Tensor& t);
         Tensor& operator/=(const double val);
 
+        float64 squareSum() const;
+        Tensor  squareSum(size_t dimension) const;
+        float64 max() const;
+        Tensor  max(size_t dimension) const;
+        float64 sum() const;
+        Tensor  sum(size_t dimension) const;
 
         float64& operator()(const size_t* index);
         float64  operator()(const size_t* index) const;
@@ -59,14 +81,27 @@ namespace RedFish {
         float64& operator()(size_t x, size_t y, size_t z);
         float64  operator()(size_t x, size_t y, size_t z) const;
 
-        friend std::ostream& operator<<(std::ostream& os, const Tensor& t);
-        friend void reprint(std::ostream& os, const Tensor& t, size_t depth, std::vector<size_t>& index);
+        friend Tensor operator-(const double, const Tensor&);
+        friend Tensor operator/(const double, const Tensor&);
+        friend std::ostream& operator<<(std::ostream&, const Tensor&);
+        friend void reprint(std::ostream&, const Tensor&, size_t, std::vector<size_t>&);
+        friend Tensor empty_like(const Tensor&);
+        template<float64(*fn)(float64)>
+        friend Tensor forEach(const Tensor&);
+        friend Tensor forEach(const Tensor&, std::function<float64(float64)>);
+        template <void(*fn)(float64&, float64), float64(*init)(float64)>
+        friend Tensor opAlongAxes(const Tensor&);
+        friend Tensor std::sqrt(const Tensor&);
+        friend Tensor std::exp(const Tensor&);
+        friend Tensor std::log(const Tensor&);
+        friend Tensor std::pow(const Tensor&, float64);
+        friend Tensor std::pow(const Tensor&, const Tensor&);
 
         void zero();
         bool sizeMatch(const Tensor& t) const;
 
-        size_t colSize() const { return this->dim[0]; }
-        size_t rowSize() const { return this->dim[1]; }
+        size_t colSize() const { return this->dim.back(); }
+        size_t rowSize() const { return *(this->dim.end()-2); }
         size_t getSize() const { return size; }
 
     private:
@@ -118,7 +153,7 @@ namespace RedFish {
         this->b = std::make_unique<float64[]>(size);
 
         for (int i = 0; i < size; i++)
-            this->b.get()[i] = t.b.get()[i];
+            this->b[i] = t.b[i];
     }
 
     inline Tensor& Tensor::operator=(const Tensor& t)
@@ -128,7 +163,7 @@ namespace RedFish {
         this->b = std::make_unique<float64[]>(size);
 
         for (int i = 0; i < size; i++)
-            this->b.get()[i] = t.b.get()[i];
+            this->b[i] = t.b[i];
     }
     
     inline Tensor::~Tensor() { }
@@ -145,10 +180,8 @@ namespace RedFish {
 
     inline bool broadcastable(const std::vector<size_t>& i1, const std::vector<size_t>& i2)
     {
-        if (i1.size() <= 2 || i2.size() <= 2) return true;
-
-        auto p1 = i1.end() - 3;
-        auto p2 = i2.end() - 3;
+        auto p1 = i1.end() - 1;
+        auto p2 = i2.end() - 1;
 
         while (p1 != i1.begin() && p2 != i2.begin())
         {
@@ -171,9 +204,9 @@ namespace RedFish {
                 throw std::length_error("Size not matching in tensor matmul !");
             
             mul.resize({1});
-            mul(0UL) = 0.;
+            mul((size_t)0) = 0.;
             for (size_t i = 0; i < dim[0]; i++)
-                mul(0UL) += b[i] * t(i);
+                mul((size_t)0) += b[i] * t(i);
         }
         else if (this->dim.size() == 2 && t.dim.size() == 2)
         {
@@ -181,12 +214,12 @@ namespace RedFish {
                 throw std::length_error("Size not matching in tensor matmul !");
             
             mul.resize({ rowSize(), t.colSize() });
-            for (size_t j = 0; j < rowSize(); j++)
-                for (size_t k = 0; k < t.colSize(); k++)
+            for (size_t j = 0, rs = rowSize(); j < rs; j++)
+                for (size_t k = 0, tcs = t.colSize(); k < tcs; k++)
                     mul(j, k) = this->operator()(j, 0) * t(0, k); 
-            for (size_t i = 1; i < this->colSize(); i++)
-                for (size_t j = 0; j < rowSize(); j++)
-                    for (size_t k = 0; k < t.colSize(); k++)
+            for (size_t i = 1, cs = this->colSize(); i < cs; i++)
+                for (size_t j = 0, rs = rowSize(); j < rs; j++)
+                    for (size_t k = 0, tcs = t.colSize(); k < tcs; k++)
                         mul(j, k) += this->operator()(j, i) * t(i, k); 
         }
         else if (this->dim.size() == 1 && t.dim.size() == 2)
@@ -195,10 +228,10 @@ namespace RedFish {
                 throw std::length_error("Size not matching in tensor matmul !");
             
             mul.resize({ 1, t.colSize() });
-            for (size_t k = 0; k < t.colSize(); k++)
-                mul(0, k) = this->operator()(0UL) * t(0, k); 
-            for (size_t i = 1; i < this->colSize(); i++)
-                for (size_t k = 0; k < t.colSize(); k++)
+            for (size_t k = 0, tcs = t.colSize(); k < tcs; k++)
+                mul(0, k) = this->operator()((size_t)0) * t(0, k); 
+            for (size_t i = 1, cs = this->colSize(); i < cs; i++)
+                for (size_t k = 0, tcs = t.colSize(); k < tcs; k++)
                     mul(0, k) += this->operator()(i) * t(i, k); 
         }
         else if (this->dim.size() == 2 && t.dim.size() == 1)
@@ -207,10 +240,10 @@ namespace RedFish {
                 throw std::length_error("Size not matching in tensor matmul !");
             
             mul.resize({ this->rowSize() });
-            for (size_t j = 0; j < rowSize(); j++)
-                    mul(j) = this->operator()(j, 0) * t(0UL); 
-            for (size_t i = 1; i < this->colSize(); i++)
-                for (size_t j = 0; j < rowSize(); j++)
+            for (size_t j = 0, rs = rowSize(); j < rs; j++)
+                mul(j) = this->operator()(j, 0) * t((size_t)0); 
+            for (size_t i = 1, cs = this->colSize(); i < cs; i++)
+                for (size_t j = 0, rs = rowSize(); j < rs; j++)
                     mul(j) += this->operator()(j, i) * t(i);
         }
         else
@@ -269,8 +302,10 @@ namespace RedFish {
                 if (this->dim.back() != t.dim[t.dim.size()-2])
                     throw std::length_error("Size not matching in tensor matmul !");
 
-                if (!broadcastable(this->dim, t.dim))
-                    throw std::length_error("Size not broadcastable in tensor matmul !");
+                if (this->dim.size() > 2 && 
+                    t.dim.size() > 2 && 
+                    !broadcastable({this->dim.begin(), this->dim.end()-2}, {t.dim.begin(), t.dim.end()-2}))
+                        throw std::length_error("Size not broadcastable in tensor matmul !");
 
                 std::vector<size_t> nsize(std::max(this->dim.size(), t.dim.size()));
                 std::vector<size_t> thissize(nsize.size() - this->dim.size(), 1);
@@ -343,12 +378,19 @@ namespace RedFish {
     /* Operetors */
     inline Tensor Tensor::operator+(const Tensor& t) const
     {
-        if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in sum operation");
+        Tensor result({0});
+        if (sizeMatch(t))
+        {
+            result.resize(this->dim);
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] + t.b[i];
+        }
+        else if (broadcastable(this->dim, t.dim))
+        {
 
-        Tensor result(this->dim);
-        for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] + t.b.get()[i];
+        }
+        else
+            throw std::length_error("Tensor sizes not matching in sum operation");
 
         return result;
     }
@@ -357,7 +399,7 @@ namespace RedFish {
     {
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] + val;
+            result.b[i] = this->b[i] + val;
 
         return result;
     }
@@ -370,10 +412,10 @@ namespace RedFish {
     inline Tensor& Tensor::operator+=(const Tensor& t)
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in sum operation");
+            throw std::length_error("Tensor sizes not matching in sum operation");
 
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] += t.b.get()[i];
+            this->b[i] += t.b[i];
 
         return *this;
     }
@@ -381,7 +423,7 @@ namespace RedFish {
     inline Tensor& Tensor::operator+=(const double val)
     {
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] += val;
+            this->b[i] += val;
 
         return *this;
     }
@@ -389,11 +431,11 @@ namespace RedFish {
     inline Tensor Tensor::operator-(const Tensor& t) const
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in subtraction operation");
+            throw std::length_error("Tensor sizes not matching in subtraction operation");
 
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] - t.b.get()[i];
+            result.b[i] = this->b[i] - t.b[i];
 
         return result;
     }
@@ -402,23 +444,36 @@ namespace RedFish {
     {
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] - val;
+            result.b[i] = this->b[i] - val;
+
+        return result;
+    }
+
+    inline Tensor Tensor::operator-() const
+    {
+        Tensor result(this->dim);
+        for (size_t i = 0; i < size; i++)
+            result.b[i] = -this->b[i];
 
         return result;
     }
 
     inline Tensor operator-(const double val, const Tensor& t)
     {
-        return t - val;
+        Tensor ret = empty_like(t);
+        for (size_t i = 0; i < t.size; i++)
+            ret.b[i] = val - t.b[i];
+        
+        return ret;
     }
 
     inline Tensor& Tensor::operator-=(const Tensor& t)
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in sum operation");
+            throw std::length_error("Tensor sizes not matching in sum operation");
 
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] -= t.b.get()[i];
+            this->b[i] -= t.b[i];
 
         return *this;
     }
@@ -426,7 +481,7 @@ namespace RedFish {
     inline Tensor& Tensor::operator-=(const double val)
     {
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] -= val;
+            this->b[i] -= val;
 
         return *this;
     }
@@ -434,11 +489,11 @@ namespace RedFish {
     inline Tensor Tensor::operator*(const Tensor& t) const
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in multiplication operation");
+            throw std::length_error("Tensor sizes not matching in multiplication operation");
 
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] * t.b.get()[i];
+            result.b[i] = this->b[i] * t.b[i];
 
         return result;
     }
@@ -447,7 +502,7 @@ namespace RedFish {
     {
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] * val;
+            result.b[i] = this->b[i] * val;
 
         return result;
     }
@@ -460,10 +515,10 @@ namespace RedFish {
     inline Tensor& Tensor::operator*=(const Tensor& t)
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in sum operation");
+            throw std::length_error("Tensor sizes not matching in sum operation");
 
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] *= t.b.get()[i];
+            this->b[i] *= t.b[i];
 
         return *this;
     }
@@ -471,7 +526,7 @@ namespace RedFish {
     inline Tensor& Tensor::operator*=(const double val)
     {
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] *= val;
+            this->b[i] *= val;
 
         return *this;
     }
@@ -479,11 +534,11 @@ namespace RedFish {
     inline Tensor Tensor::operator/(const Tensor& t) const
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in division operation");
+            throw std::length_error("Tensor sizes not matching in division operation");
 
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] / t.b.get()[i];
+            result.b[i] = this->b[i] / t.b[i];
 
         return result;
     }
@@ -492,23 +547,27 @@ namespace RedFish {
     {
         Tensor result(this->dim);
         for (size_t i = 0; i < size; i++)
-            result.b.get()[i] = this->b.get()[i] / val;
+            result.b[i] = this->b[i] / val;
 
         return result;
     }
 
     inline Tensor operator/(const double val, const Tensor& t)
     {
-        return t / val;
+        Tensor ret = empty_like(t);
+        for (size_t i = 0; i < t.size; i++)
+            ret.b[i] = val / t.b[i];
+        
+        return ret;
     }
 
     inline Tensor& Tensor::operator/=(const Tensor& t)
     {
         if (!sizeMatch(t))
-            throw std::length_error("Matrix sizes not matching in sum operation");
+            throw std::length_error("Tensor sizes not matching in sum operation");
 
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] /= t.b.get()[i];
+            this->b[i] /= t.b[i];
 
         return *this;
     }
@@ -516,11 +575,109 @@ namespace RedFish {
     inline Tensor& Tensor::operator/=(const double val)
     {
         for (size_t i = 0; i < size; i++)
-            this->b.get()[i] /= val;
+            this->b[i] /= val;
 
         return *this;
     }
 
+    inline float64 Tensor::squareSum() const
+    {
+        float64 sq_sum = 0.;
+        for (size_t i = 0; i < size; i++)
+            sq_sum += this->b[i]*this->b[i];
+        return sq_sum;
+    }
+
+    inline Tensor Tensor::squareSum(size_t d) const
+    {
+        d = this->dim.size() - d - 1;
+        auto dim = this->dim;
+        dim[d] = std::min((size_t)1, dim[d]);
+        Tensor ret(dim);
+
+        size_t tot = 1, stride = 1;
+        for (size_t i = 0; i <= d; i++) tot *= dim[i];
+        for (size_t i = d+1; i < dim.size(); i++) stride *= dim[i];
+        
+        for (size_t k = 0; k < tot; k++)
+            for (size_t i = 0; i < stride; i++)
+            {
+                float64 sm = this->b[i + k * stride * this->dim[d]];
+                for (size_t j = 1; j < this->dim[d]; j++)
+                    sm += this->b[j * stride + i + k * stride * this->dim[d]]*this->b[j * stride + i + k * stride * this->dim[d]];
+                
+                ret.b[i + k * stride] = sm;
+            }
+        
+        return ret;
+    }
+
+    inline float64 Tensor::max() const
+    {
+        float64 max = -std::numeric_limits<float64>::infinity();
+        for (size_t i = 0; i < size; i++)
+            if (max < this->b[i]) max = this->b[i];
+        return max;
+    }
+
+    inline Tensor Tensor::max(size_t d) const
+    {
+        d = this->dim.size() - d - 1;
+        auto dim = this->dim;
+        dim[d] = std::min((size_t)1, dim[d]);
+        Tensor ret(dim);
+
+        size_t tot = 1, stride = 1;
+        for (size_t i = 0; i <= d; i++) tot *= dim[i];
+        for (size_t i = d+1; i < dim.size(); i++) stride *= dim[i];
+        size_t full_stride = stride * this->dim[d];
+
+        for (size_t k = 0; k < tot; k++)
+            for (size_t i = 0; i < stride; i++)
+            {
+                float64 tmax = this->b[i + k * full_stride];
+                for (size_t j = 1; j < this->dim[d]; j++)
+                {
+                    float64 n = this->b[j * stride + i + k * full_stride];
+                    if (n > tmax) tmax = n;
+                }
+                ret.b[i + k * stride] = tmax;
+            }
+        
+        return ret;
+    }
+
+    inline float64 Tensor::sum() const
+    {
+        float64 sum = 0.;
+        for (size_t i = 0; i < size; i++)
+            sum += this->b[i];
+        return sum;
+    }
+
+    inline Tensor Tensor::sum(size_t d) const
+    {
+        d = this->dim.size() - d - 1;
+        auto dim = this->dim;
+        dim[d] = std::min((size_t)1, dim[d]);
+        Tensor ret(dim);
+
+        size_t tot = 1, stride = 1;
+        for (size_t i = 0; i <= d; i++) tot *= dim[i];
+        for (size_t i = d+1; i < dim.size(); i++) stride *= dim[i];
+        
+        for (size_t k = 0; k < tot; k++)
+            for (size_t i = 0; i < stride; i++)
+            {
+                float64 sm = this->b[i + k * stride * this->dim[d]];
+                for (size_t j = 1; j < this->dim[d]; j++)
+                    sm += this->b[j * stride + i + k * stride * this->dim[d]];
+                
+                ret.b[i + k * stride] = sm;
+            }
+        
+        return ret;
+    }
 
     inline float64& Tensor::operator()(const size_t* index)
     {
@@ -610,36 +767,6 @@ namespace RedFish {
         return this->b[(x * dim[1] + y) * dim[2] + z];
     }
 
-    /* inline void reprint(std::ostream& os, const Tensor& t, size_t depth, std::vector<size_t>& index)
-    {
-        if (depth < 1) return;
-        for (int i = 0; i < t.dim.size() - depth; i++) os << "  ";
-        os << "[";
-        index.push_back(0);
-        if (depth == 1)
-        {
-            for (size_t i = 0; i < t.dim.back() - 1; i++)
-            {
-                index.back() = i;
-                os << t(index.data()) << ", ";
-            }
-            index.back() = t.dim.back() - 1;
-            os << t(index.data());
-        }
-        else
-        {
-            os << "\n";
-            for (size_t i = 0; i < t.dim[t.dim.size() - depth]; i++)
-            {
-                index.back() = i;
-                reprint(os, t, depth-1, index);
-            }
-            for (int i = 0; i < t.dim.size() - depth; i++) os << "  ";
-        }
-        index.pop_back();
-        os << "],\n";
-    } */
-
     inline void reprint(std::ostream& os, const Tensor& t, size_t depth, std::vector<size_t>& index)
     {
         if (depth == 0) { os << t(index.data()); return; }
@@ -704,12 +831,119 @@ namespace RedFish {
 
     inline bool Tensor::sizeMatch(const Tensor& t) const
     {
-        if (this->dim.size() != t.dim.size())
-            return false;
-        
-        for (int i = 0; i < this->dim.size(); i++)
-            if (this->dim[i] != t.dim[i])
+        size_t end = std::min(this->dim.size(), t.dim.size());
+        for (size_t i = 1; i <= end; i++)
+            if (this->dim[this->dim.size() - i] != t.dim[t.dim.size() - i])
                 return false;
+        for (size_t i = 0; i < this->dim.size() - end; i++) if (this->dim[i] != 1) return false;
+        for (size_t i = 0; i < t.dim.size() - end; i++)     if (t.dim[i] != 1)     return false;
+        
         return true;
     }
+
+
+    /* ---------- Functions ---------- */
+
+    inline Tensor empty_like(const Tensor& t)
+    {
+        return {t.dim};
+    }
+
+    template<float64(*fn)(float64)>
+    inline Tensor forEach(const Tensor& t)
+    {
+        Tensor ret(t.dim);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = fn(t.b[i]);
+        
+        return ret;
+    }
+
+    inline Tensor forEach(const Tensor& t, std::function<double(double)> fn)
+    {
+        Tensor ret(t.dim);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = fn(t.b[i]);
+        
+        return ret;
+    }
+
+    template <void(*fn)(float64&, float64), float64(*init)(float64)>
+    Tensor opAlongAxes(const Tensor& t)
+    {
+        d = t.dim.size() - d - 1;
+        auto dim = t.dim;
+        dim[d] = std::min((size_t)1, dim[d]);
+        Tensor ret(dim);
+
+        size_t tot = 1, stride = 1;
+        for (size_t i = 0; i <= d; i++) tot *= dim[i];
+        for (size_t i = d+1; i < dim.size(); i++) stride *= dim[i];
+        
+        for (size_t k = 0; k < tot; k++)
+            for (size_t i = 0; i < stride; i++)
+            {
+                float64 sm = init(t.b[i + k * stride * t.dim[d]]);
+                for (size_t j = 1; j < t.dim[d]; j++)
+                    fn(sm, t.b[j * stride + i + k * stride * t.dim[d]]);
+                
+                ret.b[i + k * stride] = sm;
+            }
+        
+        return ret;
+    }
+
+}
+
+namespace std
+{
+
+    RedFish::Tensor sqrt(const RedFish::Tensor& t)
+    {
+        RedFish::Tensor ret = RedFish::empty_like(t);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = std::sqrt(t.b[i]);
+        
+        return ret;
+    }
+
+    RedFish::Tensor exp(const RedFish::Tensor& t)
+    {
+        RedFish::Tensor ret = RedFish::empty_like(t);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = std::exp(t.b[i]);
+        
+        return ret;
+    }
+
+    RedFish::Tensor log(const RedFish::Tensor& t)
+    {
+        RedFish::Tensor ret = RedFish::empty_like(t);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = std::log(t.b[i]);
+        
+        return ret;
+    }
+
+    RedFish::Tensor pow(const RedFish::Tensor& t, RedFish::float64 power)
+    {
+        RedFish::Tensor ret = RedFish::empty_like(t);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = std::pow(t.b[i], power);
+        
+        return ret;
+    }
+
+    RedFish::Tensor pow(const RedFish::Tensor& t, const RedFish::Tensor& power)
+    {
+        if (!t.sizeMatch(power))
+            throw std::length_error("Tensor sizes not matching in std::pow operation");
+
+        RedFish::Tensor ret = RedFish::empty_like(t);
+        for (size_t i = 0; i < t.getSize(); i++)
+            ret.b[i] = std::pow(t.b[i], power.b[i]);
+
+        return ret;
+    }
+
 }
