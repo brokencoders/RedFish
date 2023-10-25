@@ -1,5 +1,6 @@
 #pragma once 
 
+#include "Tensor.h"
 #include "Layer.h"
 
 namespace RedFish {
@@ -17,21 +18,21 @@ namespace RedFish {
         }
 
     private:
-        size_t stride; 
+        size_t stride;
         size_t kernel_count;
         size_t kernel_width;
         size_t kernel_height;
         bool padding;
-        std::vector<Algebra::Matrix> kernels;
+        std::vector<Tensor> kernels;
 
-        Algebra::Matrix farward(const Algebra::Matrix& X) override;
-        Algebra::Matrix backward(const Algebra::Matrix& X, const Algebra::Matrix& d, double learning_rate = 0.001) override;
+        Tensor farward(const Tensor& X) override;
+        Tensor backward(const Tensor& X, const Tensor& d) override;
     
         friend class Model;
     };
 
 
-    inline Algebra::Matrix ConvLayer::farward(const Algebra::Matrix& X)
+    inline Tensor ConvLayer::farward(const Tensor& X)
     {
         for (size_t i = 0; i < kernel_count; i++)
         {
@@ -40,7 +41,7 @@ namespace RedFish {
         
     }
 
-    inline Algebra::Matrix ConvLayer::backward(const Algebra::Matrix& X, const Algebra::Matrix& d, double learning_rate) 
+    inline Tensor ConvLayer::backward(const Tensor& X, const Tensor& d) 
     {
         
     }

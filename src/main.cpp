@@ -5,8 +5,7 @@
 #include <ctime>
 
 #include "gnuplot-iostream.h"
-#define ALGEBRA_IMPL
-#include "Algebra.h"
+#include "Tensor.h"
 #include "LinearLayer.h"
 #include "Model.h"
 #include "swap_endian.h"
@@ -14,16 +13,17 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-using namespace Algebra;
+using namespace RedFish;
 
 char grayscale[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 
-std::tuple<Matrix, Matrix> readDataset(const std::string& path_labels, const std::string& path_img)
+std::tuple<Tensor, Tensor> readDataset(const std::string& path_labels, const std::string& path_img)
 {
     /* Labels */
     
     std::ifstream file_labels(path_labels, std::ios::binary);
-    int32_t magic_number, size, w, h;
+    int32_t magic_number;
+    size_t size, w, h;
 
     if (!file_labels.is_open())
         throw std::runtime_error("Error opening file_labels: " + path_labels + "\n");
@@ -58,12 +58,12 @@ std::tuple<Matrix, Matrix> readDataset(const std::string& path_labels, const std
 
     std::cout << magic_number << " " << size << " " << w << " " << h << "\n";
     
-    Matrix in(size, w*h);
+    Tensor in({size, w*h});
     for (size_t i = 0; i < size; i++)
         for (size_t j = 0; j < w*h; j++)
             in(i,j) = imgs[i*w*h + j] / 255.;
 
-    Matrix out(size);
+    Tensor out(size);
 
     for (size_t i = 0; i < size; i++)
         out(i) = labels[i];
@@ -71,7 +71,7 @@ std::tuple<Matrix, Matrix> readDataset(const std::string& path_labels, const std
     return {in, out};
 }
 
-void print_number(const Matrix& n)
+void print_number(const Tensor& n)
 {
     for (size_t r = 0; r < n.rows(); r++)
     {
@@ -109,7 +109,7 @@ int main(int, char**)
     //model.save("model");
     auto [input_test, output_test] = readDataset("../dataset/test_labels", "../dataset/test_images");
 
-    double accuracy = model.test(input_test, output_test, [](const Algebra::Matrix& m1, const Algebra::Matrix& m2) {
+    double accuracy = model.test(input_test, output_test, [](const Tensor& m1, const Tensor& m2) {
         double max = 0; 
         int max_index = 0;
         int result_index = m2(0);

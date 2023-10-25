@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdint>
+#include "Tensor.h"
 
 namespace RedFish {
 
@@ -19,9 +20,9 @@ namespace RedFish {
         Model(int input_size, const std::vector<LayerDesc>& layers, const Loss* loss, const Optimizer* optimizer);
         Model(const std::string& file_path, const Loss* loss, const Optimizer* optimizer);
 
-        void train(const Algebra::Matrix& in, const Algebra::Matrix& out, uint32_t epochs = 100, double learning_rate = .01, int mini_batch_size = 3);
-        double test(const Algebra::Matrix& in, const Algebra::Matrix& out, std::function<double(const Algebra::Matrix&, const Algebra::Matrix&)> accuracy);
-        Algebra::Matrix estimate(const Algebra::Matrix& in);
+        void train(const Tensor& in, const Tensor& out, uint32_t epochs = 100, double learning_rate = .01, int mini_batch_size = 3);
+        double test(const Tensor& in, const Tensor& out, std::function<double(const Tensor&, const Tensor&)> accuracy);
+        Tensor estimate(const Tensor& in);
 
         int save(const std::string& file_path);
 
@@ -62,16 +63,14 @@ namespace RedFish {
             file.read((char*)&layer_input_size, 4);
 
             uint32_t neuron_count;
-            Activation::AF af;
             file.read((char*)&neuron_count, 4);
-            file.read((char*)&af, 4);
 
-            layers.emplace_back(layer_input_size, neuron_count, af, optimizer);
+            layers.emplace_back(layer_input_size, neuron_count, optimizer);
 
             for (auto& neuron : layers.back().neurons)
             {
                 file.read((char*)&neuron.bias, 8);
-                file.read((char*)&neuron.weights(0), 8 * layer_input_size);
+                file.read((char*)&neuron.weights(0UL), 8 * layer_input_size);
             }
 
             layer_input_size = layers.back().neurons.size();
@@ -79,20 +78,20 @@ namespace RedFish {
 
     }
 
-    inline void Model::train(const Algebra::Matrix &in, const Algebra::Matrix &out, uint32_t epochs, double learning_rate, int mini_batch_size)
+    inline void Model::train(const Tensor &in, const Tensor &out, uint32_t epochs, double learning_rate, int mini_batch_size)
     {
         for (int i = 0; i < epochs; i++)
         {
-            Algebra::Matrix mini_batch_in(0, in.cols());
-            Algebra::Matrix mini_batch_out(0, out.cols());
+            Tensor mini_batch_in(0, in.colSize());
+            Tensor mini_batch_out(0, out.colSize());
             for (int j = 0; j < mini_batch_size; j++)
             {
-                int n = rand() % in.rows();
+                int n = rand() % in.rowSize();
                 mini_batch_in.vstack(in.getRow(n));
                 mini_batch_out.vstack(out.getRow(n));
             }   
 
-            std::vector<Algebra::Matrix> fw_res;
+            std::vector<Tensor> fw_res;
 
             fw_res.reserve(layers.size());
 
@@ -103,27 +102,27 @@ namespace RedFish {
             double lossV = loss->farward(fw_res.back(), mini_batch_out);
             std::cout << "Epoch " << i << " - loss: " << lossV << "\n";
 
-            auto bw_res = layers.back().backward(fw_res[fw_res.size()-2], loss->backward(fw_res[fw_res.size()-1], mini_batch_out), learning_rate);
+            auto bw_res = layers.back().backward(fw_res[fw_res.size()-2], loss->backward(fw_res[fw_res.size()-1], mini_batch_out));
             for (size_t j = layers.size() - 2; j > 0; j--)
-                bw_res = layers[j].backward(fw_res[j-1], bw_res, learning_rate);
+                bw_res = layers[j].backward(fw_res[j-1], bw_res);
             
-            bw_res = layers.front().backward(mini_batch_in, bw_res, learning_rate);
+            bw_res = layers.front().backward(mini_batch_in, bw_res);
         }
     }
 
-    inline double Model::test(const Algebra::Matrix &in, const Algebra::Matrix &out, std::function<double(const Algebra::Matrix&, const Algebra::Matrix&)> accuracy)
+    inline double Model::test(const Tensor &in, const Tensor &out, std::function<double(const Tensor&, const Tensor&)> accuracy)
     {
-        Algebra::Matrix ris = this->estimate(in);
+        Tensor ris = this->estimate(in);
         double sum = 0;
-        for (size_t i = 0; i < in.rows(); i++)
+        for (size_t i = 0; i < in.rowSize(); i++)
         {
             sum += accuracy(ris.getRow(i), out.getRow(i));
         }
 
-        return sum / in.rows();
+        return sum / in.rowSize();
     }
 
-    inline Algebra::Matrix Model::estimate(const Algebra::Matrix &in)
+    inline Tensor Model::estimate(const Tensor &in)
     {
         auto fw_res = layers.front().farward(in);
         for (size_t j = 1; j < layers.size(); j++)
@@ -147,18 +146,13 @@ namespace RedFish {
         {
             file.write((char*)&layer_input_size, 4);
 
-            uint32_t neuron_count = layer.neurons.size();
-            file.write((char*)&neuron_count, 4);
+            uint32_t neuron_count = layer.biases.getSize();
+            file.write((char*)&neuron_count, 8);
 
-            file.write((char*)&layer.af, 4);
-
-            for (auto& neuron : layer.neurons)
-            {
-                file.write((char*)&neuron.bias, 8);
-                file.write((char*)&neuron.weights(0), 8 * layer_input_size);
-            }
-
-            layer_input_size = layer.neurons.size();
+            file.write((char*)&layer.biases(0UL),  8 * layer.biases.getSize());
+            file.write((char*)&layer.weights(0UL), 8 * layer.weights.getSize());
+            
+            layer_input_size = layer.weights.rowSize();
         }
 
         return 0;
