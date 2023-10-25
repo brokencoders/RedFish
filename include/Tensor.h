@@ -3,12 +3,14 @@
 #define DEBUG
 
 #include <iostream>
+#include <limits.h>
 #include <vector>
 #include <cstdlib>
 #include <memory>
 #include <stdexcept>
 #include <functional>
 #include <algorithm>
+#include <cmath>
 
 namespace RedFish
 {
@@ -81,6 +83,8 @@ namespace RedFish {
         float64& operator()(size_t x, size_t y, size_t z);
         float64  operator()(size_t x, size_t y, size_t z) const;
 
+        bool operator==(const Tensor& other) const;
+
         friend Tensor operator-(const double, const Tensor&);
         friend Tensor operator/(const double, const Tensor&);
         friend std::ostream& operator<<(std::ostream&, const Tensor&);
@@ -94,15 +98,20 @@ namespace RedFish {
         friend Tensor std::sqrt(const Tensor&);
         friend Tensor std::exp(const Tensor&);
         friend Tensor std::log(const Tensor&);
-        friend Tensor std::pow(const Tensor&, float64);
+        friend Tensor std::pow(const Tensor&, RedFish::float64);
         friend Tensor std::pow(const Tensor&, const Tensor&);
 
         void zero();
+        void ones();
+        void rand();
+        void rand(double start, double end);
+        
         bool sizeMatch(const Tensor& t) const;
 
         size_t colSize() const { return this->dim.back(); }
         size_t rowSize() const { return *(this->dim.end()-2); }
         size_t getSize() const { return size; }
+        std::vector<size_t> getShape() { return dim; }
 
     private:
         std::unique_ptr<float64[]> b;
@@ -612,9 +621,9 @@ namespace RedFish {
         return ret;
     }
 
-    inline float64 Tensor::max() const
+    inline RedFish::float64 Tensor::max() const
     {
-        float64 max = -std::numeric_limits<float64>::infinity();
+        float64 max = -std::numeric_limits<RedFish::float64>::infinity();
         for (size_t i = 0; i < size; i++)
             if (max < this->b[i]) max = this->b[i];
         return max;
@@ -767,6 +776,19 @@ namespace RedFish {
         return this->b[(x * dim[1] + y) * dim[2] + z];
     }
 
+    inline bool Tensor::operator==(const Tensor &t) const
+    {
+        if(dim.size() != t.dim.size()) return false;
+
+        for (int i = 0; i < dim.size(); i++)
+            if (dim[i] != t.dim[i]) return false;
+        
+        for (int i = 0; i < size; i++)
+            if(b[i] != t.b[i]) return false;
+        
+        return true;
+    }
+
     inline void reprint(std::ostream& os, const Tensor& t, size_t depth, std::vector<size_t>& index)
     {
         if (depth == 0) { os << t(index.data()); return; }
@@ -827,7 +849,26 @@ namespace RedFish {
     {
         for (int i = 0; i < size; i++)
             b[i] = 0;
-    }   
+    }  
+
+    inline void Tensor::ones()
+    {
+        for (int i = 0; i < size; i++) 
+            b[i] = 1;
+    }
+
+    inline void Tensor::rand()
+    {
+        for (int i = 0; i < size; i++) 
+            b[i] = (double)std::rand()/RAND_MAX;
+    }
+
+    inline void Tensor::rand(double start, double end)
+    {
+        double l = (end - start) + start;
+        for (int i = 0; i < size; i++) 
+            b[i] = ((double)std::rand()/RAND_MAX) * l;
+    }
 
     inline bool Tensor::sizeMatch(const Tensor& t) const
     {
@@ -871,6 +912,7 @@ namespace RedFish {
     template <void(*fn)(float64&, float64), float64(*init)(float64)>
     Tensor opAlongAxes(const Tensor& t)
     {
+        /*
         d = t.dim.size() - d - 1;
         auto dim = t.dim;
         dim[d] = std::min((size_t)1, dim[d]);
@@ -891,6 +933,7 @@ namespace RedFish {
             }
         
         return ret;
+        */
     }
 
 }
