@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include "Tensor.h"
 using namespace std;
 using namespace RedFish;
@@ -39,6 +40,24 @@ TEST(TensorTest, sumTest)
 TEST(TensorTest, subTest)
 {
 
+}
+
+TEST(TensorTest, alongAxisTest)
+{
+    Tensor t1({5, 5, 5});
+    t1.rand(10, 20);
+
+    std::cout << t1 << t1.max(0) << t1.max(1) << t1.max(2) << t1.max(0).max(1);
+}
+
+TEST(TensorTest, transposedTest)
+{
+    Tensor t1({10, 50, 50});
+    t1.rand(10, 20);
+    
+    auto time = std::chrono::high_resolution_clock::now();
+    auto tt = t1.T();
+    std::cout << "Transposition took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
 }
 
 int main(int argc, char** argv)
