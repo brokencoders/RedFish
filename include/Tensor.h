@@ -35,10 +35,143 @@ namespace RedFish {
     Tensor opAlongAxes(const Tensor&, size_t, const float64);
     template <void(*fn)(float64&, float64)>
     float64 opAlongAllAxes(const Tensor&, const float64);
+    bool broadcastable(const std::vector<size_t>&, const std::vector<size_t>&);
 
     class Tensor
     {
-    private:
+    public:
+
+    class Index
+    {
+    public:
+        Index(Tensor t1, Tensor t2)
+            :sizeT1(1), sizeT2(1), sizeT3(1)
+        {
+            #ifdef CHECK_BOUNDS
+            // Check if broadcast is possible
+            if(!broadcastable(t1.shape, t2.shape))
+                throw std::length_error("Brodcasting not possible!");
+            #endif
+            
+            shapeT1 = t1.shape;
+            shapeT2 = t2.shape;
+
+            if (shapeT1.size() > shapeT2.size())
+                for (int i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT2.insert(shapeT2.begin(), 1);
+            else 
+                for (int i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT1.insert(shapeT1.begin(), 1);
+
+            shapeT3.reserve(shapeT1.size());
+            for (int i = 0; i < shapeT1.size(); i++)
+                shapeT3.push_back(std::max(shapeT1[i], shapeT2[i]));
+            
+            for (int i = 0; i < shapeT3.size(); i++)
+            {
+                sizeT1 *= shapeT1[i];
+                sizeT2 *= shapeT2[i];
+                sizeT3 *= shapeT3[i];
+            }
+
+            index1.insert(index1.begin(), shapeT1.size(), 0);
+            index2.insert(index2.begin(), shapeT2.size(), 0);
+        }
+
+        void increment()
+        {
+            bool add1 = true, add2 = true;
+            for (size_t i = index1.size()-1; (add1 || add2) && i != (size_t)-1; i--)
+            {
+                size_t index1_i = index1[i];
+                if (add1)
+                {
+                    if (shapeT1[i] == shapeT3[i])
+                        if (index1[i] + 1 < shapeT1[i])
+                            index1[i]++,
+                            add1 = false;
+                        else
+                            index1[i] = 0;
+                    else if (index2[i] + 1 < shapeT2[i])
+                        add1 = false;
+                    else
+                        add1 = true;
+                }
+                if (add2)
+                {
+                    if (shapeT2[i] == shapeT3[i])
+                        if (index2[i] + 1 < shapeT2[i])
+                            index2[i]++,
+                            add2 = false;
+                        else
+                            index2[i] = 0;
+                    else if (index1_i + 1 < shapeT1[i])
+                        add2 = false;
+                    else
+                        add2 = true;
+                }
+            }
+        }
+        
+        std::vector<size_t> shapeT1;
+        std::vector<size_t> index1;
+        std::vector<size_t> shapeT2;
+        std::vector<size_t> index2;
+        std::vector<size_t> shapeT3;
+        
+        size_t sizeT1;
+        size_t sizeT2;
+        size_t sizeT3;
+
+        struct Iterator 
+        {
+            Iterator(size_t i0, size_t i1, size_t i2, Index* idx)
+                : idx(idx) 
+            {
+                index[0] = i0;
+                index[1] = i1;
+                index[2] = i2;
+            }
+
+            const size_t* operator*() const { return index; }
+            const size_t* operator->() { return index; }
+            
+            Iterator& operator++()
+            { 
+                idx->increment();
+                index[2] ++;
+
+                size_t offset1 = 0;
+                size_t offset2 = 0;
+                for (size_t i = 0; i < idx->shapeT3.size() - 1; i++)
+                {
+                    offset1 = (offset1 + idx->index1[i]) * idx->shapeT1[i + 1];
+                    offset2 = (offset2 + idx->index2[i]) * idx->shapeT2[i + 1];
+                }
+
+                index[0] = offset1 + idx->index1.back();
+                index[1] = offset2 + idx->index2.back();
+
+                return *this; 
+            }
+
+            friend bool operator== (const Iterator& a, const Iterator& b) 
+            { 
+                return a.index[0] == b.index[0] && a.index[1] == b.index[1] && a.index[2] == b.index[2]; 
+            };
+
+            friend bool operator!= (const Iterator& a, const Iterator& b) 
+            { 
+                return a.index[0] != b.index[0] && a.index[1] != b.index[1] && a.index[2] != b.index[2];
+            };
+
+            size_t index[3];
+            Index* idx;
+        };
+
+        Iterator begin() { return Iterator((size_t)0,(size_t)0,(size_t)0, this); }
+        Iterator end()   { return Iterator(sizeT1, sizeT2, sizeT3, this); }
+    };
         
     public:
         Tensor(const std::vector<size_t>& shape = {});
