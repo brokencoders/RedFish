@@ -16,8 +16,8 @@ namespace RedFish::Activation
     };
 
     class ReLU : public Layer  {
-        static double relu(double n)   { return n < 0. ? 0. : n; }
-        static double relu_d(double n) { return n < 0. ? 0. : 1.; }
+        static double relu(double n)   { return n < 0. ? 0. : n; }      /* { return (n >= 0.) * n; } */
+        static double relu_d(double n) { return n < 0. ? 0. : 1.; }     /* { return (double)(n >= 0.); } */
 
     public:
         Tensor farward(const Tensor& X) override { return forEach<relu>(X); }
@@ -26,8 +26,8 @@ namespace RedFish::Activation
     };
 
     class LeakyReLU : public Layer  {
-        static double lrelu(double n)   { return n < 0. ? 0.01 * n : n; }
-        static double lrelu_d(double n) { return n < 0. ? 0.01 : 1.; }
+        static double lrelu(double n)   { return n < 0. ? 0.01 * n : n; }   /* { return ((n < 0.) * .01 + (n >= 0.)) * n; } */
+        static double lrelu_d(double n) { return n < 0. ? 0.01 : 1.; }      /* { return (n < 0.) * .01  + (n >= 0.) * 1.; } */
 
     public:
         Tensor farward(const Tensor& X) override { return forEach<lrelu>(X); }
@@ -36,8 +36,8 @@ namespace RedFish::Activation
     };
 
     class PReLU : public Layer  {
-        static double prelu(double n, double a)   { return n < 0. ? a * n : n; }
-        static double prelu_d(double n, double a) { return n < 0. ? a : 1.; }
+        static double prelu(double n, double a)   { return n < 0. ? a * n : n; }    /* { return ((n < 0.) * a + (n >= 0.)) * n; } */
+        static double prelu_d(double n, double a) { return n < 0. ? a : 1.; }       /* { return (n < 0.) * a  + (n >= 0.) * 1.; } */
 
         std::function<double(double)> prelua, prelua_d;
 
@@ -117,19 +117,38 @@ namespace RedFish::Activation
 
         Tensor backward(const Tensor& X, const Tensor& d) override
         {
-            Tensor dX({X.colSize(), X.colSize()});
+            Tensor grad({d.rowSize(), X.colSize()});
+            Tensor dX({X.colSize()});
             Tensor g = farward(X);
 
-            float64 g_i;
-            for (int i = 0; i < X.colSize(); i++)
-            {
-                g_i = g(i);
-                dX(i, i) = g_i * (1. - g_i);
-                for(int j = i + 1; j < X.colSize(); j++)
-                    dX(j, i) = dX(i, j) = -g_i*g(j);
+            for (size_t r = 0, rs = X.rowSize(), cs = X.colSize(); r < rs; r++) {
+
+                float64 g_i = g(r, 0);
+                float64 d_r_i = d(r, 0);
+                grad(r, 0) = d_r_i * g_i * (1. - g_i);
+                for(size_t j = 1; j < cs; j++)
+                {
+                    float64 dX = -g_i*g(r, j);
+                    grad(r, 0) += d(r, j) * dX;
+                    grad(r, j)  = d_r_i   * dX;
+                }
+                for (size_t i = 1; i < cs; i++)
+                {
+                    g_i = g(r, i);
+                    d_r_i = d(r, i);
+                    grad(r, i) += d_r_i * g_i * (1. - g_i);
+                    for(size_t j = i + 1; j < cs; j++)
+                    {
+                        float64 dX = -g_i*g(r, j);
+                        grad(r, i) += d(r, j) * dX;
+                        grad(r, j) += d_r_i   * dX;
+                    }
+                }
+
+                //grad.setRow(r, d.getRow(r).matmul(dX));
             }
 
-            return d;
+            return grad;
         }
 
     };

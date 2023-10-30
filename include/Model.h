@@ -1,6 +1,5 @@
 #pragma once 
 
-#include "Activation.h"
 #include "LinearLayer.h"
 #include "Loss.h"
 #include <iostream>
@@ -9,11 +8,6 @@
 #include "Tensor.h"
 
 namespace RedFish {
-
-    struct LayerDesc {
-        int neuron_count;
-        Activation::AF activation_func;
-    };
 
     class Model {
     public:
@@ -89,7 +83,7 @@ namespace RedFish {
                 int n = rand() % in.rowSize();
                 mini_batch_in.vstack(in.getRow(n));
                 mini_batch_out.vstack(out.getRow(n));
-            }   
+            }
 
             std::vector<Tensor> fw_res;
 

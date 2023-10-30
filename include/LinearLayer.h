@@ -1,11 +1,6 @@
 #pragma once 
 
-#include <iostream>
-#include <cstdlib>
-#include <vector>
-#include <memory>
 #include "Layer.h"
-#include "Activation.h"
 #include "Optimizer.h"
 #include "Tensor.h"
 
@@ -16,6 +11,8 @@ namespace RedFish {
         LinearLayer(size_t input_size, size_t neuron_count, Optimizer* optimizer) 
             : weights({input_size, neuron_count}), biases({neuron_count}), optimizer(optimizer)
         {
+            weights.rand(-.5, .5);
+            biases.rand(-.5, .5);
             w_id = optimizer->allocateParameter(weights);
             b_id = optimizer->allocateParameter(biases);
         }
@@ -42,7 +39,7 @@ namespace RedFish {
     {
         Tensor dX = d.matmul(weights.T());
         Tensor grad = X.T().matmul(d) * (1./d.rowSize());
-        Tensor bias_grad = d.rowSum() / d.rowSize();
+        Tensor bias_grad = d.sum((size_t)0) / d.rowSize();
 
         optimizer->updateParameter(w_id, weights, grad);
         optimizer->updateParameter(b_id, biases, bias_grad);

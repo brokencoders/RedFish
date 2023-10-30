@@ -49,12 +49,12 @@ namespace RedFish {
         {
             Tensor ret({prediction.rowSize(), prediction.colSize()});
 
-            Algebra::float64 avg = 1. / prediction.rowSize();
+            float64 avg = 1. / prediction.rowSize();
             ret.zero();
             for (size_t r = 0; r < ret.rowSize(); r++)
             {
                 size_t idx = (size_t)ground_truth(r, 0);
-                ret(r, idx) = std::min(- avg / prediction(r, idx), std::numeric_limits<Algebra::float64>::max());
+                ret(r, idx) = std::min(- avg / prediction(r, idx), std::numeric_limits<float64>::max());
             }
             return ret;
         }

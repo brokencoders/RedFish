@@ -7,23 +7,14 @@ namespace RedFish {
 
     class ConvLayer : public Layer {
     public:
-        ConvLayer(size_t kernel_count, size_t kernel_width, size_t kernel_height, size_t stride, bool padding)
-            : kernel_count(kernel_count), kernel_width(kernel_width), kernel_height(kernel_height), stride(stride), padding(padding)
-        {
-            for (size_t i = 0; i < kernel_count; i++)
-            {
-                kernels.emplace_back(kernel_width, kernel_height);
-            }
-            
-        }
+        ConvLayer(std::vector<size_t> kernel_size, size_t stride, bool padding)
+            : kernels(kernel_size), stride(stride), padding(padding)
+        {}
 
     private:
+        Tensor kernels;
         size_t stride;
-        size_t kernel_count;
-        size_t kernel_width;
-        size_t kernel_height;
         bool padding;
-        std::vector<Tensor> kernels;
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
@@ -34,15 +25,11 @@ namespace RedFish {
 
     inline Tensor ConvLayer::farward(const Tensor& X)
     {
-        for (size_t i = 0; i < kernel_count; i++)
-        {
-            
-        }
-        
+        return Tensor();
     }
 
     inline Tensor ConvLayer::backward(const Tensor& X, const Tensor& d) 
     {
-        
+        return Tensor();
     }
 }

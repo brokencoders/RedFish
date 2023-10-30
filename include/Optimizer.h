@@ -1,6 +1,6 @@
 #pragma once
+
 #include <iostream>
-#include <memory>
 #include <vector>
 #include "Tensor.h"
 
@@ -42,7 +42,7 @@ namespace RedFish
 
             value -= learning_rate * m_hat / (std::sqrt(v_hat) - epsilon);
         }
-        virtual void step()
+        virtual void step() override
         {
             t++;
             im1 = 1 / (1 - std::pow(b1, t));

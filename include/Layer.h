@@ -1,6 +1,6 @@
 #pragma once 
 
-#include "Algebra.h"
+#include "Tensor.h"
 
 namespace RedFish {
 
