@@ -243,7 +243,7 @@ namespace RedFish {
         this->shape = shape;
     }
 
-    inline void matmul_impl(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
+    /* inline void matmul_impl(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
     {
         for (size_t j = 0; j < rows; j++)
             for (size_t k = 0; k < cols; k++)
@@ -251,18 +251,33 @@ namespace RedFish {
         for (size_t i = 1; i < mid; i++)
             for (size_t j = 0; j < rows; j++)
                 for (size_t k = 0; k < cols; k++)
-                    dst[j*ld0 + k] += m1[j*ld1 + i] * m2[i*ld2 + k]; 
-    }
+                    dst[j*ld0 + k] += m1[j*ld1 + i] * m2[i*ld2 + k];
+    } */
 
-    /* inline void matmul_impl(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
+    inline void matmul_impl(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
     {
         for (size_t j = 0; j < rows; j++)
             for (size_t k = 0; k < cols; k++)
-                dst[j*ld0 + k] = m1[j*ld1] * m2[k*ld2]; 
+                dst[j*ld0 + k] = m1[j] * m2[k]; 
         for (size_t i = 1; i < mid; i++)
             for (size_t j = 0; j < rows; j++)
                 for (size_t k = 0; k < cols; k++)
-                    dst[j*ld0 + k] += m1[j*ld1 + i] * m2[k*ld2 + i];
+                    dst[j*ld0 + k] += m1[j + i*ld1] * m2[i*ld2 + k];
+    }
+
+    /* inline void matmul_gotoblas(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
+    {
+        for (size_t jc = 0; jc < N; jc += steps of NC)
+            for (size_t kc = 0; kc < K; kc += steps of KC)
+                //Pack KCxNC block of B
+                for (size_t ic = 0; ic < M; ic += steps of MC)
+                    //Pack MCxKC block of A
+        ----------------Macro Kernel------------
+                    for (size_t jr = 0; jr < NC; jr += steps of NR)
+                        for (size_t ir = 0; ir < MC; ir += steps of MR)
+        ----------------Micro Kernel------------
+                            for (size_t k = 0; k < KC; k++)
+                                //update MRxNR block of C matrix
     } */
 
     inline void for_matmul(float64* dst, const float64* src1, const float64* src2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2, 
@@ -309,9 +324,9 @@ namespace RedFish {
             shapeT1.push_back(rows);
             shapeT1.push_back(cols);
             result.resize(shapeT1);
-            // Tensor tt = t.T();
+            Tensor tt = this->T();
             for (size_t i = 0; i < size1; i++)
-                matmul_impl(result.b.get() + i*matsize0, b.get() + i*matsize1, t.b.get() + i*matsize2, rows, mid, cols, cols, mid, cols);
+                matmul_impl(result.b.get() + i*matsize0, tt.b.get() + i*matsize1, t.b.get() + i*matsize2, rows, mid, cols, cols, rows, cols);
         }
         else if(broadcastable(shapeT1, shapeT2)) /* To Fix */
         {

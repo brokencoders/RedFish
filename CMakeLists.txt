@@ -9,7 +9,13 @@ set(HEADER_FOLDER "include")
 find_package(Boost REQUIRED COMPONENTS iostreams system filesystem)
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_executable(RedFish "${SOURCE_FOLDER}/main.cpp")
+add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
+                    ${SOURCE_FOLDER}/LinearLayer.cpp
+                    ${SOURCE_FOLDER}/Loss.cpp
+                    ${SOURCE_FOLDER}/Optimizer.cpp
+                    ${SOURCE_FOLDER}/Layer.cpp
+                    ${SOURCE_FOLDER}/Model.cpp)
+add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
 
 target_link_libraries(RedFish PRIVATE Boost::iostreams Boost::system Boost::filesystem)
 
@@ -23,7 +29,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
-target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/)
+target_include_directories(RedFish PUBLIC include)
+target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/)
+target_link_libraries(RedFishMain PUBLIC RedFish)
 
 add_subdirectory(test)
 

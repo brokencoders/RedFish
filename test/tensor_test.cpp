@@ -47,15 +47,17 @@ TEST(TensorTest, stackTest)
 
 TEST(TensorTest, matmul)
 {
-    Tensor t1({1,3,2}), t2({1,2,3});
-    for (size_t i = 0; i < 6; i++) t1(i) = i;
-    for (size_t i = 0; i < 6; i++) t2(i) = i;
+    Tensor t1({1000,1000}), t2({1000,1000});
+    t1.rand();
+    t2.rand();
+    //for (size_t i = 0; i < 6; i++) t1(i) = i;
+    //for (size_t i = 0; i < 6; i++) t2(i) = i;
     
     std::cout << "\n\n\nMatmul test \n" << t1 << t2 << matmul(t1, t2) << "\n\n\n";
     
-    //auto time = std::chrono::high_resolution_clock::now();
-    //matmul(t1, t2)
-    //std::cout << "Broadcast sum took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+    auto time = std::chrono::high_resolution_clock::now();
+    matmul(t1, t2);
+    std::cout << "Matmul took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
 }
 
 TEST(TensorTest, broadcastSum)

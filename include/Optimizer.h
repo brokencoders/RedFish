@@ -16,6 +16,12 @@ namespace RedFish
         virtual size_t allocateParameter(const Tensor&) = 0;
         virtual void updateParameter(size_t i, Tensor& value, const Tensor& grad) = 0;
         virtual void step() = 0;
+        virtual void setLearningRate(float64) = 0;
+
+    };
+
+    enum : uint32_t {
+        ADAM_OPTIMIZER
     };
 
 
@@ -23,31 +29,11 @@ namespace RedFish
     class Adam : public Optimizer
     {
     public:
-        Adam(double learning_rate) : mw(), vw(), im1(1 / (1 - b1)), im2(1 / (1 - b2)), learning_rate(learning_rate), t(1) {}
-        size_t allocateParameter(const Tensor& t) override
-        {
-            mw.emplace_back(empty_like(t));
-            vw.emplace_back(empty_like(t));
-            return mw.size() - 1;
-        }
-        void updateParameter(size_t i, Tensor& value, const Tensor& grad) override
-        {
-            mw[i] *= b1;
-            vw[i] *= b2;
-            mw[i] += grad      * one_minus_b1;
-            vw[i] += grad*grad * one_minus_b2; 
-
-            Tensor m_hat = mw[i] * im1; 
-            Tensor v_hat = vw[i] * im2;
-
-            value -= learning_rate * m_hat / (std::sqrt(v_hat) - epsilon);
-        }
-        virtual void step() override
-        {
-            t++;
-            im1 = 1 / (1 - std::pow(b1, t));
-            im2 = 1 / (1 - std::pow(b2, t));
-        }
+        Adam();
+        size_t allocateParameter(const Tensor& t) override;
+        void updateParameter(size_t i, Tensor& value, const Tensor& grad) override;
+        void step() override;
+        void setLearningRate(float64 lr);
 
     private:
         std::vector<Tensor> mw, vw;
@@ -59,5 +45,8 @@ namespace RedFish
         static constexpr const double one_minus_b2 = 1 - b2;
         static constexpr const double epsilon = 1e-8;
     };
+
+
+    Optimizer* make_optimizer(uint32_t o);
 
 }
