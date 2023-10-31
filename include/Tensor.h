@@ -243,52 +243,78 @@ namespace RedFish {
         this->shape = shape;
     }
 
-    /* inline void matmul_impl(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
+    inline void matmul_gotoblas(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
     {
-        for (size_t j = 0; j < rows; j++)
-            for (size_t k = 0; k < cols; k++)
-                dst[j*ld0 + k] = m1[j*ld1] * m2[k]; 
-        for (size_t i = 1; i < mid; i++)
-            for (size_t j = 0; j < rows; j++)
-                for (size_t k = 0; k < cols; k++)
-                    dst[j*ld0 + k] += m1[j*ld1 + i] * m2[i*ld2 + k];
-    } */
+        const size_t block_size = 8;
+        size_t j_end = rows - rows % block_size;
+        size_t i_end = cols - cols % block_size;
+        size_t k_end = mid  - mid  % block_size;
 
-    inline void matmul_impl(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
-    {
-        for (size_t j = 0; j < rows; j++)
-            for (size_t k = 0; k < cols; k++)
-                dst[j*ld0 + k] = m1[j] * m2[k]; 
-        for (size_t i = 1; i < mid; i++)
-            for (size_t j = 0; j < rows; j++)
-                for (size_t k = 0; k < cols; k++)
-                    dst[j*ld0 + k] += m1[j + i*ld1] * m2[i*ld2 + k];
+        #pragma omp parallel for
+        for (size_t jc = 0; jc < j_end; jc += block_size)
+        {
+            for (size_t kc = 0; kc < k_end; kc += block_size)
+            {
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+            }
+                
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                    for (size_t k  = k_end; k < mid; k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                    for (size_t k  = k_end; k  < mid;  k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+        }
+            for (size_t kc = 0; kc < k_end; kc += block_size)
+            {
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+            }
+                
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                    for (size_t k  = k_end; k < mid; k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                    for (size_t k  = k_end; k  < mid;  k++)
+                        dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
+
+
     }
-
-    /* inline void matmul_gotoblas(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
-    {
-        for (size_t jc = 0; jc < N; jc += steps of NC)
-            for (size_t kc = 0; kc < K; kc += steps of KC)
-                //Pack KCxNC block of B
-                for (size_t ic = 0; ic < M; ic += steps of MC)
-                    //Pack MCxKC block of A
-        ----------------Macro Kernel------------
-                    for (size_t jr = 0; jr < NC; jr += steps of NR)
-                        for (size_t ir = 0; ir < MC; ir += steps of MR)
-        ----------------Micro Kernel------------
-                            for (size_t k = 0; k < KC; k++)
-                                //update MRxNR block of C matrix
-    } */
 
     inline void for_matmul(float64* dst, const float64* src1, const float64* src2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2, 
                            const size_t* shape, const size_t* shape1, const size_t* shape2, size_t depth, size_t off, size_t off1, size_t off2)
     {
-        if (depth > 2)
+        if (depth > 1)
             for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
                 for_matmul(dst, src1, src2, rows, mid, cols, ld0, ld1, ld2, shape+1, shape1+1, shape2+1, depth-1, off * *shape + i, off1 * *shape1 + (i & bdc1), off2 * *shape2 + (i & bdc2));
         else
             for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
-                matmul_impl(dst + off * *shape + i, src1 + off1 * *shape1 + (i & bdc1), src2 + off2 * *shape2 + (i & bdc2), rows, mid, cols, ld0, ld1, ld2);
+                matmul_gotoblas(dst + (off * *shape + i) * ld0*rows, src1 + (off1 * *shape1 + (i & bdc1)) * ld1*rows, src2 + (off2 * *shape2 + (i & bdc2)) * ld2*mid, rows, mid, cols, ld0, ld1, ld2);
     }
 
     inline Tensor Tensor::matmul(const Tensor &t) const
@@ -324,11 +350,11 @@ namespace RedFish {
             shapeT1.push_back(rows);
             shapeT1.push_back(cols);
             result.resize(shapeT1);
-            Tensor tt = this->T();
+            result.zero();
             for (size_t i = 0; i < size1; i++)
-                matmul_impl(result.b.get() + i*matsize0, tt.b.get() + i*matsize1, t.b.get() + i*matsize2, rows, mid, cols, cols, rows, cols);
+                matmul_gotoblas(result.b.get() + i*matsize0, b.get() + i*matsize1, t.b.get() + i*matsize2, rows, mid, cols, cols, mid, cols);
         }
-        else if(broadcastable(shapeT1, shapeT2)) /* To Fix */
+        else if(broadcastable(shapeT1, shapeT2))
         {
             std::vector<size_t> shapeDst(shapeT1.size());
             for (size_t i = 0; i < shapeT1.size(); i++)
@@ -342,9 +368,10 @@ namespace RedFish {
             shapeT2.push_back(cols);
                 
             result.resize(shapeDst);
+            result.zero();
             if (result.size)
                 for_matmul(result.b.get(), this->b.get(), t.b.get(), rows, mid, cols, cols, mid, cols,
-                           shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size(), (size_t)0,(size_t)0,(size_t)0);
+                           shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size()-2, (size_t)0,(size_t)0,(size_t)0);
         }
         else
             throw std::length_error("Shapes not matching in Tensor matmul");
