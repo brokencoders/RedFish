@@ -24,9 +24,9 @@ namespace RedFish::Activation
     double PReLU::prelu(double n, double a)   { return n < 0. ? a * n : n; }    /* { return ((n < 0.) * a + (n >= 0.)) * n; } */
     double PReLU::prelu_d(double n, double a) { return n < 0. ? a : 1.; }       /* { return (n < 0.) * a  + (n >= 0.) * 1.; } */
 
-    PReLU::PReLU(double a)
-        : prelua(std::bind(prelu, std::placeholders::_1, a)),
-            prelua_d(std::bind(prelu_d, std::placeholders::_1, a))
+    PReLU::PReLU(float64 a)
+        : prelua([a](double n){return prelu(n, a);}),
+          prelua_d([a](double n){return prelu_d(n, a);})
     {}
 
     Tensor PReLU::farward(const Tensor& X) { return forEach(X, prelua); }
@@ -86,13 +86,13 @@ namespace RedFish::Activation
 
         for (size_t r = 0, rs = X.rowSize(), cs = X.colSize(); r < rs; r++)
         {
-            float64 g_i = g(r, 0);
-            float64 d_r_i = d(r, 0);
-            grad(r, 0) = d_r_i * g_i * (1. - g_i);
+            float64 g_i = g(r, (size_t)0);
+            float64 d_r_i = d(r, (size_t)0);
+            grad(r, (size_t)0) = d_r_i * g_i * (1. - g_i);
             for(size_t j = 1; j < cs; j++)
             {
                 float64 dX = -g_i*g(r, j);
-                grad(r, 0) += d(r, j) * dX;
+                grad(r, (size_t)0) += d(r, j) * dX;
                 grad(r, j)  = d_r_i   * dX;
             }
             for (size_t i = 1; i < cs; i++)

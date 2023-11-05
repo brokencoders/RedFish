@@ -100,16 +100,16 @@ int main(int, char**)
 
     return 0; */
 
-    Model model({{Layer::Descriptor::LINEAR, {784, 784}},
+    Model model({{Layer::Descriptor::LINEAR, {(size_t)784, (size_t)784}},
                  {Layer::Descriptor::RELU},
-                 {Layer::Descriptor::LINEAR, {784, 10}},
+                 {Layer::Descriptor::LINEAR, {(size_t)784, (size_t)10}},
                  {Layer::Descriptor::SOFTMAX}},
                  CROSS_ENTROPY_LOSS,
                  ADAM_OPTIMIZER);
 
     auto [input, output] = readDataset("../dataset/train_labels", "../dataset/train_images");
 
-    model.train(input, output, 1000, .02, 20);
+    model.train(input, output, 500, .02, 400);
     
     //model.save("model");
     auto [input_test, output_test] = readDataset("../dataset/test_labels", "../dataset/test_images");
@@ -125,7 +125,7 @@ int main(int, char**)
         return result_index == max_index;
     });
 
-    std::cout << accuracy << output_test << "Accuracy: " << accuracy * 100 << " %\n";
+    std::cout << "Accuracy: " << accuracy * 100 << " %\n";
 
 }
 

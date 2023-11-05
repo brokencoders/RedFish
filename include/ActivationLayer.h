@@ -42,7 +42,7 @@ namespace RedFish::Activation
         std::function<double(double)> prelua, prelua_d;
 
     public:
-        PReLU(double a);
+        PReLU(float64 initial = .25);
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;

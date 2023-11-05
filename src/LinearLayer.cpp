@@ -19,14 +19,12 @@ namespace RedFish {
     Tensor LinearLayer::backward(const Tensor &X, const Tensor &d)
     {
         const float64 lambda = .001;
-        Tensor dX = d.matmul(weights.T());
-        Tensor grad = X.T().matmul(d) + weights * lambda;
-        Tensor bias_grad = d.sum((size_t)0);
+        Tensor dX = d.matmul(weights, Transpose::RIGHT);
+        Tensor grad = X.matmul(d, Transpose::LEFT) + weights * lambda;
+        Tensor bias_grad = d.sum((size_t)1);
 
         optimizer->updateParameter(w_id, weights, grad);
         optimizer->updateParameter(b_id, biases, bias_grad);
-
-        optimizer->step();
 
         return dX;
     }

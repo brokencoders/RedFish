@@ -25,8 +25,7 @@ namespace RedFish {
         case Layer::Descriptor::GAUSSIAN:   return new Activation::Gaussian();
         case Layer::Descriptor::SOFTMAX:    return new Activation::Softmax();
 
-        default:
-            break;
+        default: return nullptr;
         }
     }
 

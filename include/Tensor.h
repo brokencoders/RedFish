@@ -5,12 +5,19 @@
 #include <iostream>
 #include <limits.h>
 #include <vector>
+#include <array>
 #include <cstdlib>
 #include <memory>
 #include <stdexcept>
 #include <functional>
 #include <algorithm>
 #include <cmath>
+
+#ifdef USE_PROFILING
+#include "Profiler.h"
+#else
+#define PROFILE
+#endif
 
 namespace RedFish
 {
@@ -30,17 +37,24 @@ namespace std
 namespace RedFish {
 
     typedef double float64;
+    class DirectTensorView;
+
+    enum Transpose { LEFT, RIGHT, NONE };
     
+    template <void(*fn)(float64&, float64)>\
+    Tensor op_along_axes(const Tensor&, size_t, const float64);
     template <void(*fn)(float64&, float64)>
-    Tensor opAlongAxes(const Tensor&, size_t, const float64);
-    template <void(*fn)(float64&, float64)>
-    float64 opAlongAllAxes(const Tensor&, const float64);
+    float64 op_along_all_axes(const Tensor&, const float64);
     template <float64(*fn)(float64, float64)>
-    void for_(Tensor&, const Tensor&, const Tensor&, const size_t*, const size_t*, const size_t*, size_t, size_t, size_t, size_t);
+    void broadcast_ew_assign(Tensor&, const Tensor&, const Tensor&, const size_t*, const size_t*, const size_t*, size_t, size_t=0, size_t=0, size_t=0);
+    template<auto fn, typename... Args>
+    void broadcast_op(float64*, const float64*, const float64*, const size_t*, const size_t*, const size_t*, size_t, size_t, size_t, size_t, Args...);
     template <float64(*fn)(float64, float64)>
-    Tensor ewOrBroadcast(const Tensor&, const Tensor&, const char*);
+    Tensor ew_or_broadcast(const Tensor&, const Tensor&, const char*);
     template <float64(*fn)(float64, float64)>
-    void ewOrBroadcastAssign(Tensor&, const Tensor&, const char*);
+    void ew_or_broadcast_assign(Tensor&, const Tensor&, const char*);
+    template <float64(*fn)(float64, float64)>
+    void ew_or_left_broadcast_assign(Tensor&, const Tensor&, const char*);
     bool broadcastable(const std::vector<size_t>&, const std::vector<size_t>&);
 
     class Tensor
@@ -57,7 +71,7 @@ namespace RedFish {
         void resize(const std::vector<size_t>& shape);
         void reshape(const std::vector<size_t>& shape);
 
-        Tensor matmul(const Tensor& t) const;
+        Tensor matmul(const Tensor& t, const Transpose transpose = NONE) const;
         Tensor T() const;
         Tensor T(size_t dimension1, size_t dimension2);
     
@@ -80,6 +94,10 @@ namespace RedFish {
         Tensor& operator/=(const Tensor& t);
         Tensor& operator/=(const float64 val);
 
+        Tensor crossCorrelation1d(const Tensor& kernel);
+        Tensor crossCorrelation2d(const Tensor& kernel);
+        Tensor crossCorrelation3d(const Tensor& kernel);
+
         float64 squareSum() const;
         Tensor  squareSum(size_t dimension) const;
         float64 max() const;
@@ -89,20 +107,22 @@ namespace RedFish {
         float64 sum() const;
         Tensor  sum(size_t dimension) const;
 
-        float64& operator()(const size_t* index);
-        float64  operator()(const size_t* index) const;
+        float64& operator()(const std::vector<size_t>& index);
+        float64  operator()(const std::vector<size_t>& index) const;
 
-        float64& operator()();
-        float64  operator()() const;
+        template<typename... Args>
+        float64& operator()(Args... indices);
+        template<typename... Args>
+        float64  operator()(Args... indices) const;
 
-        float64& operator()(size_t x);
-        float64  operator()(size_t x) const;
-
-        float64& operator()(size_t x, size_t y);
-        float64  operator()(size_t x, size_t y) const;
-
-        float64& operator()(size_t x, size_t y, size_t z);
-        float64  operator()(size_t x, size_t y, size_t z) const;
+        DirectTensorView getRow(const std::vector<size_t>& index);
+        const DirectTensorView getRow(const std::vector<size_t>& index) const;
+        DirectTensorView getMatrix(const std::vector<size_t>& index);
+        const DirectTensorView getMatrix(const std::vector<size_t>& index) const;
+        template<size_t N>
+        DirectTensorView sliceLastNDims(const std::vector<size_t>& index);
+        template<size_t N>
+        const DirectTensorView sliceLastNDims(const std::vector<size_t>& index) const;
 
         bool operator==(const Tensor& other) const;
 
@@ -114,16 +134,21 @@ namespace RedFish {
         template<float64(*fn)(float64)>
         friend Tensor forEach(const Tensor&);
         friend Tensor forEach(const Tensor&, std::function<float64(float64)>);
+        template<float64(*fn)(float64)>
+        friend Tensor& forEachInPlace(Tensor&);
+        friend Tensor& forEachInPlace(Tensor&, std::function<float64(float64)>);
         template <void(*fn)(float64&, float64)>
-        friend Tensor opAlongAxes(const Tensor&, size_t, const float64);
+        friend Tensor op_along_axes(const Tensor&, size_t, const float64);
         template <void(*fn)(float64&, float64)>
-        friend float64 opAlongAllAxes(const Tensor&, const float64);
+        friend float64 op_along_all_axes(const Tensor&, const float64);
         template<float64(*fn)(float64, float64)>
-        friend void for_(Tensor&, const Tensor&, const Tensor&, const size_t*, const size_t*, const size_t*, size_t, size_t, size_t, size_t);
+        friend void broadcast_ew_assign(Tensor&, const Tensor&, const Tensor&, const size_t*, const size_t*, const size_t*, size_t, size_t, size_t, size_t);
         template <float64(*fn)(float64, float64)>
-        friend Tensor ewOrBroadcast(const Tensor&, const Tensor&, const char*);
+        friend Tensor ew_or_broadcast(const Tensor&, const Tensor&, const char*);
         template <float64(*fn)(float64, float64)>
-        friend void ewOrBroadcastAssign(Tensor&, const Tensor&, const char*);
+        friend void ew_or_broadcast_assign(Tensor&, const Tensor&, const char*);
+        template <float64(*fn)(float64, float64)>
+        friend void ew_or_left_broadcast_assign(Tensor&, const Tensor&, const char*);
         friend Tensor std::sqrt(const Tensor&);
         friend Tensor std::exp(const Tensor&);
         friend Tensor std::log(const Tensor&);
@@ -144,53 +169,108 @@ namespace RedFish {
         size_t getSize() const { return size; }
         std::vector<size_t> getShape() { return shape; }
 
-    private:
-        std::unique_ptr<float64[]> b;
+    protected:
+        std::unique_ptr<float64[]> b_mem;
+        float64* b;
         size_t size;
         std::vector<size_t> shape;
     };
 
+    class DirectTensorView : public Tensor
+    {
+    public:
+        DirectTensorView(const std::vector<size_t>& new_shape, float64* ptr)
+            : Tensor({0})
+        {
+            shape = new_shape;
+            b = ptr;
+        }
+        Tensor& operator=(const Tensor& t) = delete;
+        Tensor& operator=(Tensor&& t) = delete;
+        void resize(const std::vector<size_t>& shape) = delete;
+        Tensor& operator+=(const Tensor& t)
+        {
+            constexpr auto fn = [](float64 n1, float64 n2) {return n1+n2;};
+            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in sum operation");
+            return *this;
+        }
+        Tensor& operator-=(const Tensor& t)
+        {
+            constexpr auto fn = [](float64 n1, float64 n2) {return n1-n2;};
+            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in subtruction operation");
+            return *this;
+        }
+        Tensor& operator*=(const Tensor& t)
+        {
+            constexpr auto fn = [](float64 n1, float64 n2) {return n1*n2;};
+            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
+            return *this;
+        }
+        Tensor& operator/=(const Tensor& t)
+        {
+            constexpr auto fn = [](float64 n1, float64 n2) {return n1+n2;};
+            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in division operation");
+            return *this;
+        }
+
+    };
+
+
+    /* -------- Constructors -------- */
+
     inline Tensor::Tensor(const std::vector<size_t>& shape)
         :shape(shape)
     {
+        PROFILE
         size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
 
-        b = std::make_unique<float64[]>(size);
+        if (size)
+            b = (b_mem = std::make_unique<float64[]>(size)).get();
     }
 
     inline Tensor::Tensor(const size_t* shape, size_t len)
         :shape(shape, shape + len)
     {
+        PROFILE
         size = 1;
         for (size_t i = 0; i < len; i++)
             size *= shape[i];
 
-        b = std::make_unique<float64[]>(size);
+        if (size)
+            b = (b_mem = std::make_unique<float64[]>(size)).get();
     }
 
     inline Tensor::Tensor(const std::vector<size_t>& shape, float64 *buff, bool copy)
         :shape(shape)
     {
+        PROFILE
         size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
 
         if (copy)
         {
-            b = std::make_unique<float64[]>(size);
-            std::copy(buff, buff + size, b.get());
+            if (size)
+            {
+                b_mem = std::make_unique<float64[]>(size);
+                std::copy(buff, buff + size, b_mem.get());
+            }
         }
         else
-            b.reset(buff);
+            b_mem.reset(buff);
+
+        b = b_mem.get();
     }
 
     inline Tensor::Tensor(const Tensor& t)
     {
+        PROFILE
         this->shape = t.shape;
         this->size = t.size;
-        this->b = std::make_unique<float64[]>(size);
+        if (size) this->b_mem = std::make_unique<float64[]>(size);
+        b = b_mem.get();
 
         for (size_t i = 0; i < size; i++)
             this->b[i] = t.b[i];
@@ -198,9 +278,12 @@ namespace RedFish {
 
     inline Tensor& Tensor::operator=(const Tensor& t)
     {
+        PROFILE
         this->shape = t.shape;
         this->size = t.size;
-        this->b = std::make_unique<float64[]>(size);
+        if (size) this->b_mem = std::make_unique<float64[]>(size);
+        else this->b_mem = nullptr;
+        b = b_mem.get();
 
         for (size_t i = 0; i < size; i++)
             this->b[i] = t.b[i];
@@ -210,9 +293,11 @@ namespace RedFish {
 
     inline Tensor& Tensor::operator=(Tensor &&t)
     {
+        PROFILE
         this->shape = t.shape;
         this->size = t.size;
-        this->b = std::move(t.b);
+        this->b_mem = std::move(t.b_mem);
+        b = b_mem.get();
         t.shape = {0};
         t.size = 0;
 
@@ -223,16 +308,19 @@ namespace RedFish {
 
     inline void Tensor::resize(const std::vector<size_t>& shape)
     {
+        PROFILE
         this->shape = shape;
         size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
 
-        b = std::make_unique<float64[]>(size);
+        b_mem = std::make_unique<float64[]>(size);
+        b = b_mem.get();
     }
 
     inline void Tensor::reshape(const std::vector<size_t> &shape)
     {
+        PROFILE
         size_t new_size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             new_size *= shape[i];
@@ -250,7 +338,7 @@ namespace RedFish {
         size_t i_end = cols - cols % block_size;
         size_t k_end = mid  - mid  % block_size;
 
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t jc = 0; jc < j_end; jc += block_size)
         {
             for (size_t kc = 0; kc < k_end; kc += block_size)
@@ -302,37 +390,89 @@ namespace RedFish {
                     for (size_t ir = i_end; ir < cols; ir++)
                     for (size_t k  = k_end; k  < mid;  k++)
                         dst[jr*ld0 + ir] += m1[jr*ld1 + k] * m2[ir + k*ld2];
-
-
     }
 
-    inline void for_matmul(float64* dst, const float64* src1, const float64* src2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2, 
-                           const size_t* shape, const size_t* shape1, const size_t* shape2, size_t depth, size_t off, size_t off1, size_t off2)
+    inline void matmul_left_T(float64* dst, const float64* m1, const float64* m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
     {
-        if (depth > 1)
-            for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
-                for_matmul(dst, src1, src2, rows, mid, cols, ld0, ld1, ld2, shape+1, shape1+1, shape2+1, depth-1, off * *shape + i, off1 * *shape1 + (i & bdc1), off2 * *shape2 + (i & bdc2));
-        else
-            for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
-                matmul_gotoblas(dst + (off * *shape + i) * ld0*rows, src1 + (off1 * *shape1 + (i & bdc1)) * ld1*rows, src2 + (off2 * *shape2 + (i & bdc2)) * ld2*mid, rows, mid, cols, ld0, ld1, ld2);
-    }
+        const size_t block_size = 256;
+        size_t j_end = rows - rows % block_size;
+        size_t i_end = cols - cols % block_size;
+        size_t k_end = mid  - mid  % block_size;
 
-    inline Tensor Tensor::matmul(const Tensor &t) const
+        //#pragma omp parallel for
+        for (size_t jc = 0; jc < j_end; jc += block_size)
+        {
+            for (size_t kc = 0; kc < k_end; kc += block_size)
+            {
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+            }
+                
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t k  = k_end; k < mid; k++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+
+                    for (size_t jr = jc; jr < jc + block_size; jr++)
+                    for (size_t k  = k_end; k  < mid;  k++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+        }
+            for (size_t kc = 0; kc < k_end; kc += block_size)
+            {
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t k  = kc; k  < kc + block_size;  k++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+            }
+                
+                for (size_t ic = 0; ic < i_end; ic += block_size)
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t k  = k_end; k < mid; k++)
+                    for (size_t ir = ic; ir < ic + block_size; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+
+                    for (size_t jr = j_end; jr < rows; jr++)
+                    for (size_t k  = k_end; k  < mid;  k++)
+                    for (size_t ir = i_end; ir < cols; ir++)
+                        dst[jr*ld0 + ir] += m1[jr + k*ld1] * m2[ir + k*ld2];
+    }
+    
+    inline Tensor Tensor::matmul(const Tensor &t, const Transpose trsp) const
     {
+        PROFILE
         Tensor result;
         std::vector<size_t> shapeT1, matShapeT1(  shape.begin() + std::max<int64_t>(0, (int64_t)  shape.size() - 2),   shape.end());
         std::vector<size_t> shapeT2, matShapeT2(t.shape.begin() + std::max<int64_t>(0, (int64_t)t.shape.size() - 2), t.shape.end());
         size_t size1 = 1, size2 = 1;
 
-        for (size_t i = 0; i <   shape.size()-2; i++) shapeT1.push_back(  shape[i]), size1 *=   shape[i];
-        for (size_t i = 0; i < t.shape.size()-2; i++) shapeT2.push_back(t.shape[i]), size2 *= t.shape[i];
+        for (size_t i = 0; i < (int64_t)  shape.size()-2; i++) shapeT1.push_back(  shape[i]), size1 *=   shape[i];
+        for (size_t i = 0; i < (int64_t)t.shape.size()-2; i++) shapeT2.push_back(t.shape[i]), size2 *= t.shape[i];
         matShapeT1.insert(matShapeT1.begin(), std::max<int64_t>(0, (int64_t)2 -   shape.size()), 1);
         matShapeT2.insert(matShapeT2.begin(), std::max<int64_t>(0, (int64_t)2 - t.shape.size()), 1);
         if (t.shape.size() == 1) std::swap(matShapeT2[0], matShapeT2[1]);
+        if (trsp == LEFT)  std::swap(matShapeT1[0], matShapeT1[1]); else
+        if (trsp == RIGHT) std::swap(matShapeT2[0], matShapeT2[1]);
 
         if (shapeT1.size() > shapeT2.size())
             shapeT2.insert(shapeT2.begin(), shapeT1.size() - shapeT2.size(), 1);
-        else if (shapeT1.size() < shapeT2.size())
+        else
+        if (shapeT1.size() < shapeT2.size())
             shapeT1.insert(shapeT1.begin(), shapeT2.size() - shapeT1.size(), 1);
 
         if (matShapeT1[1] != matShapeT2[0])
@@ -351,8 +491,25 @@ namespace RedFish {
             shapeT1.push_back(cols);
             result.resize(shapeT1);
             result.zero();
-            for (size_t i = 0; i < size1; i++)
-                matmul_gotoblas(result.b.get() + i*matsize0, b.get() + i*matsize1, t.b.get() + i*matsize2, rows, mid, cols, cols, mid, cols);
+            switch (trsp)
+            {
+            case LEFT:
+                for (size_t i = 0; i < size1; i++)
+                    matmul_left_T(result.b + i*matsize0, b + i*matsize1, t.b + i*matsize2, rows, mid, cols, cols, rows, cols);
+                break;
+            case RIGHT:
+            {
+                auto tt = t.T();
+                for (size_t i = 0; i < size1; i++)
+                    matmul_gotoblas(result.b + i*matsize0, b + i*matsize1, tt.b + i*matsize2, rows, mid, cols, cols, mid, mid);
+                break;
+            }
+            case NONE:
+            default:
+                for (size_t i = 0; i < size1; i++)
+                    matmul_gotoblas(result.b + i*matsize0, b + i*matsize1, t.b + i*matsize2, rows, mid, cols, cols, mid, cols);
+                break;
+            }
         }
         else if(broadcastable(shapeT1, shapeT2))
         {
@@ -362,16 +519,35 @@ namespace RedFish {
 
             shapeDst.push_back(rows);
             shapeDst.push_back(cols);
-            shapeT1.push_back(rows);
-            shapeT1.push_back(mid);
-            shapeT2.push_back(mid);
-            shapeT2.push_back(cols);
                 
             result.resize(shapeDst);
             result.zero();
             if (result.size)
-                for_matmul(result.b.get(), this->b.get(), t.b.get(), rows, mid, cols, cols, mid, cols,
-                           shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size()-2, (size_t)0,(size_t)0,(size_t)0);
+                switch (trsp)
+                {
+                case LEFT:
+                    broadcast_op<matmul_left_T>(result.b, this->b, t.b,
+                                                shapeDst.data(), shapeT1.data(), shapeT2.data(),
+                                                shapeDst.size()-2,
+                                                rows*cols, rows*mid, mid*cols,
+                                                rows, mid, cols, cols, rows, cols);
+                    break;
+                case RIGHT:
+                    broadcast_op<matmul_gotoblas>(result.b, this->b, t.T().b,
+                                                  shapeDst.data(), shapeT1.data(), shapeT2.data(),
+                                                  shapeDst.size()-2,
+                                                  rows*cols, rows*mid, mid*cols,
+                                                  rows, mid, cols, cols, mid, cols);
+                    break;
+                case NONE:
+                default:
+                    broadcast_op<matmul_gotoblas>(result.b, this->b, t.b,
+                                                  shapeDst.data(), shapeT1.data(), shapeT2.data(),
+                                                  shapeDst.size()-2,
+                                                  rows*cols, rows*mid, mid*cols,
+                                                  rows, mid, cols, cols, mid, cols);
+                    break;
+                }
         }
         else
             throw std::length_error("Shapes not matching in Tensor matmul");
@@ -379,49 +555,55 @@ namespace RedFish {
         return result;
     }
 
-    inline Tensor matmul(const Tensor& t1, const Tensor& t2)
+    inline Tensor matmul(const Tensor& t1, const Tensor& t2, const Transpose transpose = NONE)
     {
-        return t1.matmul(t2);
+        return t1.matmul(t2, transpose);
     }
 
     inline Tensor Tensor::T() const
     {
+        PROFILE
         Tensor t(shape);
-        size_t rows = t.shape[t.shape.size()-2], cols = t.shape.back(), end = 1;
-        std::swap(t.shape.back(), t.shape[t.shape.size()-2]);
 
-        for (size_t i = 0; i < t.shape.size() - 2; i++)
-            end *= t.shape[i];
-
-        const size_t block_size = 16;
-        for (size_t i = 0, stride = rows*cols; i < end; i++)
+        if (shape.size() < 1) t.b[0] = this->b[0];
+        else 
         {
-            float64* tp = t.b.get() + i * stride, *thisp = this->b.get() + i * stride;
+            size_t end = 1;
+            size_t cols = t.shape.back();
+            size_t rows = shape.size() < 2 ? 1 : t.shape[t.shape.size()-2];
+            std::swap(t.shape.back(), t.shape[t.shape.size()-2]);
 
-            /* --- slower, naive version */
-            // for (size_t r = 0, r_cols = r*cols; r < rows; r++, r_cols = r*cols)
-            //     for (size_t c = 0; c < cols; c++)
-            //         tp[c*rows + r] = thisp[r_cols + c];
+            for (size_t i = 0; i < (int64_t)t.shape.size() - 2; i++)
+                end *= t.shape[i];
 
-            size_t crows = rows - rows % block_size, ccols = cols - cols % block_size;
-            for (size_t k = 0, kb = block_size; k < crows; k += block_size, kb += block_size)
+            const size_t block_size = 8;
+            const size_t k_end = rows - rows % block_size;
+            const size_t j_end = cols - cols % block_size;
+
+            for (size_t i = 0, stride = rows*cols; i < end; i++)
             {
-                for (size_t j = 0, jb = block_size; j < ccols; j += block_size, jb += block_size)
-                    for (size_t r = k, r_cols = r*cols; r < kb; r++, r_cols = r*cols)
-                        for (size_t c = j; c < jb; c++)
-                            tp[c*rows + r] = thisp[r_cols + c];
+                float64* tp = t.b + i * stride, *thisp = this->b + i * stride;
 
-                for (size_t r = k, r_cols = r*cols; r < kb; r++, r_cols = r*cols)
-                    for (size_t c = ccols; c < cols; c++)
-                        tp[c*rows + r] = thisp[r_cols + c];
+                for (size_t k = 0; k < k_end; k += block_size)
+                {
+                    for (size_t j = 0; j < j_end; j += block_size)
+                        for (size_t r = k; r < k + block_size; r++)
+                        for (size_t c = j; c < j + block_size; c++)
+                            tp[c*rows + r] = thisp[r*cols + c];
+
+                        for (size_t r = k; r < k + block_size; r++)
+                        for (size_t c = j_end; c < cols; c++)
+                            tp[c*rows + r] = thisp[r*cols + c];
+                }
+                    for (size_t j = 0; j < j_end; j += block_size)
+                        for (size_t r = k_end; r < rows; r++)
+                        for (size_t c = j; c < j + block_size; c++)
+                            tp[c*rows + r] = thisp[r*cols + c];
+
+                        for (size_t r = k_end; r < rows; r++)
+                        for (size_t c = j_end; c < cols; c++)
+                            tp[c*rows + r] = thisp[r*cols + c];
             }
-            for (size_t j = 0, jb = block_size; j < ccols; j += block_size, jb += block_size)
-                for (size_t r = crows, r_cols = r*cols; r < rows; r++, r_cols = r*cols)
-                    for (size_t c = j; c < jb; c++)
-                        tp[c*rows + r] = thisp[r_cols + c];
-            for (size_t r = crows, r_cols = r*cols; r < rows; r++, r_cols = r*cols)
-                for (size_t c = ccols; c < cols; c++)
-                    tp[c*rows + r] = thisp[r_cols + c];
         }
 
         return t;
@@ -452,11 +634,12 @@ namespace RedFish {
     inline Tensor Tensor::operator+(const Tensor& t) const
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1+n2;};
-        return ewOrBroadcast<fn>(*this, t, "Tensor sizes not matching in sum operation");
+        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in sum operation");
     }
 
     inline Tensor Tensor::operator+(const float64 val) const
     {
+        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] + val;
@@ -472,12 +655,13 @@ namespace RedFish {
     inline Tensor& Tensor::operator+=(const Tensor& t)
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1+n2;};
-        ewOrBroadcastAssign<fn>(*this, t, "Tensor sizes not matching in sum operation");
+        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in sum operation");
         return *this;
     }
 
     inline Tensor& Tensor::operator+=(const float64 val)
     {
+        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] += val;
 
@@ -487,11 +671,12 @@ namespace RedFish {
     inline Tensor Tensor::operator-(const Tensor& t) const
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1-n2;};
-        return ewOrBroadcast<fn>(*this, t, "Tensor sizes not matching in subtraction operation");
+        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in subtraction operation");
     }
 
     inline Tensor Tensor::operator-(const float64 val) const
     {
+        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] - val;
@@ -501,6 +686,7 @@ namespace RedFish {
 
     inline Tensor Tensor::operator-() const
     {
+        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = -this->b[i];
@@ -510,6 +696,7 @@ namespace RedFish {
 
     inline Tensor operator-(const float64 val, const Tensor& t)
     {
+        PROFILE
         Tensor ret = empty_like(t);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = val - t.b[i];
@@ -520,12 +707,13 @@ namespace RedFish {
     inline Tensor& Tensor::operator-=(const Tensor& t)
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1-n2;};
-        ewOrBroadcastAssign<fn>(*this, t, "Tensor sizes not matching in subtruction operation");
+        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in subtruction operation");
         return *this;
     }
 
     inline Tensor& Tensor::operator-=(const float64 val)
     {
+        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] -= val;
 
@@ -535,11 +723,12 @@ namespace RedFish {
     inline Tensor Tensor::operator*(const Tensor& t) const
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1*n2;};
-        return ewOrBroadcast<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
+        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
     }
 
     inline Tensor Tensor::operator*(const float64 val) const
     {
+        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] * val;
@@ -555,12 +744,13 @@ namespace RedFish {
     inline Tensor& Tensor::operator*=(const Tensor& t)
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1*n2;};
-        ewOrBroadcastAssign<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
+        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
         return *this;
     }
 
     inline Tensor& Tensor::operator*=(const float64 val)
     {
+        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] *= val;
 
@@ -570,11 +760,12 @@ namespace RedFish {
     inline Tensor Tensor::operator/(const Tensor& t) const
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1/n2;};
-        return ewOrBroadcast<fn>(*this, t, "Tensor sizes not matching in division operation");
+        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in division operation");
     }
 
     inline Tensor Tensor::operator/(const float64 val) const
     {
+        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] / val;
@@ -584,6 +775,7 @@ namespace RedFish {
 
     inline Tensor operator/(const float64 val, const Tensor& t)
     {
+        PROFILE
         Tensor ret = empty_like(t);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = val / t.b[i];
@@ -594,73 +786,206 @@ namespace RedFish {
     inline Tensor& Tensor::operator/=(const Tensor& t)
     {
         constexpr auto fn = [](float64 n1, float64 n2) {return n1+n2;};
-        ewOrBroadcastAssign<fn>(*this, t, "Tensor sizes not matching in division operation");
+        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in division operation");
         return *this;
     }
 
     inline Tensor& Tensor::operator/=(const float64 val)
     {
+        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] /= val;
 
         return *this;
     }
+    
+    inline void cross_correlation_1d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_len, size_t kernel_len)
+    {
+        t_len -= kernel_len - 1;
+        for (size_t i = 0; i < t_len; i++)
+            for (size_t j = 0; j < kernel_len; j++)
+                dst[i] += t[i + j] * kernel[j];
+    }
+
+    inline void cross_correlation_2d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_w, size_t t_h, size_t kernel_w, size_t kernel_h)
+    {
+        size_t t_w_end = t_w - kernel_w + 1;
+        size_t t_h_end = t_h - kernel_h + 1;
+        for (size_t i = 0; i < t_h_end; i++)
+        for (size_t j = 0; j < t_w_end; j++)
+            for (size_t k = 0; k < kernel_h; k++)
+            for (size_t l = 0; l < kernel_w; l++)
+                dst[i*t_w_end + j] += t[(i + k)*t_w + j + l] * kernel[k*kernel_w + l];
+    }
+
+    inline void cross_correlation_3d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_w, size_t t_h, size_t t_d, size_t kernel_w, size_t kernel_h, size_t kernel_d)
+    {
+        size_t t_w_end = t_w - kernel_w + 1;
+        size_t t_h_end = t_h - kernel_h + 1;
+        size_t t_d_end = t_d - kernel_d + 1;
+        for (size_t i = 0; i < t_d_end; i++)
+        for (size_t j = 0; j < t_h_end; j++)
+        for (size_t k = 0; k < t_w_end; k++)
+            for (size_t l = 0; l < kernel_d; l++)
+            for (size_t m = 0; m < kernel_h; m++)
+            for (size_t n = 0; n < kernel_w; n++)
+                dst[(i*t_h_end + j)*t_w_end + k] += t[((i+l)*t_h + j+m)*t_w + k+n] * kernel[(l*kernel_h + m)*kernel_w + n];
+    }
+
+    inline Tensor Tensor::crossCorrelation1d(const Tensor& kernel)
+    {
+        PROFILE
+        std::vector<size_t> shape_t = shape;
+        std::vector<size_t> shape_k = kernel.shape;
+        size_t size_batch = 1;
+
+        while (shape_k.size() < 3) shape_k.insert(shape_k.begin(), 1);
+        while (shape_t.size() < 2) shape_t.insert(shape_t.begin(), 1);
+
+        if (shape_k[shape_k.size()-2] != shape_t[shape_t.size()-2]) 
+            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+
+        for (size_t i = 0; i < shape_k.size()-3; i++)
+            if (shape_k[i] != 1) 
+                throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+
+        for (size_t i = 0; i < shape_t.size()-2; i++) size_batch *= shape_t[i];
+
+        auto shape_r = shape_t;
+        shape_r[shape_r.size()-2] = shape_k[shape_k.size()-3];
+        shape_r.back() -= shape_k.back() - 1;
+        size_t off_t = shape_t[shape_t.size()-2]*shape_t.back();
+        size_t off_k = shape_k[shape_k.size()-2]*shape_k.back();
+        size_t off_r = shape_r[shape_r.size()-2]*shape_r.back();
+        size_t c_in  = shape_t[shape_t.size()-2];
+        size_t c_out = shape_k[shape_k.size()-3];
+
+        Tensor result(shape_r);
+        result.zero();
+
+        //#pragma omp parallel
+        for (size_t i = 0; i < size_batch; i++)
+            //#pragma omp for
+            for (size_t j = 0; j < c_out; j++)
+                for (size_t k = 0; k < c_in; k++)
+                    cross_correlation_1d_impl(
+                            result.b + i*off_r + j*shape_r.back(),
+                            this-> b + i*off_t + k*shape_t.back(),
+                            kernel.b + j*off_k + k*shape_k.back(),
+                            shape_t.back(),
+                            shape_k.back());
+        
+        return result;
+    }
+
+    inline Tensor Tensor::crossCorrelation2d(const Tensor& kernel)
+    {
+        PROFILE
+        std::vector<size_t> shape_t = shape;
+        std::vector<size_t> shape_k = kernel.shape;
+        size_t size_batch = 1;
+
+        while (shape_k.size() < 4) shape_k.insert(shape_k.begin(), 1);
+        while (shape_t.size() < 3) shape_t.insert(shape_t.begin(), 1);
+
+        if (shape_k[shape_k.size()-3] != shape_t[shape_t.size()-3]) 
+            throw std::length_error("Invalid kernel shape in crossCorrelation2d");
+
+        for (size_t i = 0; i < shape_k.size()-4; i++)
+            if (shape_k[i] != 1)
+                throw std::length_error("Invalid kernel shape in crossCorrelation2d");
+
+        for (size_t i = 0; i < shape_t.size()-3; i++) size_batch *= shape_t[i];
+
+        auto shape_r = shape_t;
+        shape_r[shape_r.size()-3] = shape_k[shape_k.size()-4];
+        *(shape_r.end()-2) -= *(shape_k.end()-2) - 1;
+        shape_r.back() -= shape_k.back() - 1;
+        size_t off_t = shape_t[shape_t.size()-3]*shape_t[shape_t.size()-2]*shape_t.back();
+        size_t off_k = shape_k[shape_k.size()-3]*shape_k[shape_k.size()-2]*shape_k.back();
+        size_t off_r = shape_r[shape_r.size()-3]*shape_r[shape_r.size()-2]*shape_r.back();
+        size_t c_in  = shape_t[shape_t.size()-3];
+        size_t c_out = shape_k[shape_k.size()-4];
+
+        Tensor result(shape_r);
+        result.zero();
+
+        //#pragma omp parallel
+        for (size_t i = 0; i < size_batch; i++)
+            //#pragma omp for
+            for (size_t j = 0; j < c_out; j++)
+                for (size_t k = 0; k < c_in; k++)
+                    cross_correlation_2d_impl(
+                            result.b + i*off_r + j*shape_r.back()*shape_r[shape_r.size()-2],
+                            this-> b + i*off_t + k*shape_t.back()*shape_t[shape_t.size()-2],
+                            kernel.b + j*off_k + k*shape_k.back()*shape_k[shape_k.size()-2],
+                            shape_t[shape_t.size()-2], shape_t.back(),
+                            shape_k[shape_k.size()-2], shape_k.back());
+        
+        return result;
+    }
+
+    inline Tensor Tensor::crossCorrelation3d(const Tensor& kernel)
+    {
+        PROFILE
+        return Tensor();
+    }
 
     inline float64 Tensor::squareSum() const
     {
         constexpr auto fn = [](float64& sq_sum, float64 n) {sq_sum += n*n;};
-        return opAlongAllAxes<fn>(*this, 0.);
+        return op_along_all_axes<fn>(*this, 0.);
     }
 
     inline Tensor Tensor::squareSum(size_t d) const
     {
         constexpr auto fn = [](float64& sq_sum, float64 n) {sq_sum += n*n;};
-        return opAlongAxes<fn>(*this, d, 0.);
+        return op_along_axes<fn>(*this, d, 0.);
     }
 
     inline float64 Tensor::max() const
     {
         constexpr auto fn = [](float64& max, float64 n) {if (max < n) max = n;};
-        return opAlongAllAxes<fn>(*this, -std::numeric_limits<float64>::infinity());
+        return op_along_all_axes<fn>(*this, -std::numeric_limits<float64>::infinity());
     }
 
     inline Tensor Tensor::max(size_t d) const
     {
         constexpr auto fn = [](float64& max, float64 n) {if (max < n) max = n;};
-        return opAlongAxes<fn>(*this, d, -std::numeric_limits<float64>::infinity());
+        return op_along_axes<fn>(*this, d, -std::numeric_limits<float64>::infinity());
     }
 
     inline float64 Tensor::min() const
     {
         constexpr auto fn = [](float64& min, float64 n) {if (min > n) min = n;};
-        return opAlongAllAxes<fn>(*this, std::numeric_limits<float64>::infinity());
+        return op_along_all_axes<fn>(*this, std::numeric_limits<float64>::infinity());
     }
 
     inline Tensor Tensor::min(size_t d) const
     {
         constexpr auto fn = [](float64& min, float64 n) {if (min > n) min = n;};
-        return opAlongAxes<fn>(*this, d, std::numeric_limits<float64>::infinity());
+        return op_along_axes<fn>(*this, d, std::numeric_limits<float64>::infinity());
     }
 
     inline float64 Tensor::sum() const
     {
         constexpr auto fn = [](float64& sum, float64 n) {sum += n;};
-        return opAlongAllAxes<fn>(*this, 0.);
+        return op_along_all_axes<fn>(*this, 0.);
     }
 
     inline Tensor Tensor::sum(size_t d) const
     {
         constexpr auto fn = [](float64& sum, float64 n) {sum += n;};
-        return opAlongAxes<fn>(*this, d, 0.);
+        return op_along_axes<fn>(*this, d, 0.);
     }
 
-    inline float64& Tensor::operator()(const size_t* index)
+    inline float64& Tensor::operator()(const std::vector<size_t>& index)
     {
         #ifdef CHECK_BOUNDS 
             for (size_t i = 0; i < shape.size(); i++)
             {
                 if (index[i] < 0 || index[i] >= shape[i])
-                    throw new std::range_error("Out of bound in Tesnor () operetor");
+                    throw new std::range_error("Out of bound in Tensor () operetor");
             }
         #endif
         
@@ -671,14 +996,12 @@ namespace RedFish {
         return this->b[n + index[this->shape.size() - 1]];
     }
 
-    inline float64 Tensor::operator()(const size_t* index)  const 
+    inline float64 Tensor::operator()(const std::vector<size_t>& index)  const 
     {
         #ifdef CHECK_BOUNDS 
             for (size_t i = 0; i < shape.size(); i++)
-            {
-                if (index[i] < 0 || index[i] >= shape[i])
-                    throw new std::range_error("Out of bound in Tesnor () operetor");
-            }
+                if (index[i] >= shape[i])
+                    throw new std::range_error("Out of bound in Tensor () operetor");
         #endif
         
         size_t n = 0;
@@ -688,80 +1011,138 @@ namespace RedFish {
         return this->b[n + index[this->shape.size() - 1]];
     }
 
-    inline float64 &Tensor::operator()()
+    template<typename... Args>
+    inline float64 &Tensor::operator()(Args... indices)
     {
-        #ifdef CHECK_BOUNDS 
-            if (shape.size() != 0)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
+        const size_t idx[] = {indices...};
+        constexpr size_t isize = sizeof...(indices);
+        size_t nsize = isize;
+        #ifdef CHECK_BOUNDS
+            if constexpr (isize > 1)
+                if (shape.size() < isize)
+                    throw new std::range_error("Out of bound in Tensor () operetor");
+                
+            if constexpr (isize == 0)
+            {
+                if (size == 0)
+                    throw new std::range_error("Out of bound in Tensor () operetor");
+            }
+            else if constexpr (isize == 1) { if (size <= *idx) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else if constexpr (isize == 2) { if (idx[0] >= *(shape.end()-2) || idx[1] >= *(shape.end()-1)) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else if constexpr (isize == 3) { if (idx[0] >= *(shape.end()-3) || idx[1] >= *(shape.end()-2) || idx[2] >= *(shape.end()-1)) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else if constexpr (isize == 4) { if (idx[0] >= *(shape.end()-4) || idx[1] >= *(shape.end()-3) || idx[2] >= *(shape.end()-2) || idx[3] >= *(shape.end()-1)) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else
+                for (size_t i = 0; i < isize; i++)
+                {
+                    if (idx[i] >= *(shape.end()-isize+i-1))
+                        throw new std::range_error("Out of bound in Tensor () operetor");
+                }
         #endif
-        return this->b[0];
+
+        if constexpr (isize == 0) return this->b[0];
+        else if constexpr (isize == 1) return this->b[*idx];
+        else if constexpr (isize == 2) return this->b[idx[0]*shape.back() + idx[1]];
+        else if constexpr (isize == 3) return this->b[(idx[0] * *(shape.end()-2) + idx[1])*shape.back() + idx[2]];
+        else if constexpr (isize == 4) return this->b[((idx[0] * *(shape.end()-3) + idx[1])* *(shape.end()-2) + idx[2])*shape.back() + idx[3]];
+        else
+        {
+            size_t n = 0;
+            for (size_t i = 0; i < this->shape.size() - 1; i++)
+                n = (n + idx[i]) * this->shape[i + 1];
+                
+            return this->b[n + idx[this->shape.size() - 1]];
+        }
     }
 
-    inline float64 Tensor::operator()() const
+    template<typename... Args>
+    inline float64 Tensor::operator()(Args... indices) const
     {
-        #ifdef CHECK_BOUNDS 
-            if (shape.size() != 0)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
+        const size_t idx[] = {indices...};
+        constexpr size_t isize = sizeof...(indices);
+        size_t nsize = isize;
+        #ifdef CHECK_BOUNDS
+            if constexpr (isize > 1)
+                if (shape.size() < isize)
+                    throw new std::range_error("Out of bound in Tensor () operetor");
+                
+            if constexpr (isize == 0)
+            {
+                if (size == 0)
+                    throw new std::range_error("Out of bound in Tensor () operetor");
+            }
+            else if constexpr (isize == 1) { if (size <= *idx) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else if constexpr (isize == 2) { if (idx[0] >= *(shape.end()-2) || idx[1] >= *(shape.end()-1)) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else if constexpr (isize == 3) { if (idx[0] >= *(shape.end()-3) || idx[1] >= *(shape.end()-2) || idx[2] >= *(shape.end()-1)) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else if constexpr (isize == 4) { if (idx[0] >= *(shape.end()-4) || idx[1] >= *(shape.end()-3) || idx[2] >= *(shape.end()-2) || idx[3] >= *(shape.end()-1)) throw new std::range_error("Out of bound in Tensor () operetor"); }
+            else
+                for (size_t i = 0; i < isize; i++)
+                {
+                    if (idx[i] >= *(shape.end()-isize+i-1))
+                        throw new std::range_error("Out of bound in Tensor () operetor");
+                }
         #endif
-        return this->b[0];
+
+        if constexpr (isize == 0) return this->b[0];
+        else if constexpr (isize == 1) return this->b[*idx];
+        else if constexpr (isize == 2) return this->b[idx[0]*shape.back() + idx[1]];
+        else if constexpr (isize == 3) return this->b[(idx[0] * *(shape.end()-2) + idx[1])*shape.back() + idx[2]];
+        else if constexpr (isize == 4) return this->b[((idx[0] * *(shape.end()-3) + idx[1])* *(shape.end()-2) + idx[2])*shape.back() + idx[3]];
+        else
+        {
+            size_t n = 0;
+            for (size_t i = 0; i < this->shape.size() - 1; i++)
+                n = (n + idx[i]) * this->shape[i + 1];
+                
+            return this->b[n + idx[this->shape.size() - 1]];
+        }
     }
 
-    inline float64 &Tensor::operator()(size_t x)
+    template <size_t N>
+    inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index)
     {
-        #ifdef CHECK_BOUNDS 
-            if (x < 0 || x >= size || shape.size() < 1)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
-        #endif
-        return this->b[x];
+        if (index.size() + N > shape.size())
+            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+
+        size_t new_shape[N], off = 0;
+        for (size_t i = 0; i < index.size(); i++)
+        {
+            off = (off + index[i]) * *(shape.end()-index.size()+i-N+1);
+            if (index[i] >= *(shape.end()-index.size()+i-N))
+                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+        }
+        for (size_t i = 0; i < N; i++)
+            new_shape[i] = *(shape.end()-N);
+
+        return DirectTensorView({new_shape, new_shape+N}, b + off);
     }
 
-    inline float64 Tensor::operator()(size_t x) const
+    template <size_t N>
+    inline const DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index) const
     {
-        #ifdef CHECK_BOUNDS 
-            if (x < 0 || x >= size || shape.size() < 1)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
-        #endif
-        return this->b[x];
+        if (index.size() + N > shape.size())
+            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+
+        size_t new_shape[N], off = 0;
+        for (size_t i = 0; i < index.size(); i++)
+        {
+            off = (off + index[i]) * *(shape.end()-index.size()+i-N+1);
+            if (index[i] >= *(shape.end()-index.size()+i-N))
+                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+        }
+        for (size_t i = 0; i < N; i++)
+            new_shape[i] = *(shape.end()-N);
+
+        return DirectTensorView({new_shape, new_shape+N}, b + off);
     }
 
-    inline float64 &Tensor::operator()(size_t x, size_t y)
-    {
-        #ifdef CHECK_BOUNDS 
-            if (x < 0 || x >= shape[0] || y < 0 || y >= shape[1] || shape.size() < 2)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
-        #endif
-        return this->b[x * shape[1] + y];
-    }
-
-    inline float64 Tensor::operator()(size_t x, size_t y) const
-    {
-        #ifdef CHECK_BOUNDS 
-            if (x < 0 || x >= shape[0] || y < 0 || y >= shape[1] || shape.size() < 2)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
-        #endif
-        return this->b[x * shape[1] + y];
-    }
-
-    inline float64 &Tensor::operator()(size_t x, size_t y, size_t z)
-    {
-        #ifdef CHECK_BOUNDS 
-            if (x < 0 || x >= shape[0] || y < 0 || y >= shape[1] || z < 0 || z >= shape[2] || shape.size() < 3)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
-        #endif
-        return this->b[(x * shape[1] + y) * shape[2] + z];
-    }
-
-    inline float64 Tensor::operator()(size_t x, size_t y, size_t z) const
-    {
-        #ifdef CHECK_BOUNDS 
-            if (x < 0 || x >= shape[0] || y < 0 || y >= shape[1] || z < 0 || z >= shape[2] || shape.size() < 3)
-                throw new std::range_error("Out of bound in Tesnor () operetor");
-        #endif
-        return this->b[(x * shape[1] + y) * shape[2] + z];
-    }
+    inline       DirectTensorView Tensor::getRow(const std::vector<size_t> &index)          { return sliceLastNDims<1>(index); }
+    inline const DirectTensorView Tensor::getRow(const std::vector<size_t> &index) const    { return sliceLastNDims<1>(index); }
+    inline       DirectTensorView Tensor::getMatrix(const std::vector<size_t> &index)       { return sliceLastNDims<2>(index); }
+    inline const DirectTensorView Tensor::getMatrix(const std::vector<size_t> &index) const { return sliceLastNDims<2>(index); }
 
     inline bool Tensor::operator==(const Tensor &t) const
     {
+        PROFILE
         if(!sizeMatch(shape, t.shape)) return false;
         
         for (size_t i = 0; i < size; i++)
@@ -772,7 +1153,7 @@ namespace RedFish {
 
     inline void reprint(std::ostream& os, const Tensor& t, size_t depth, std::vector<size_t>& index)
     {
-        if (depth == 0) { os << t(index.data()); return; }
+        if (depth == 0) { os << t(index); return; }
 
         if (depth > 1)
         {
@@ -828,18 +1209,21 @@ namespace RedFish {
 
     inline void Tensor::zero()
     {
+        PROFILE
         for (size_t i = 0; i < size; i++)
             b[i] = 0;
     }  
 
     inline void Tensor::ones()
     {
+        PROFILE
         for (size_t i = 0; i < size; i++) 
             b[i] = 1;
     }
 
     inline void Tensor::rand()
     {
+        PROFILE
         float64 inv = 1. / RAND_MAX;
         for (size_t i = 0; i < size; i++) 
             b[i] = std::rand() * inv;
@@ -847,6 +1231,7 @@ namespace RedFish {
 
     inline void Tensor::rand(float64 start, float64 end)
     {
+        PROFILE
         float64 l = (end - start) / RAND_MAX;
         for (size_t i = 0; i < size; i++) 
             b[i] = std::rand() * l + start;
@@ -854,6 +1239,7 @@ namespace RedFish {
 
     inline bool Tensor::sizeMatch(const std::vector<size_t>& s1, const std::vector<size_t>& s2)
     {
+        PROFILE
         // if (size != t.size) return false;
         size_t end = std::min(s1.size(), s2.size());
         for (size_t i = 1; i <= end; i++)
@@ -870,6 +1256,7 @@ namespace RedFish {
 
     inline bool broadcastable(const std::vector<size_t>& i1, const std::vector<size_t>& i2)
     {
+        PROFILE
         auto p1 = i1.end() - 1;
         auto p2 = i2.end() - 1;
 
@@ -890,25 +1277,39 @@ namespace RedFish {
     template<float64(*fn)(float64)>
     inline Tensor forEach(const Tensor& t)
     {
+        PROFILE
         Tensor ret(t.shape);
-        for (size_t i = 0; i < t.getSize(); i++)
-            ret.b[i] = fn(t.b[i]);
-        
+        for (size_t i = 0; i < t.size; i++) ret.b[i] = fn(t.b[i]);
         return ret;
     }
 
     inline Tensor forEach(const Tensor& t, std::function<float64(float64)> fn)
     {
+        PROFILE
         Tensor ret(t.shape);
-        for (size_t i = 0; i < t.getSize(); i++)
-            ret.b[i] = fn(t.b[i]);
-        
+        for (size_t i = 0; i < t.size; i++) ret.b[i] = fn(t.b[i]);
         return ret;
     }
 
-    template <void(*fn)(float64&, float64)>
-    inline Tensor opAlongAxes(const Tensor& t, size_t d, const float64 init_val)
+    template<float64(*fn)(float64)>
+    inline Tensor& forEachInPlace(Tensor& t)
     {
+        PROFILE
+        for (size_t i = 0; i < t.size; i++) t.b[i] = fn(t.b[i]);
+        return t;
+    }
+
+    inline Tensor& forEachInPlace(Tensor& t, std::function<float64(float64)> fn)
+    {
+        PROFILE
+        for (size_t i = 0; i < t.size; i++) t.b[i] = fn(t.b[i]);
+        return t;
+    }
+
+    template <void(*fn)(float64&, float64)>
+    inline Tensor op_along_axes(const Tensor& t, size_t d, const float64 init_val)
+    {
+        PROFILE
         d = t.shape.size() - d - 1;
         auto shape = t.shape;
         shape[d] = std::min((size_t)1, shape[d]);
@@ -918,6 +1319,7 @@ namespace RedFish {
         for (size_t i = 0; i <= d; i++) tot *= shape[i];
         for (size_t i = d+1; i < shape.size(); i++) stride *= shape[i];
         
+        if (ret.size)
         for (size_t k = 0; k < tot; k++)
             for (size_t i = 0; i < stride; i++)
             {
@@ -932,7 +1334,7 @@ namespace RedFish {
     }
 
     template <void(*fn)(float64&, float64)>
-    inline float64 opAlongAllAxes(const Tensor& t, const float64 init_val)
+    inline float64 op_along_all_axes(const Tensor& t, const float64 init_val)
     {
         float64 value = init_val;
         for (size_t i = 0; i < t.size; i++)
@@ -941,19 +1343,32 @@ namespace RedFish {
     }
 
     template<float64(*fn)(float64, float64)>
-    inline void for_(Tensor& dst, const Tensor& src1, const Tensor& src2, const size_t* shape, const size_t* shape1, const size_t* shape2, size_t depth, size_t off, size_t off1, size_t off2)
+    inline void broadcast_ew_assign(Tensor& dst,         const Tensor& src1,   const Tensor& src2,
+                                    const size_t* shape, const size_t* shape1, const size_t* shape2,
+                                    size_t depth,
+                                    size_t off, size_t off1, size_t off2)
     {
         if (depth > 1)
             for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
-                for_<fn>(dst, src1, src2, shape+1, shape1+1, shape2+1, depth-1, off * *shape + i, off1 * *shape1 + (i & bdc1), off2 * *shape2 + (i & bdc2));
+                broadcast_ew_assign<fn>(dst, src1, src2, shape+1, shape1+1, shape2+1, depth-1, off * *shape + i, off1 * *shape1 + (i & bdc1), off2 * *shape2 + (i & bdc2));
         else
             for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
                 dst.b[off * *shape + i] = fn(src1.b[off1 * *shape1 + (i & bdc1)], src2.b[off2 * *shape2 + (i & bdc2)]);
     }
     
+    /**
+     * @brief executes fn() on two broadcastable shape tensors element wise
+     *        and the result is returned with a new tensor
+     * 
+     * @tparam fn function to be executed
+     * @param t1 source and destination tensor
+     * @param t2 source tensor
+     * @param err_msg error message to display in case of non broadcastable shapes
+     */
     template <float64(*fn)(float64, float64)>
-    inline Tensor ewOrBroadcast(const Tensor& t1, const Tensor& t2, const char* err_msg)
+    inline Tensor ew_or_broadcast(const Tensor& t1, const Tensor& t2, const char* err_msg)
     {
+        PROFILE
         Tensor result;
         if (Tensor::sizeMatch(t1.shape, t2.shape))
         {
@@ -979,7 +1394,7 @@ namespace RedFish {
                 
             result.resize(shapeDst);
             if (result.size)
-                for_<fn>(result, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size(), (size_t)0, (size_t)0, (size_t)0);
+                broadcast_ew_assign<fn>(result, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
         }
         else
             throw std::length_error(err_msg);
@@ -987,9 +1402,19 @@ namespace RedFish {
         return result;
     }
 
+    /**
+     * @brief executes fn() on two broadcastable shape tensors element wise
+     *        and the result is stored on the first tensor
+     * 
+     * @tparam fn function to be executed
+     * @param t1 source and destination tensor
+     * @param t2 source tensor
+     * @param err_msg error message to display in case of non broadcastable shapes
+     */
     template <float64(*fn)(float64, float64)>
-    inline void ewOrBroadcastAssign(Tensor& t1, const Tensor& t2, const char* err_msg)
+    inline void ew_or_broadcast_assign(Tensor& t1, const Tensor& t2, const char* err_msg)
     {
+        PROFILE
         if (Tensor::sizeMatch(t1.shape, t2.shape))
         {
             for (size_t i = 0; i < t1.size; i++)
@@ -1019,22 +1444,130 @@ namespace RedFish {
             if (self_assign)
             {
                 if (t1.size)
-                    for_<fn>(t1, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size(), (size_t)0, (size_t)0, (size_t)0);
+                    broadcast_ew_assign<fn>(t1, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
             }
             else
             {
                 Tensor result(shapeDst);
                 if (result.size)
-                    for_<fn>(result, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size(), (size_t)0, (size_t)0, (size_t)0);
+                    broadcast_ew_assign<fn>(result, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
                 t1 = std::move(result);
             }
         }
         else
             throw std::length_error(err_msg);
     }
+
+    /**
+     * @brief executes fn() on two broadcastable shape tensors element wise
+     *        and the result is stored on the first tensor
+     * 
+     * @tparam fn function to be executed
+     * @param t1 source and destination tensor
+     * @param t2 source tensor
+     * @param err_msg error message to display in case of non broadcastable shapes
+     */
+    template <float64(*fn)(float64, float64)>
+    inline void ew_or_left_broadcast_assign(Tensor& t1, const Tensor& t2, const char* err_msg)
+    {
+        PROFILE
+        if (Tensor::sizeMatch(t1.shape, t2.shape))
+        {
+            for (size_t i = 0; i < t1.size; i++)
+                t1.b[i] = fn(t1.b[i], t2.b[i]);
+        }
+        else if(broadcastable(t1.shape, t2.shape))
+        {
+            auto shapeT1 = t1.shape;
+            auto shapeT2 = t2.shape;
+
+            if (shapeT1.size() > shapeT2.size())
+                for (size_t i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT2.insert(shapeT2.begin(), 1);
+            else 
+                for (size_t i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT1.insert(shapeT1.begin(), 1);
+
+            std::vector<size_t> shapeDst(shapeT1.size());
+            bool self_assign = true;
+            for (size_t i = 0; i < shapeT1.size(); i++)
+            {
+                shapeDst[i] = shapeT1[i] == 1 ? shapeT2[i] : shapeT1[i];
+                if (shapeDst[i] != shapeT1[i])
+                    self_assign = false;
+            }
+            
+            if (self_assign)
+            {
+                if (t1.size)
+                    broadcast_ew_assign<fn>(t1, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
+            }
+            else
+                throw std::length_error(err_msg);
+        }
+        else
+            throw std::length_error(err_msg);
+    }
+
+    template<auto fn, typename... Args>
+    inline void broadcast_op_impl(float64* dst,        const float64* src1,  const float64* src2,
+                                  const size_t* shape, const size_t* shape1, const size_t* shape2,
+                                  size_t depth,
+                                  size_t foff, size_t foff1, size_t foff2,
+                                  size_t off, size_t off1, size_t off2,
+                                  Args... args)                  
+    {
+        size_t bdc1 = (*shape1 == *shape) * ((size_t)-1);
+        size_t bdc2 = (*shape2 == *shape) * ((size_t)-1);
+        if (depth > 1)
+            for (size_t i = 0; i < *shape; i++)
+                broadcast_op_impl<fn, Args...>(
+                    dst,     src1,     src2,
+                    shape+1, shape1+1, shape2+1,
+                    depth-1,
+                    foff, foff1, foff2,
+                    off  * *shape  +  i,
+                    off1 * *shape1 + (i & bdc1),
+                    off2 * *shape2 + (i & bdc2),
+                    args...);
+        else
+            for (size_t i = 0; i < *shape; i++)
+                fn(dst  + (off  * *shape  +  i        )*foff,
+                   src1 + (off1 * *shape1 + (i & bdc1))*foff1,
+                   src2 + (off2 * *shape2 + (i & bdc2))*foff2,
+                   args...);
+    }
+
+    /**
+     * @brief executes fn() on two broadcastable shape tensors "element wise"
+     * 
+     * @param dst    buffer of the result of the operation
+     * @param src1   buffer of the first tensor
+     * @param src2   buffer of the second tensor
+     * @param shape  shape of the resulting tensor
+     * @param shape1 shape of the first tensor
+     * @param shape2 shape of the first tensor
+     * @param depth  recusion depth (usually the length of the shape)
+     * @param foff   final offset for the destination tensor
+     * @param foff1  final offset for the first tensor
+     * @param foff2  final offset for the second tensor
+     * @param args   additional arguments to pass to fn
+     * @return void
+     */
+    template<auto fn, typename... Args>
+    inline void broadcast_op(float64* dst,        const float64* src1,  const float64* src2,
+                             const size_t* shape, const size_t* shape1, const size_t* shape2,
+                             size_t depth,
+                             size_t foff, size_t foff1, size_t foff2,
+                             Args... args)
+    {
+        PROFILE
+        broadcast_op_impl<fn, Args...>(dst, src1, src2, shape, shape1, shape2, depth, foff, foff1, foff2, (size_t)0, (size_t)0, (size_t)0, args...);
+    }
     
     inline RedFish::Tensor stack(const RedFish::Tensor& t1, const RedFish::Tensor& t2, size_t dim)
     {
+        PROFILE
         if (t1.shape.size() <= dim)
             throw std::length_error("Tensor has not that many dimensions");
         
@@ -1042,12 +1575,12 @@ namespace RedFish {
         std::vector<size_t> t2_shape = t2.shape;
 
         int t1_1 = 0;
-        for (size_t i = 0; i < t1.shape.size() - dim; i++)
+        for (size_t i = 0; i < (int64_t)t1.shape.size() - dim; i++)
             if (t1_shape[i] == 1) t1_shape.erase(t1_shape.begin()), t1_1++;
             else break;
         
         int t2_1 = 0;
-        for (size_t i = 0; i < t2.shape.size() - dim; i++)
+        for (size_t i = 0; i < (int64_t)t2.shape.size() - dim; i++)
             if (t2_shape[i] == 1) t2_shape.erase(t2_shape.begin()), t2_1++;
             else break;
         
@@ -1117,8 +1650,9 @@ namespace std
 
     inline RedFish::Tensor pow(const RedFish::Tensor& t, RedFish::float64 power)
     {
+        PROFILE
         RedFish::Tensor ret = RedFish::empty_like(t);
-        for (size_t i = 0; i < t.getSize(); i++)
+        for (size_t i = 0; i < t.size; i++)
             ret.b[i] = std::pow(t.b[i], power);
         
         return ret;
@@ -1126,11 +1660,12 @@ namespace std
 
     inline RedFish::Tensor pow(const RedFish::Tensor& t, const RedFish::Tensor& power)
     {
+        PROFILE
         if (!t.sizeMatch(t.shape, power.shape))
             throw std::length_error("Tensor sizes not matching in std::pow operation");
 
         RedFish::Tensor ret = RedFish::empty_like(t);
-        for (size_t i = 0; i < t.getSize(); i++)
+        for (size_t i = 0; i < t.size; i++)
             ret.b[i] = std::pow(t.b[i], power.b[i]);
 
         return ret;

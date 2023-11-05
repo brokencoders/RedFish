@@ -33,7 +33,7 @@ namespace RedFish
         size_t allocateParameter(const Tensor& t) override;
         void updateParameter(size_t i, Tensor& value, const Tensor& grad) override;
         void step() override;
-        void setLearningRate(float64 lr);
+        void setLearningRate(float64 lr) override;
 
     private:
         std::vector<Tensor> mw, vw;

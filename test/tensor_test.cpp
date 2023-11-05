@@ -1,6 +1,8 @@
-#include <gtest/gtest.h>
+    #include <gtest/gtest.h>
 
 #include <chrono>
+#define USE_PROFILING
+// #define AUTO_PRINT_PROFILER_STATS
 #include "Tensor.h"
 using namespace std;
 using namespace RedFish;
@@ -41,23 +43,35 @@ TEST(TensorTest, stackTest)
     t1.rand();
     t2.rand();
 
-    std::cout << t1 << t2 << stack(t1, t2, 0);
+    //std::cout << t1 << t2 << stack(t1, t2, 0);
 
 }
 
 TEST(TensorTest, matmul)
 {
-    Tensor t1({1000,1000}), t2({1000,1000});
+    Tensor t1({2,3,2}), t2({2,3});
+    /* Tensor t3({1024,1024}), t4({1024,1024});
+    Tensor t5({1024,1024}), t6({1024,1024});
     t1.rand();
     t2.rand();
-    //for (size_t i = 0; i < 6; i++) t1(i) = i;
-    //for (size_t i = 0; i < 6; i++) t2(i) = i;
+    t3.rand();
+    t4.rand();
+    t5.rand();
+    t6.rand(); */
+    for (size_t i = 0; i < 6*2; i++) t1(i) = i;
+    for (size_t i = 0; i < 6; i++) t2(i) = i;
     
     std::cout << "\n\n\nMatmul test \n" << t1 << t2 << matmul(t1, t2) << "\n\n\n";
     
-    auto time = std::chrono::high_resolution_clock::now();
-    matmul(t1, t2);
+    /* auto time = std::chrono::high_resolution_clock::now();
+    matmul(t1, t2, LEFT);
+    std::cout << "Matmul left took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+    time = std::chrono::high_resolution_clock::now();
+    matmul(t3, t4, NONE);
     std::cout << "Matmul took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+    time = std::chrono::high_resolution_clock::now();
+    matmul(t5, t6, RIGHT);
+    std::cout << "Matmul right took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n"; */
 }
 
 TEST(TensorTest, broadcastSum)
@@ -77,9 +91,9 @@ TEST(TensorTest, broadcastSumAssign)
     Tensor t1({3,3,3}), t2({3,1,3});
     t1.rand();
     t2.rand();
-    std::cout << "\n\n\nBroadcast sum assign test \n" << t1 << t2;
+    /* std::cout << "\n\n\nBroadcast sum assign test \n" << t1 << t2;
     t2 += t1;
-    std::cout << t2 << "\n\n\n";
+    std::cout << t2 << "\n\n\n"; */
 }
 
 TEST(TensorTest, alongAxisTest)
@@ -88,6 +102,35 @@ TEST(TensorTest, alongAxisTest)
     t1.rand(10, 20);
 
     // std::cout << t1 << t1.max(0) << t1.max(1) << t1.max(2) << t1.max(0).max(1);
+}
+
+TEST(TensorTest, cross1d)
+{
+    Tensor t({10,10, 18, 1000}), k({12, 18, 50});
+    t.rand(), k.rand();
+    /* k((size_t)0) = k(1) = .5;
+    for (size_t i = 0; i < 5; i++)
+        t(i) = i; */
+
+    //std::cout << t << k << t.crossCorrelation1d(k);
+    auto time = std::chrono::high_resolution_clock::now();
+    auto tt = t.crossCorrelation1d(k);
+    std::cout << "Cross correlation took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+}
+
+TEST(TensorTest, cross2d)
+{
+    Tensor t({2,5,5}), k({2, 2, 2});
+    //t.rand(), k.rand();
+    for (size_t i = 0; i < 2*2*2; i++)
+        k(i) = 1;
+    for (size_t i = 0; i < 2*5*5; i++)
+        t(i) = i;
+
+    std::cout << t << k << t.crossCorrelation2d(k);
+    /* auto time = std::chrono::high_resolution_clock::now();
+    auto tt = t.crossCorrelation1d(k);
+    std::cout << "Cross correlation took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n"; */
 }
 
 TEST(TensorTest, transposedTest)

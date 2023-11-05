@@ -33,7 +33,7 @@ namespace RedFish {
         ret.zero();
         for (size_t r = 0; r < ret.rowSize(); r++)
         {
-            size_t idx = (size_t)ground_truth(r, 0);
+            size_t idx = (size_t)ground_truth(r, (size_t)0);
             ret(r, idx) = std::min(- avg / prediction(r, idx), std::numeric_limits<float64>::max());
         }
         return ret;
