@@ -15,4 +15,4 @@ if(OpenMP_CXX_FOUND)
 endif()
 
 target_include_directories(test PUBLIC ../include/)
-target_link_libraries(test PRIVATE GTest::GTest)
+target_link_libraries(test PRIVATE GTest::GTest RedFish)

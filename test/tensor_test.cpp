@@ -1,7 +1,7 @@
-    #include <gtest/gtest.h>
+#include <gtest/gtest.h>
 
 #include <chrono>
-#define USE_PROFILING
+//#define USE_PROFILING
 // #define AUTO_PRINT_PROFILER_STATS
 #include "Tensor.h"
 using namespace std;
@@ -106,31 +106,32 @@ TEST(TensorTest, alongAxisTest)
 
 TEST(TensorTest, cross1d)
 {
-    Tensor t({10,10, 18, 1000}), k({12, 18, 50});
-    t.rand(), k.rand();
-    /* k((size_t)0) = k(1) = .5;
+    Tensor t({5}), k({3});
+    //t.rand(), k.rand();
+    k((size_t)0) = k((size_t)1) = k((size_t)2) = 1./3;
     for (size_t i = 0; i < 5; i++)
-        t(i) = i; */
-
-    //std::cout << t << k << t.crossCorrelation1d(k);
-    auto time = std::chrono::high_resolution_clock::now();
-    auto tt = t.crossCorrelation1d(k);
-    std::cout << "Cross correlation took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+        t(i) = i;
+        
+    //std::cout << t << k << t.crossCorrelation1d(k) << t.crossCorrelation1d(k, 1) << t.crossCorrelation1d(k, 1, 2) << t.crossCorrelation1d(k, 1, 1, 3);
+    /* auto time = std::chrono::high_resolution_clock::now();
+    auto tt = t.crossCorrelation1d(k, 1);
+    std::cout << "Cross correlation took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n"; */
 }
 
 TEST(TensorTest, cross2d)
 {
-    Tensor t({2,5,5}), k({2, 2, 2});
+    Tensor t({1,1088, 1920}), k({51,51});
     //t.rand(), k.rand();
-    for (size_t i = 0; i < 2*2*2; i++)
-        k(i) = 1;
+    /* Tensor t({2,5,5}), k({3, 3});
+    for (size_t i = 0; i < 3*3; i++)
+        k(i) = 1./9;
     for (size_t i = 0; i < 2*5*5; i++)
-        t(i) = i;
+        t(i) = i; */
 
-    std::cout << t << k << t.crossCorrelation2d(k);
-    /* auto time = std::chrono::high_resolution_clock::now();
-    auto tt = t.crossCorrelation1d(k);
-    std::cout << "Cross correlation took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n"; */
+    //std::cout << t << k << t.crossCorrelation2d(k, 1, 1, 3);
+    auto time = std::chrono::high_resolution_clock::now();
+    //auto tt = t.crossCorrelation2d(k, 0, 1, 1);
+    std::cout << "Cross correlation took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
 }
 
 TEST(TensorTest, transposedTest)
@@ -141,6 +142,31 @@ TEST(TensorTest, transposedTest)
     auto time = std::chrono::high_resolution_clock::now();
     auto tt = t1.T();
     // std::cout << "Transposition took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+}
+
+TEST(TensorTest, transposedDft)
+{
+    /* float64 buff[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+    std::complex<float64> buff2[16];
+    fft_impl_reversed(buff2, buff, 16);
+    for (size_t i = 0; i < sizeof(buff2) / sizeof(float64)/2; i++)
+        std::cout << buff2[reverse_bits(i) >> 60] << "\n"; */
+        
+    /* float64 buff[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+    std::complex<float64> buff2[16];
+    fft2d_impl_reversed(buff2, buff, 4);
+    for (size_t j = 0; j < 4; j++, std::cout << "\n")
+    for (size_t i = 0; i < 4; i++)
+        std::cout << buff2[(reverse_bits(j) >> 62)*4 + (reverse_bits(i) >> 62)] << " "; */
+    
+    size_t size = 1024;
+    std::unique_ptr<float64[]> buff = std::make_unique<float64[]>(size*1024);
+    std::unique_ptr<std::complex<float64>[]> buff2 = std::make_unique<std::complex<float64>[]>(size*1024);
+    
+    auto time = std::chrono::high_resolution_clock::now();
+    //for (size_t i = 0; i < 1024; i++)
+        fft2d_impl_reversed(buff2.get()/*+ i*size */, buff.get()/* +i*size */, 1024);
+    std::cout << "fft took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
 }
 
 int main(int argc, char** argv)

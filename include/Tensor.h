@@ -12,6 +12,7 @@
 #include <functional>
 #include <algorithm>
 #include <cmath>
+#include <complex>
 
 #ifdef USE_PROFILING
 #include "Profiler.h"
@@ -40,6 +41,7 @@ namespace RedFish {
     class DirectTensorView;
 
     enum Transpose { LEFT, RIGHT, NONE };
+    enum PaddingMode { ZERO, REFLECT, REPLICATE, CIRCULAR };
     
     template <void(*fn)(float64&, float64)>\
     Tensor op_along_axes(const Tensor&, size_t, const float64);
@@ -56,6 +58,23 @@ namespace RedFish {
     template <float64(*fn)(float64, float64)>
     void ew_or_left_broadcast_assign(Tensor&, const Tensor&, const char*);
     bool broadcastable(const std::vector<size_t>&, const std::vector<size_t>&);
+
+    struct Tuple2d
+    {
+        Tuple2d(size_t y, size_t x) : y(y), x(x) {}
+        Tuple2d(size_t n) : y(n), x(n) {}
+        union { size_t y, h; };
+        union { size_t x, w; };
+    };
+
+    struct Tuple3d
+    {
+        Tuple3d(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
+        Tuple3d(size_t n) : z(n), y(n), x(n) {}
+        union { size_t z, d; };
+        union { size_t y, h; };
+        union { size_t x, w; };
+    };
 
     class Tensor
     {
@@ -94,9 +113,9 @@ namespace RedFish {
         Tensor& operator/=(const Tensor& t);
         Tensor& operator/=(const float64 val);
 
-        Tensor crossCorrelation1d(const Tensor& kernel);
-        Tensor crossCorrelation2d(const Tensor& kernel);
-        Tensor crossCorrelation3d(const Tensor& kernel);
+        Tensor crossCorrelation1d(const Tensor& kernel, size_t padding = 0, size_t stride = 1, size_t dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor crossCorrelation2d(const Tensor& kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor crossCorrelation3d(const Tensor& kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
 
         float64 squareSum() const;
         Tensor  squareSum(size_t dimension) const;
@@ -167,7 +186,7 @@ namespace RedFish {
         size_t colSize() const { return this->shape.back(); }
         size_t rowSize() const { return *(this->shape.end()-2); }
         size_t getSize() const { return size; }
-        std::vector<size_t> getShape() { return shape; }
+        std::vector<size_t> getShape() const { return shape; }
 
     protected:
         std::unique_ptr<float64[]> b_mem;
@@ -183,6 +202,9 @@ namespace RedFish {
             : Tensor({0})
         {
             shape = new_shape;
+            size = 1;
+            for (size_t i = 0; i < shape.size(); i++)
+                size *= shape[i];
             b = ptr;
         }
         Tensor& operator=(const Tensor& t) = delete;
@@ -338,7 +360,7 @@ namespace RedFish {
         size_t i_end = cols - cols % block_size;
         size_t k_end = mid  - mid  % block_size;
 
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for (size_t jc = 0; jc < j_end; jc += block_size)
         {
             for (size_t kc = 0; kc < k_end; kc += block_size)
@@ -399,7 +421,7 @@ namespace RedFish {
         size_t i_end = cols - cols % block_size;
         size_t k_end = mid  - mid  % block_size;
 
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for (size_t jc = 0; jc < j_end; jc += block_size)
         {
             for (size_t kc = 0; kc < k_end; kc += block_size)
@@ -798,134 +820,305 @@ namespace RedFish {
 
         return *this;
     }
+
+    inline uint8_t reverse(uint8_t b) {
+        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+        return b;
+    }
+
+    inline size_t reverse_bits(size_t i)
+    {
+        size_t ret;
+        uint8_t* bt = (uint8_t*)&i;
+        uint8_t* btr = (uint8_t*)&ret;
+        if constexpr (sizeof(size_t)>0) btr[sizeof(size_t)-1] = reverse(bt[0]);
+        if constexpr (sizeof(size_t)>1) btr[sizeof(size_t)-2] = reverse(bt[1]);
+        if constexpr (sizeof(size_t)>2) btr[sizeof(size_t)-3] = reverse(bt[2]);
+        if constexpr (sizeof(size_t)>3) btr[sizeof(size_t)-4] = reverse(bt[3]);
+        if constexpr (sizeof(size_t)>4) btr[sizeof(size_t)-5] = reverse(bt[4]);
+        if constexpr (sizeof(size_t)>5) btr[sizeof(size_t)-6] = reverse(bt[5]);
+        if constexpr (sizeof(size_t)>6) btr[sizeof(size_t)-7] = reverse(bt[6]);
+        if constexpr (sizeof(size_t)>7) btr[sizeof(size_t)-8] = reverse(bt[7]);
+        if constexpr (sizeof(size_t)>8) btr[sizeof(size_t)-9] = reverse(bt[8]);
+        if constexpr (sizeof(size_t)>9) btr[sizeof(size_t)-10] = reverse(bt[9]);
+        return ret;
+    }
+
+    inline void fft_impl(std::complex<float64>* dst, const float64* src, size_t n)
+    {
+        constexpr float64 pi = 3.1415926535897931;
+        constexpr float64 pi2 = 2*pi;
+        size_t shift = sizeof(size_t)*8 - std::log2(n);
+        for (size_t k = 0; k < n; k++)
+            dst[reverse_bits(k) >> shift] = src[k];
+
+        for (size_t m = 2; m <= n; m *= 2)
+        {
+            using namespace std;
+            complex<float64> wm = exp(-pi2/m*1i);
+            for (size_t k = 0; k < n; k += m)
+            {
+                complex<float64> w = 1.;
+                for (size_t j = 0; j < m/2; j++)
+                {
+                    auto t = dst[k+j+m/2]*w;
+                    auto u = dst[k+j];
+                    dst[k+j] = u+t;
+                    dst[k+j + m/2] = u-t;
+                    w *= wm;
+                }
+            }
+        }
+    }
+
+    inline void fft_impl_reversed(std::complex<float64>* dst, const float64* src, size_t n, size_t stride = 1, size_t stride_in = 1)
+    {
+        constexpr float64 pi = 3.1415926535897931;
+        constexpr float64 pi2 = 2*pi;
+        for (size_t k = 0; k < n; k++)
+            dst[k*stride] = src[k*stride_in];
+
+        for (size_t m = n; m > 1; m /= 2)
+        {
+            using namespace std;
+            complex<float64> wm = exp(-pi2/m*1i);
+            for (size_t k = 0; k < n; k += m)
+            {
+                complex<float64> w = 1.;
+                for (size_t j = 0; j < m/2; j++)
+                {
+                    auto t = dst[(k+j+m/2)*stride];
+                    auto u = dst[(k+j)*stride];
+                    dst[(k+j)*stride] = u+t;
+                    dst[(k+j + m/2)*stride] = (u-t)*w;
+                    w *= wm;
+                }
+            }
+        }
+    }
+
+    inline void fft2d_impl_reversed(std::complex<float64>* dst, const float64* src, size_t n)
+    {
+        constexpr float64 pi = 3.1415926535897931;
+        constexpr float64 pi2 = 2*pi;
+        for (size_t k = 0; k < n*n; k++)
+            dst[k] = src[k];
+
+        for (size_t m = n; m > 1; m /= 2)
+        {
+            using namespace std;
+            complex<float64> wm = exp(-pi2/m*1i);
+            for (size_t l = 0; l < n; l += m)
+            for (size_t k = 0; k < n; k += m)
+            {
+                complex<float64> wr = 1.;
+                for (size_t i = 0; i < m/2; i++)
+                {
+                    complex<float64> wc = 1.;
+                    for (size_t j = 0; j < m/2; j++)
+                    {
+                        auto s00 = dst[(l+i)*n + k+j];
+                        auto s01 = dst[(l+i)*n + k+j+m/2];
+                        auto s10 = dst[(l+i+m/2)*n + k+j];
+                        auto s11 = dst[(l+i+m/2)*n + k+j+m/2];
+                        dst[(l+i)*n + k+j] = s00 + s01 + s10 + s11;
+                        dst[(l+i)*n + k+j+m/2] = (s00 - s01 + s10 - s11)*wc;
+                        dst[(l+i+m/2)*n + k+j] = (s00 + s01 - s10 - s11)*wr;
+                        dst[(l+i+m/2)*n + k+j+m/2] = (s00 - s01 - s10 + s11)*wc*wr;
+                        wc *= wm;
+                    }
+                    wr *= wm;
+                }
+            }
+        }
+    }
     
-    inline void cross_correlation_1d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_len, size_t kernel_len)
+    inline void cross_correlation_1d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_size, size_t kernel_size, size_t padding, size_t stride, size_t dilation)
     {
-        t_len -= kernel_len - 1;
-        for (size_t i = 0; i < t_len; i++)
-            for (size_t j = 0; j < kernel_len; j++)
-                dst[i] += t[i + j] * kernel[j];
+        constexpr size_t block_size = 32;
+        size_t end = (t_size - (kernel_size-1)*dilation + stride - 1) / stride;
+        size_t end_b = end - end % block_size;
+
+        for (size_t cb = 0; cb < end_b; cb += block_size)
+        for (size_t ck = 0; ck < kernel_size; ck++)
+        for (size_t c = cb; c < cb + block_size; c++)
+                dst[c] += t[c*stride + ck*dilation] * kernel[ck];
+
+        for (size_t ck = 0; ck < kernel_size; ck++)
+        for (size_t c = end_b; c < end; c++)
+                dst[c] += t[c*stride + ck*dilation] * kernel[ck];
     }
 
-    inline void cross_correlation_2d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_w, size_t t_h, size_t kernel_w, size_t kernel_h)
+    inline void cross_correlation_2d_impl(float64* dst, const float64* t, const float64* kernel, Tuple2d t_size, Tuple2d kernel_size, Tuple2d stride, Tuple2d dilation)
     {
-        size_t t_w_end = t_w - kernel_w + 1;
-        size_t t_h_end = t_h - kernel_h + 1;
-        for (size_t i = 0; i < t_h_end; i++)
-        for (size_t j = 0; j < t_w_end; j++)
-            for (size_t k = 0; k < kernel_h; k++)
-            for (size_t l = 0; l < kernel_w; l++)
-                dst[i*t_w_end + j] += t[(i + k)*t_w + j + l] * kernel[k*kernel_w + l];
+        constexpr size_t block_size_r = 4;
+        constexpr size_t block_size_c = 32;
+        Tuple2d end = {(t_size.y - (kernel_size.y-1)*dilation.y + stride.y - 1) / stride.y,
+                       (t_size.x - (kernel_size.x-1)*dilation.x + stride.x - 1) / stride.x};
+        Tuple2d end_b = {end.y - end.y % block_size_r, end.x - end.x % block_size_c};
+
+        const auto conv1d = [=](float64* dst, const float64* t, const float64* kernel) {
+            for (size_t cb = 0; cb < end_b.x; cb += block_size_c)
+            for (size_t ck = 0; ck < kernel_size.x; ck++)
+            for (size_t c = cb; c < cb + block_size_c; c++)
+                    dst[c] += t[c*stride.w + ck*dilation.w] * kernel[ck];
+
+            for (size_t ck = 0; ck < kernel_size.x; ck++)
+            for (size_t c = end_b.x; c < end.x; c++)
+                    dst[c] += t[c*stride.w + ck*dilation.w] * kernel[ck];
+        };
+
+        #pragma omp parallel for
+        for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
+        for (size_t rk = 0; rk < kernel_size.y; rk++)
+        for (size_t r = rb; r < rb + block_size_r; r++)
+            conv1d(dst + r*end.w, t + (r*stride.h + rk*dilation.h)*t_size.w, kernel + rk*kernel_size.w);
+
+        for (size_t rk = 0; rk < kernel_size.y; rk++)
+        for (size_t r = end_b.y; r < end.y; r++)
+            conv1d(dst + r*end.w, t + (r*stride.h + rk*dilation.h)*t_size.w, kernel + rk*kernel_size.w);
     }
 
-    inline void cross_correlation_3d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_w, size_t t_h, size_t t_d, size_t kernel_w, size_t kernel_h, size_t kernel_d)
+    inline void cross_correlation_3d_impl(float64* dst, const float64* t, const float64* kernel, Tuple3d t_size, Tuple3d kernel_size, Tuple3d stride, Tuple3d dilation)
     {
-        size_t t_w_end = t_w - kernel_w + 1;
-        size_t t_h_end = t_h - kernel_h + 1;
-        size_t t_d_end = t_d - kernel_d + 1;
-        for (size_t i = 0; i < t_d_end; i++)
-        for (size_t j = 0; j < t_h_end; j++)
-        for (size_t k = 0; k < t_w_end; k++)
-            for (size_t l = 0; l < kernel_d; l++)
-            for (size_t m = 0; m < kernel_h; m++)
-            for (size_t n = 0; n < kernel_w; n++)
-                dst[(i*t_h_end + j)*t_w_end + k] += t[((i+l)*t_h + j+m)*t_w + k+n] * kernel[(l*kernel_h + m)*kernel_w + n];
+        constexpr size_t block_size_r = 4;
+        constexpr size_t block_size_c = 32;
+        Tuple3d end = {0, (t_size.y - (kernel_size.y-1)*dilation.y + stride.y - 1) / stride.y,
+                          (t_size.x - (kernel_size.x-1)*dilation.x + stride.x - 1) / stride.x};
+        Tuple3d end_b = {0, end.y - end.y % block_size_r, end.x - end.x % block_size_c};
+
+        const auto conv1d = [=](float64* dst, const float64* t, const float64* kernel) {
+            for (size_t cb = 0; cb < end_b.x; cb += block_size_c)
+            for (size_t ck = 0; ck < kernel_size.x; ck++)
+            for (size_t c = cb; c < cb + block_size_c; c++)
+                    dst[c] += t[c*stride.w + ck*dilation.w] * kernel[ck];
+
+            for (size_t ck = 0; ck < kernel_size.x; ck++)
+            for (size_t c = end_b.x; c < end.x; c++)
+                    dst[c] += t[c*stride.w + ck*dilation.w] * kernel[ck];
+        };
+
+        const auto conv2d = [=](float64* dst, const float64* t, const float64* kernel) {
+            for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
+            for (size_t rk = 0; rk < kernel_size.y; rk++)
+            for (size_t r = rb; r < rb + block_size_r; r++)
+                conv1d(dst + r*end.w, t + (r*stride.h + rk*dilation.h)*t_size.w, kernel + rk*kernel_size.w);
+
+            for (size_t rk = 0; rk < kernel_size.y; rk++)
+            for (size_t r = end_b.y; r < end.y; r++)
+                conv1d(dst + r*end.w, t + (r*stride.h + rk*dilation.h)*t_size.w, kernel + rk*kernel_size.w);
+        };
+
+        for (size_t dk = 0; dk < kernel_size.z; dk++)
+        for (size_t d = 0; d < end.z; d++)
+            conv2d(dst + d*end.h*end.w, t + (d*stride.d + dk*dilation.d)*t_size.h*t_size.w, kernel + dk*kernel_size.h*kernel_size.w);
     }
 
-    inline Tensor Tensor::crossCorrelation1d(const Tensor& kernel)
+    inline Tensor Tensor::crossCorrelation1d(const Tensor& kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
     {
         PROFILE
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
 
-        while (shape_k.size() < 3) shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 2) shape_t.insert(shape_t.begin(), 1);
+        while (shape_k.size() < 1) shape_k.insert(shape_k.begin(), 1);
+        while (shape_t.size() < 1) shape_t.insert(shape_t.begin(), 1);
 
-        if (shape_k[shape_k.size()-2] != shape_t[shape_t.size()-2]) 
-            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
-
-        for (size_t i = 0; i < shape_k.size()-3; i++)
+        for (size_t i = 0; i + 1 < shape_k.size(); i++)
             if (shape_k[i] != 1) 
                 throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+        if (shape_k.back() == 0) 
+            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+        if (stride == 0) 
+            throw std::length_error("Invalid stride in crossCorrelation1d");
 
-        for (size_t i = 0; i < shape_t.size()-2; i++) size_batch *= shape_t[i];
+        for (size_t i = 0; i + 1 < shape_t.size(); i++) size_batch *= shape_t[i];
 
         auto shape_r = shape_t;
-        shape_r[shape_r.size()-2] = shape_k[shape_k.size()-3];
-        shape_r.back() -= shape_k.back() - 1;
-        size_t off_t = shape_t[shape_t.size()-2]*shape_t.back();
-        size_t off_k = shape_k[shape_k.size()-2]*shape_k.back();
-        size_t off_r = shape_r[shape_r.size()-2]*shape_r.back();
-        size_t c_in  = shape_t[shape_t.size()-2];
-        size_t c_out = shape_k[shape_k.size()-3];
+        if (2*padding + shape_t.back() + stride >= (shape_k.back()-1)*dilation + 1)
+             shape_r.back() = (2*padding + shape_t.back() - (shape_k.back()-1)*dilation - 1) / stride + 1;
+        else shape_r.back() = 0, size_batch = 0;
+        size_t off_t = shape_t.back();
+        size_t off_r = shape_r.back();
 
         Tensor result(shape_r);
         result.zero();
 
-        //#pragma omp parallel
+        #pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
-            //#pragma omp for
-            for (size_t j = 0; j < c_out; j++)
-                for (size_t k = 0; k < c_in; k++)
-                    cross_correlation_1d_impl(
-                            result.b + i*off_r + j*shape_r.back(),
-                            this-> b + i*off_t + k*shape_t.back(),
-                            kernel.b + j*off_k + k*shape_k.back(),
-                            shape_t.back(),
-                            shape_k.back());
+        {
+            cross_correlation_1d_impl(
+                    result.b + i*off_r,
+                    this-> b + i*off_t,
+                    kernel.b,
+                    shape_t.back(),
+                    shape_k.back(),
+                    padding, stride, dilation);
+        }
         
         return result;
     }
 
-    inline Tensor Tensor::crossCorrelation2d(const Tensor& kernel)
+    inline Tensor Tensor::crossCorrelation2d(const Tensor& kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
     {
         PROFILE
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
 
-        while (shape_k.size() < 4) shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 3) shape_t.insert(shape_t.begin(), 1);
+        while (shape_k.size() < 2) shape_k.insert(shape_k.begin(), 1);
+        while (shape_t.size() < 2) shape_t.insert(shape_t.begin(), 1);
 
-        if (shape_k[shape_k.size()-3] != shape_t[shape_t.size()-3]) 
-            throw std::length_error("Invalid kernel shape in crossCorrelation2d");
-
-        for (size_t i = 0; i < shape_k.size()-4; i++)
-            if (shape_k[i] != 1)
+        for (size_t i = 0; i + 2 < shape_k.size(); i++)
+            if (shape_k[i] != 1) 
                 throw std::length_error("Invalid kernel shape in crossCorrelation2d");
+        if (shape_k.back() == 0 || shape_k.end()[-2] == 0) 
+            throw std::length_error("Invalid kernel shape in crossCorrelation2d");
+        if (stride.x == 0 || stride.y == 0) 
+            throw std::length_error("Invalid stride in crossCorrelation2d");
 
-        for (size_t i = 0; i < shape_t.size()-3; i++) size_batch *= shape_t[i];
+        for (size_t i = 0; i + 2 < shape_t.size(); i++) size_batch *= shape_t[i];
 
         auto shape_r = shape_t;
-        shape_r[shape_r.size()-3] = shape_k[shape_k.size()-4];
-        *(shape_r.end()-2) -= *(shape_k.end()-2) - 1;
-        shape_r.back() -= shape_k.back() - 1;
-        size_t off_t = shape_t[shape_t.size()-3]*shape_t[shape_t.size()-2]*shape_t.back();
-        size_t off_k = shape_k[shape_k.size()-3]*shape_k[shape_k.size()-2]*shape_k.back();
-        size_t off_r = shape_r[shape_r.size()-3]*shape_r[shape_r.size()-2]*shape_r.back();
-        size_t c_in  = shape_t[shape_t.size()-3];
-        size_t c_out = shape_k[shape_k.size()-4];
+        if (2*padding.x + shape_t.back() + stride.x >= (shape_k.back()-1)*dilation.x + 1) shape_r.back() = (2*padding.x + shape_t.back() - (shape_k.back()-1)*dilation.x + stride.x - 1) / stride.x;
+        else shape_r.back() = 0, size_batch = 0;
+        if (2*padding.y + shape_t.end()[-2] + stride.y >= (shape_k.end()[-2]-1)*dilation.y + 1) shape_r.end()[-2] = (2*padding.y + shape_t.end()[-2] - (shape_k.end()[-2]-1)*dilation.y + stride.y - 1) / stride.y;
+        else shape_r.end()[-2] = 0, size_batch = 0;
+        size_t off_t = shape_t.end()[-2]*shape_t.back();
+        size_t off_r = shape_r.end()[-2]*shape_r.back();
+        size_t ph = shape_t.end()[-2]+2*padding.h, pw = shape_t.back()+2*padding.w;
+        size_t off_p = ph*pw;
 
         Tensor result(shape_r);
         result.zero();
 
-        //#pragma omp parallel
+        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
+        //#pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
-            //#pragma omp for
-            for (size_t j = 0; j < c_out; j++)
-                for (size_t k = 0; k < c_in; k++)
-                    cross_correlation_2d_impl(
-                            result.b + i*off_r + j*shape_r.back()*shape_r[shape_r.size()-2],
-                            this-> b + i*off_t + k*shape_t.back()*shape_t[shape_t.size()-2],
-                            kernel.b + j*off_k + k*shape_k.back()*shape_k[shape_k.size()-2],
-                            shape_t[shape_t.size()-2], shape_t.back(),
-                            shape_k[shape_k.size()-2], shape_k.back());
+        {
+            const size_t block_size = 8;
+            for (size_t rb = 0; rb < shape_t.end()[-2]; rb += block_size)
+            for (size_t cb = 0; cb < shape_t.back(); cb += block_size)
+                for (size_t r = rb; rb + r < block_size; r++)
+                for (size_t c = 0; cb + c < block_size; c++)
+                    padded[(r + padding.h)*pw + c + padding.w] = b[r*shape_t.back() + c];
+                
+            
+            cross_correlation_2d_impl(
+                    result.b + i*off_r,
+                    padded.get() + i*off_p,
+                    kernel.b,
+                    {ph, pw},
+                    {shape_k.end()[-2], shape_k.back()},
+                    stride, dilation);
+        }
         
         return result;
     }
 
-    inline Tensor Tensor::crossCorrelation3d(const Tensor& kernel)
+    inline Tensor Tensor::crossCorrelation3d(const Tensor& kernel, Tuple3d padding, Tuple3d stride, Tuple3d dilation, PaddingMode pm) const
     {
         PROFILE
         return Tensor();
@@ -1153,7 +1346,7 @@ namespace RedFish {
 
     inline void reprint(std::ostream& os, const Tensor& t, size_t depth, std::vector<size_t>& index)
     {
-        if (depth == 0) { os << t(index); return; }
+        if (depth == 0) { if (t.size) os << t(index); return; }
 
         if (depth > 1)
         {
@@ -1164,7 +1357,7 @@ namespace RedFish {
             os << "[";
         
         index.push_back(0);
-        for (size_t i = 0; i < t.shape[t.shape.size() - depth] - 1; i++)
+        for (size_t i = 0; i + 1 < t.shape[t.shape.size() - depth]; i++)
         {
             index.back() = i;
             if (i == 4 && depth == 1 && t.shape.back() > 8) { os << "...";  i = t.shape.back() - 4 -1;}
