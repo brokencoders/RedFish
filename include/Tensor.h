@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <random>
 
 #ifdef USE_PROFILING
 #include "Profiler.h"
@@ -180,6 +181,9 @@ namespace RedFish {
         void ones();
         void rand();
         void rand(float64 start, float64 end);
+        void randUniform(float64 a = 0.0, float64 b = 1.0);
+        void randNormal(float64 mean = 0.0, float64 std = 1.0);
+        void costant(float64 val);
         
         static bool sizeMatch(const std::vector<size_t>& s1, const std::vector<size_t>& s2);
 
@@ -1428,6 +1432,31 @@ namespace RedFish {
         float64 l = (end - start) / RAND_MAX;
         for (size_t i = 0; i < size; i++) 
             b[i] = std::rand() * l + start;
+    }
+
+    inline void Tensor::randUniform(float64 a, float64 b)
+    {
+        PROFILE
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_real_distribution<> dis(a, b);
+        for (size_t i = 0; i < size; i++) 
+            this->b[i] = dis(gen);
+    }
+
+    inline void Tensor::randNormal(float64 mean, float64 std)
+    {
+        std::default_random_engine generator;
+        std::normal_distribution<double> distribution(mean,std);
+
+        for (size_t i = 0; i < size; i++) 
+            b[i] = distribution(generator);
+    }
+
+    inline void Tensor::costant(float64 val)
+    {
+        for (size_t i = 0; i < size; i++) 
+            b[i] = val;
     }
 
     inline bool Tensor::sizeMatch(const std::vector<size_t>& s1, const std::vector<size_t>& s2)
