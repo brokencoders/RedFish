@@ -79,6 +79,9 @@ namespace RedFish {
 
     class Tensor
     {
+    private:
+        static std::random_device rd;
+        static std::default_random_engine gen;
     public:
         Tensor(const std::vector<size_t>& shape = {});
         Tensor(const size_t* shape, size_t len);
@@ -151,6 +154,8 @@ namespace RedFish {
         friend std::ostream& operator<<(std::ostream&, const Tensor&);
         friend void reprint(std::ostream&, const Tensor&, size_t, std::vector<size_t>&);
         friend Tensor empty_like(const Tensor&);
+        friend Tensor zeros_like(const Tensor&);
+        friend Tensor ones_like(const Tensor&);
         template<float64(*fn)(float64)>
         friend Tensor forEach(const Tensor&);
         friend Tensor forEach(const Tensor&, std::function<float64(float64)>);
@@ -198,6 +203,9 @@ namespace RedFish {
         size_t size;
         std::vector<size_t> shape;
     };
+
+    inline std::random_device Tensor::rd;
+    inline std::default_random_engine Tensor::gen(rd);
 
     class DirectTensorView : public Tensor
     {
@@ -1437,8 +1445,6 @@ namespace RedFish {
     inline void Tensor::randUniform(float64 a, float64 b)
     {
         PROFILE
-        std::random_device rd;
-        std::mt19937 gen(rd());
         std::uniform_real_distribution<> dis(a, b);
         for (size_t i = 0; i < size; i++) 
             this->b[i] = dis(gen);
@@ -1446,15 +1452,15 @@ namespace RedFish {
 
     inline void Tensor::randNormal(float64 mean, float64 std)
     {
-        std::default_random_engine generator;
+        PROFILE
         std::normal_distribution<double> distribution(mean,std);
-
         for (size_t i = 0; i < size; i++) 
-            b[i] = distribution(generator);
+            b[i] = distribution(gen);
     }
 
     inline void Tensor::costant(float64 val)
     {
+        PROFILE
         for (size_t i = 0; i < size; i++) 
             b[i] = val;
     }
@@ -1494,6 +1500,20 @@ namespace RedFish {
     inline Tensor empty_like(const Tensor& t)
     {
         return {t.shape};
+    }
+
+    inline Tensor zeros_like(const Tensor& t)
+    {
+        Tensor zl(t.shape);
+        zl.zero();
+        return zl;
+    }
+
+    inline Tensor ones_like(const Tensor& t)
+    {
+        Tensor zl(t.shape);
+        zl.ones();
+        return zl;
     }
 
     template<float64(*fn)(float64)>
