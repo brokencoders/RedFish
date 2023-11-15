@@ -15,7 +15,9 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/Optimizer.cpp
                     ${SOURCE_FOLDER}/Layer.cpp
                     ${SOURCE_FOLDER}/ConvLayer.cpp
-                    ${SOURCE_FOLDER}/Model.cpp)
+                    ${SOURCE_FOLDER}/Model.cpp
+                    ${SOURCE_FOLDER}/MaxPoolLayer.cpp
+)
 add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
 
 target_link_libraries(RedFish PRIVATE Boost::iostreams Boost::system Boost::filesystem)

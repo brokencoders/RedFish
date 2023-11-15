@@ -3,6 +3,7 @@
 #include <chrono>
 //#define USE_PROFILING
 // #define AUTO_PRINT_PROFILER_STATS
+#include "MaxPoolLayer.h"
 #include "Tensor.h"
 using namespace std;
 using namespace RedFish;
@@ -151,7 +152,6 @@ TEST(TensorTest, transposedDft)
     fft_impl_reversed(buff2, buff, 16);
     for (size_t i = 0; i < sizeof(buff2) / sizeof(float64)/2; i++)
         std::cout << buff2[reverse_bits(i) >> 60] << "\n"; */
-        
     /* float64 buff[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
     std::complex<float64> buff2[16];
     fft2d_impl_reversed(buff2, buff, 4);
@@ -167,6 +167,22 @@ TEST(TensorTest, transposedDft)
     //for (size_t i = 0; i < 1024; i++)
         fft2d_impl_reversed(buff2.get()/*+ i*size */, buff.get()/* +i*size */, 1024);
     std::cout << "fft took " << (std::chrono::high_resolution_clock::now() - time).count() * 1e-9 << "s\n";
+}
+
+TEST(TensorTest, random)
+{
+    Tensor t({2,2});
+    t.randUniform(2, 10);
+    cout << t << endl;
+}
+
+TEST(TensorTest, maxPolling)
+{
+    Tensor t({1, 1, 20});
+    t.rand();
+    MaxPool1dLayer layer(2, 1, 0);
+    cout << t << endl;
+    cout << layer.farward(t) << endl;
 }
 
 int main(int argc, char** argv)
