@@ -87,6 +87,7 @@ namespace RedFish {
         Tensor(const size_t* shape, size_t len);
         Tensor(const std::vector<size_t>& shape, float64* buff, bool copy = true);
         Tensor(const Tensor& t);                    // Copy Constructor
+        Tensor(const std::vector<size_t>& shape, std::initializer_list<float64> data);
         ~Tensor();
 
         Tensor& operator=(const Tensor& t);
@@ -182,6 +183,9 @@ namespace RedFish {
 
         friend Tensor stack(const Tensor& t1, const Tensor& t2, size_t dim);
 
+        // For Testing 
+        friend bool debug(const Tensor &t1, const Tensor &t2, float64 delta);
+
         void zero();
         void ones();
         void rand();
@@ -196,6 +200,7 @@ namespace RedFish {
         size_t rowSize() const { return *(this->shape.end()-2); }
         size_t getSize() const { return size; }
         std::vector<size_t> getShape() const { return shape; }
+        void setShape(std::vector<size_t> new_shape) { shape = new_shape; }
 
     protected:
         std::unique_ptr<float64[]> b_mem;
@@ -205,7 +210,7 @@ namespace RedFish {
     };
 
     inline std::random_device Tensor::rd;
-    inline std::default_random_engine Tensor::gen(rd);
+    inline std::default_random_engine Tensor::gen(rd());
 
     class DirectTensorView : public Tensor
     {
@@ -308,6 +313,31 @@ namespace RedFish {
 
         for (size_t i = 0; i < size; i++)
             this->b[i] = t.b[i];
+    }
+
+    inline Tensor::Tensor(const std::vector<size_t>& shape, std::initializer_list<float64> data)
+        :shape(shape)
+    {
+        if(shape.size() != 0)
+        {
+            size = 1;
+            for (size_t i = 0; i < shape.size(); i++)
+                size *= shape[i];
+        }
+        else 
+        {
+            this->shape.push_back(data.size());
+            size = data.size();
+        }
+
+        if (size != data.size())
+            throw std::length_error("Invalid number of data given to Tensor for this shape");
+
+        if (size)
+            b = (b_mem = std::make_unique<float64[]>(size)).get();
+
+        for (size_t i = 0; i < size; i++)
+            this->b[i] = data.begin()[i];        
     }
 
     inline Tensor& Tensor::operator=(const Tensor& t)
@@ -1870,7 +1900,23 @@ namespace RedFish {
         
         return t3;
     }
-}
+
+    inline bool debug(const RedFish::Tensor &t, const RedFish::Tensor &result, float64 delta) 
+    {    
+        if(!t.sizeMatch(result.getShape(), t.getShape())) return false;
+    
+        size_t size = 1;
+        for (size_t i = 0; i < t.getShape().size(); i++)
+            size += t.getShape()[i];
+        
+
+        for (size_t i = 0; i < size; i++)
+            if(std::abs(t.b[i] - result.b[i]) > delta) return false;
+        
+        return true;
+    }
+
+} // namespace RedFish
 
 namespace std
 {

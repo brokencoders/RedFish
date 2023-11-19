@@ -1,22 +1,26 @@
 #include <gtest/gtest.h>
 
 #include "Layer.h"
-#include "ConvLayer.h"
+#include "FlattenLayer.h"
+
 using namespace std;
 using namespace RedFish;
 
-// EXPECT_EQ(val1 , val2);   equal 
-// EXPECT_NE(val1 , val2);   notequal
-// EXPECT_TRUE(VAL);
-// EXPECT_FALSE(VAL);
-
-TEST(RedFishTest, linearLayer)
+TEST(RedFishTest, RedFishTestFlattenLayer)
 {
-    Conv1dLayer l(2, 2, 5);
-    Tensor X({3, 2, 50}), kernels({2,2,5});
-    X.rand();
-    kernels.rand();
-    //std::cout << kernels <<.crossCorrelation1d(kernels.getRow({0, 0}));
-    std::cout << X << l.farward(X);
+    Tensor t1({2, 2, 2}, {1,2,3,4,5,6,7,8});
+    Tensor expected_result({}, {1, 2, 3, 4, 5, 6, 7, 8});
+    Tensor expected_result_2({2, 4}, {1, 2, 3, 4, 5, 6, 7, 8});
+    
+    FlattenLayer l;
+    EXPECT_TRUE(l.farward(t1) == expected_result);
+    
+    FlattenLayer l2;
+    EXPECT_TRUE(l2.farward(t1) == expected_result);
+}
 
+
+TEST(RedFishTest, RedFishTestWhatever)
+{
+    
 }
