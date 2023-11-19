@@ -1,6 +1,7 @@
-#include <iostream>
 #include "RedFish.h"
+#include "gnuplot-iostream.h"
 
+using namespace std;
 using namespace RedFish;
 
 std::string dataset_folder = "../RedFish/dataset/";
@@ -8,6 +9,7 @@ std::string model_folder = "../RedFish/models/";
 
 int main(int, char**)
 {
+    /*
     std::srand(std::time(nullptr));
 
     Model model({{Layer::Descriptor::LINEAR, {(size_t)784, (size_t)784}},
@@ -17,12 +19,12 @@ int main(int, char**)
                  CROSS_ENTROPY_LOSS,
                  ADAM_OPTIMIZER);
 
-    auto [input, output] = readDataset(dataset_folder + "train_labels", dataset_folder + "/train_images");
+    auto [input, output] = readMINSTDataset(dataset_folder + "MNIST/train_labels", dataset_folder + "MNIST/train_images");
 
     model.train(input, output, 500, .02, 50);
     
     // model.save(model_folder + "numbers");
-    auto [input_test, output_test] = readDataset(dataset_folder + "test_labels", dataset_folder + "test_images");
+    auto [input_test, output_test] = readMINSTDataset(dataset_folder + "MNIST/test_labels", dataset_folder + "MNIST/test_images");
 
     double accuracy = model.test(input_test, output_test, [](const Tensor& m1, const Tensor& m2) {
         double max = 0; 
@@ -36,5 +38,10 @@ int main(int, char**)
     });
 
     std::cout << "Accuracy: " << accuracy * 100 << " %\n";
+    */
 
+    auto [batch, data] = readCIFRA10Dataset(dataset_folder + "CIFRA10/data_batch_1.bin");
+    plot_image(batch, 0);
+
+    return 0;
 }
