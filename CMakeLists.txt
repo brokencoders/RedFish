@@ -18,6 +18,7 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/Model.cpp
                     ${SOURCE_FOLDER}/MaxPoolLayer.cpp
                     ${SOURCE_FOLDER}/FlattenLayer.cpp
+                    ${SOURCE_FOLDER}/DropoutLayer.cpp
 )
 add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
 

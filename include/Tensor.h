@@ -139,6 +139,9 @@ namespace RedFish {
         template<typename... Args>
         float64  operator()(Args... indices) const;
 
+        float64& operator()(size_t);
+        float64  operator()(size_t) const;
+
         DirectTensorView getRow(const std::vector<size_t>& index);
         const DirectTensorView getRow(const std::vector<size_t>& index) const;
         DirectTensorView getMatrix(const std::vector<size_t>& index);
@@ -193,6 +196,8 @@ namespace RedFish {
         void randUniform(float64 a = 0.0, float64 b = 1.0);
         void randNormal(float64 mean = 0.0, float64 std = 1.0);
         void costant(float64 val);
+
+        static std::random_device& getRandomDevice() { return rd; }
         
         static bool sizeMatch(const std::vector<size_t>& s1, const std::vector<size_t>& s2);
 
@@ -1330,6 +1335,25 @@ namespace RedFish {
                 
             return this->b[n + idx[this->shape.size() - 1]];
         }
+    }
+
+
+    inline float64& Tensor::operator()(size_t index)
+    {
+        #ifdef CHECK_BOUNDS
+            if(index > size)
+                throw new std::range_error("Out of bound in Tensor () operetor");
+        #endif 
+        return this->b[index];
+    }
+
+    inline float64 Tensor::operator()(size_t index) const
+    {
+        #ifdef CHECK_BOUNDS
+            if(index > size)
+                throw new std::range_error("Out of bound in Tensor () operetor");
+        #endif 
+        return this->b[index];
     }
 
     template <size_t N>

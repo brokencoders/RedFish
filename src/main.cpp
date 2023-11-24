@@ -40,6 +40,7 @@ int main(int, char**)
     std::cout << "Accuracy: " << accuracy * 100 << " %\n";
     */
 
+    std::string category[] = { "airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"};
     auto [batch, data] = readCIFRA10Dataset(dataset_folder + "CIFRA10/data_batch_1.bin");
     plot_image(batch, 0);
 

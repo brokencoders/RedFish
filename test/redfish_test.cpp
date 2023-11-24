@@ -2,6 +2,7 @@
 
 #include "Layer.h"
 #include "FlattenLayer.h"
+#include "DropoutLayer.h"
 
 using namespace std;
 using namespace RedFish;
@@ -22,5 +23,9 @@ TEST(RedFishTest, RedFishTestFlattenLayer)
 
 TEST(RedFishTest, RedFishTestWhatever)
 {
-    
+    Tensor t({5, 2});
+    t.rand();
+    DropoutLayer layer(0.1, {2});   
+    std::cout << t << std::endl;
+    std::cout << layer.farward(t) << std::endl;
 }
