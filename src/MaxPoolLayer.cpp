@@ -98,7 +98,7 @@ namespace RedFish {
         size_t H_out_size = (H_size + 2 * padding.y - dilation.y * (kernel_size.y - 1) - 1) / stride.y + 1;
         size_t W_out_size = (W_size + 2 * padding.x - dilation.x * (kernel_size.x - 1) - 1) / stride.x + 1;
     
-        Tensor max_pool({N_size, C_size, H_size, W_size});
+        Tensor max_pool({N_size, C_size, H_out_size, W_out_size});
 
         for (size_t i = 0; i < N_size; i++)
             for (size_t j = 0; j < C_size; j++)
@@ -159,5 +159,20 @@ namespace RedFish {
                         grad(i, j, index.y, index.x) += max;
                     }        
         return grad; 
+    }
+
+    MaxPool3dLayer::MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride, Tuple3d padding, Tuple3d dilation)
+        :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation)
+    {
+    }
+
+    Tensor MaxPool3dLayer::farward(const Tensor &X)
+    {
+        return Tensor();
+    }
+    
+    Tensor MaxPool3dLayer::backward(const Tensor &X, const Tensor &d)
+    {
+        return Tensor();
     }
 }

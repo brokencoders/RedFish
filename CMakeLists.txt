@@ -22,8 +22,6 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
 )
 add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
 
-target_link_libraries(RedFish PRIVATE Boost::iostreams Boost::system Boost::filesystem)
-
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
@@ -39,6 +37,8 @@ set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 target_include_directories(RedFish PUBLIC include)
 target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/)
 target_link_libraries(RedFishMain PUBLIC RedFish)
+
+target_link_libraries(RedFishMain PRIVATE Boost::iostreams Boost::system Boost::filesystem)
 
 add_subdirectory(test)
 

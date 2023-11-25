@@ -24,14 +24,14 @@ namespace RedFish {
         }
         
 
-        flatten.setShape(new_dim);
+        flatten.reshape(new_dim);
         return flatten;
     }
 
     Tensor FlattenLayer::backward(const Tensor& X, const Tensor& d)
     {
         Tensor grad(d);
-        grad.setShape(X.getShape());
+        grad.reshape(X.getShape());
         return grad;
     }
 }

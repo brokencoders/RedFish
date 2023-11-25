@@ -88,12 +88,10 @@ TEST(TensorTest, Conv2d)
 
 TEST(TensorTest, Conv3d)
 {
-
 }
 
 TEST(TensorTest, TensorTestWhatever)
 {
-
 }
 
 int main(int argc, char** argv)

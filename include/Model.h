@@ -16,7 +16,7 @@ namespace RedFish {
         Model(const std::vector<Layer::Descriptor>& layers, uint32_t loss = SQUARE_LOSS, uint32_t optimizer = ADAM_OPTIMIZER);
         Model(const std::string& file_path);
 
-        void train(const Tensor& in, const Tensor& out, uint32_t epochs = 100, double learning_rate = .01, size_t mini_batch_size = 3);
+        void train(const Tensor& in, const Tensor& out, const std::vector<size_t>& input_shape, uint32_t epochs = 100, double learning_rate = .01, size_t mini_batch_size = 3);
         double test(const Tensor& in, const Tensor& out, std::function<double(const Tensor&, const Tensor&)> accuracy);
         Tensor estimate(const Tensor& in);
 

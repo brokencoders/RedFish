@@ -118,7 +118,7 @@ std::tuple<Tensor, Tensor> readCIFRA10Dataset(const std::string& batch_path)
                 {            
                     size_t pixel = 0;
                     file_labels.read((char*)(&pixel), 1);
-                    images(i, j, h, w) = pixel;
+                    images(i, j, h, w) = pixel / 255.;
                 }
             }   
         }

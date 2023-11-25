@@ -20,7 +20,7 @@ namespace RedFish {
 
     class MaxPool2dLayer : public Layer {
     public:
-        MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride = 0, Tuple2d padding = 0,  Tuple2d dilation = 1);
+        MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride = 1, Tuple2d padding = 0,  Tuple2d dilation = 1);
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
     private:
@@ -32,13 +32,13 @@ namespace RedFish {
 
     class MaxPool3dLayer : public Layer {
     public:
-        MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride = 0, Tuple3d padding = 0,  Tuple3d dilation = 1);
+        MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride = 1, Tuple3d padding = 0,  Tuple3d dilation = 1);
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
     private:
-        Tuple2d kernel_size;
-        Tuple2d stride;
-        Tuple2d padding;
-        Tuple2d dilation;
+        Tuple3d kernel_size;
+        Tuple3d stride;
+        Tuple3d padding;
+        Tuple3d dilation;
     };
 }

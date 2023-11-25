@@ -43,21 +43,23 @@ namespace RedFish {
 
     } */
 
-    void Model::train(const Tensor &in, const Tensor &out, uint32_t epochs, double learning_rate, size_t mini_batch_size)
+    void Model::train(const Tensor &in, const Tensor &out, const std::vector<size_t>& input_shape, uint32_t epochs, double learning_rate, size_t mini_batch_size)
     {
         auto begin = std::chrono::high_resolution_clock::now();
         size_t train_time = 0, batching_time = 0;
         optimizer->setLearningRate(learning_rate);
+        auto mbsi = in.getShape();
+        auto mbso = out.getShape();
+        mbsi[0] = mbso[0] = mini_batch_size;
         for (size_t i = 0; i < epochs; i++)
         {
             auto batch_begin = std::chrono::high_resolution_clock::now();
-            Tensor mini_batch_in( {mini_batch_size,  in.colSize()});
-            Tensor mini_batch_out({mini_batch_size, out.colSize()});
+            Tensor mini_batch_in(mbsi);
+            Tensor mini_batch_out(mbso);
             for (size_t j = 0; j < mini_batch_size; j++)
             {
-                size_t n = rand() % in.rowSize();
-                for (size_t i = 0; i < in.colSize(); i++)
-                    mini_batch_in(j,i)  = in(n,i);
+                size_t n = rand() % in.getShape()[0];
+                mini_batch_in.sliceLastNDims({j}, input_shape.size()-1) = in.sliceLastNDims({n}, input_shape.size()-1);
 
                 for (size_t i = 0; i < out.colSize(); i++)
                     mini_batch_out(j,i) = out(n,i);
@@ -73,7 +75,7 @@ namespace RedFish {
                 fw_res.emplace_back(layers[j]->farward(fw_res[j - 1]));
 
             double lossV = loss->farward(fw_res.back(), mini_batch_out);
-            std::cout << "Epoch " << i << " - loss: " << lossV << std::endl;
+            std::cout << "Epoch " << i << " - loss: " << lossV << std::endl << fw_res.back();
 
             Tensor bw_res = layers.back()->backward(fw_res[fw_res.size()-2], loss->backward(fw_res.back(), mini_batch_out));
             for (size_t j = layers.size() - 2; j > 0; j--)
@@ -98,16 +100,12 @@ namespace RedFish {
     {
         Tensor ris = this->estimate(in);
         double sum = 0;
-        for (size_t i = 0; i < in.rowSize(); i++)
+        for (size_t i = 0; i < in.getShape()[0]; i++)
         {
-            Tensor ris_i({1,ris.colSize()}), out_i({1, out.colSize()});
-            for (size_t j = 0; j < ris.colSize(); j++) ris_i(j) = ris(i,j);
-            for (size_t j = 0; j < out.colSize(); j++) out_i(j) = out(i,j);
-            
-            sum += accuracy(ris_i, out_i);
+            sum += accuracy(ris.sliceLastNDims({i}, ris.getShape().size()-1), out.sliceLastNDims({i}, out.getShape().size()-1));
         }
 
-        return sum / in.rowSize();
+        return sum / in.getShape()[0];
     }
 
     Tensor Model::estimate(const Tensor &in)

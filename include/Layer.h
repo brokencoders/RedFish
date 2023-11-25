@@ -9,6 +9,8 @@ namespace RedFish {
 
     union Param
     {
+        Param(Tuple2d n)  {_tuple2d = n;}  
+        Param(Tuple3d n)  {_tuple3d = n;}  
         Param(size_t n)   {_size_t = n;}  
         Param(uint32_t n) {_uint32 = n;}
         Param(uint16_t n) {_uint16 = n;}
@@ -19,6 +21,8 @@ namespace RedFish {
         Param(int8_t n)   {_integer8 = n;}
         Param(float n)    {_float = n;}
         Param(double n)   {_double = n;}  
+        Tuple2d  _tuple2d;
+        Tuple3d  _tuple3d;
         size_t   _size_t;
         uint32_t _uint32;
         uint16_t _uint16;
@@ -40,6 +44,13 @@ namespace RedFish {
         {
             enum : uint32_t {
                 LINEAR,
+                CONV1D,
+                CONV2D,
+                CONV3D,
+                MAXPOOL1D,
+                MAXPOOL2D,
+                MAXPOOL3D,
+                FLATTEN,
                 IDENTITY,
                 RELU,
                 LEAKY_RELU,

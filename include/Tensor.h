@@ -14,6 +14,7 @@
 #include <cmath>
 #include <complex>
 #include <random>
+#include <immintrin.h>
 
 #ifdef USE_PROFILING
 #include "Profiler.h"
@@ -41,8 +42,8 @@ namespace RedFish {
     typedef double float64;
     class DirectTensorView;
 
-    enum Transpose { LEFT, RIGHT, NONE };
-    enum PaddingMode { ZERO, REFLECT, REPLICATE, CIRCULAR };
+    enum Transpose : int8_t { LEFT, RIGHT, NONE };
+    enum PaddingMode : int8_t { ZERO, REFLECT, REPLICATE, CIRCULAR };
     
     template <void(*fn)(float64&, float64)>\
     Tensor op_along_axes(const Tensor&, size_t, const float64);
@@ -121,6 +122,8 @@ namespace RedFish {
         Tensor crossCorrelation1d(const Tensor& kernel, size_t padding = 0, size_t stride = 1, size_t dilation = 1, PaddingMode pm = ZERO) const;
         Tensor crossCorrelation2d(const Tensor& kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
         Tensor crossCorrelation3d(const Tensor& kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution1d(const Tensor& kernel, size_t padding = 0, size_t stride = 1, size_t dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution2d(const Tensor& kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
 
         float64 squareSum() const;
         Tensor  squareSum(size_t dimension) const;
@@ -139,9 +142,6 @@ namespace RedFish {
         template<typename... Args>
         float64  operator()(Args... indices) const;
 
-        float64& operator()(size_t);
-        float64  operator()(size_t) const;
-
         DirectTensorView getRow(const std::vector<size_t>& index);
         const DirectTensorView getRow(const std::vector<size_t>& index) const;
         DirectTensorView getMatrix(const std::vector<size_t>& index);
@@ -150,6 +150,8 @@ namespace RedFish {
         DirectTensorView sliceLastNDims(const std::vector<size_t>& index);
         template<size_t N>
         const DirectTensorView sliceLastNDims(const std::vector<size_t>& index) const;
+        DirectTensorView sliceLastNDims(const std::vector<size_t>& index, size_t N);
+        const DirectTensorView sliceLastNDims(const std::vector<size_t>& index, size_t N) const;
 
         bool operator==(const Tensor& other) const;
 
@@ -204,14 +206,15 @@ namespace RedFish {
         size_t colSize() const { return this->shape.back(); }
         size_t rowSize() const { return *(this->shape.end()-2); }
         size_t getSize() const { return size; }
-        std::vector<size_t> getShape() const { return shape; }
-        void setShape(std::vector<size_t> new_shape) { shape = new_shape; }
+        const std::vector<size_t>& getShape() const { return shape; }
 
     protected:
         std::unique_ptr<float64[]> b_mem;
         float64* b;
         size_t size;
         std::vector<size_t> shape;
+
+        friend class DirectTensorView;
     };
 
     inline std::random_device Tensor::rd;
@@ -229,7 +232,17 @@ namespace RedFish {
                 size *= shape[i];
             b = ptr;
         }
-        Tensor& operator=(const Tensor& t) = delete;
+        DirectTensorView& operator=(const Tensor& t)
+        {
+            PROFILE
+            if (!sizeMatch(this->shape, t.shape));
+                throw std::length_error("Tensor sizes not matching in sum operation");
+                
+            for (size_t i = 0; i < size; i++)
+                this->b[i] = t.b[i];
+
+            return *this;
+        }
         Tensor& operator=(Tensor&& t) = delete;
         void resize(const std::vector<size_t>& shape) = delete;
         Tensor& operator+=(const Tensor& t)
@@ -875,7 +888,7 @@ namespace RedFish {
         return b;
     }
 
-    inline size_t reverse_bits(size_t i)
+    inline size_t reverse_bits(size_t i, size_t shift)
     {
         size_t ret;
         uint8_t* bt = (uint8_t*)&i;
@@ -890,7 +903,7 @@ namespace RedFish {
         if constexpr (sizeof(size_t)>7) btr[sizeof(size_t)-8] = reverse(bt[7]);
         if constexpr (sizeof(size_t)>8) btr[sizeof(size_t)-9] = reverse(bt[8]);
         if constexpr (sizeof(size_t)>9) btr[sizeof(size_t)-10] = reverse(bt[9]);
-        return ret;
+        return ret >> shift;
     }
 
     inline void fft_impl(std::complex<float64>* dst, const float64* src, size_t n)
@@ -899,7 +912,7 @@ namespace RedFish {
         constexpr float64 pi2 = 2*pi;
         size_t shift = sizeof(size_t)*8 - std::log2(n);
         for (size_t k = 0; k < n; k++)
-            dst[reverse_bits(k) >> shift] = src[k];
+            dst[reverse_bits(k, shift)] = src[k];
 
         for (size_t m = 2; m <= n; m *= 2)
         {
@@ -920,43 +933,120 @@ namespace RedFish {
         }
     }
 
-    inline void fft_impl_reversed(std::complex<float64>* dst, const float64* src, size_t n, size_t stride = 1, size_t stride_in = 1)
+    inline float64* fft_impl_reversed(const float64* src, size_t n)
     {
         constexpr float64 pi = 3.1415926535897931;
         constexpr float64 pi2 = 2*pi;
-        for (size_t k = 0; k < n; k++)
-            dst[k*stride] = src[k*stride_in];
+        struct complex
+        {
+            float64 re, im;
+            constexpr complex(float64 n) : re(n), im(0) {}
+            constexpr complex(float64 re, float64 im) : re(re), im(im) {}
+            constexpr complex operator+(const complex& c) const { return {re+c.re, im+c.im}; }
+            constexpr complex operator-(const complex& c) const { return {re-c.re, im-c.im}; }
+            constexpr complex operator*(const complex& c) const { return {re*c.re-im*c.im, im*c.re+re*c.im}; }
+        };
 
-        for (size_t m = n; m > 1; m /= 2)
+        constexpr auto fft_step = [](complex* X, complex* x, size_t n, size_t s) {
+            if (n == 2)
+            {
+                for (int q = 0; q < s; q++)
+                {
+                    const complex a = x[q + 0];
+                    const complex b = x[q + s];
+                    x[q + 0] = a + b;
+                    x[q + s] = a - b;
+                }
+            }
+            else
+            {
+                constexpr complex j = {0.,1.};
+                const int n1 = n/4;
+                const int n2 = n/2;
+                const int n3 = n1 + n2;
+                const float64 theta0 = pi2/n;
+                const complex wn = {std::cos(theta0), -std::sin(theta0)};
+                complex w1k = 1.;
+                for (size_t k = 0; k < n1; k++)
+                {
+                    const complex w2k = w1k*w1k;
+                    const complex w3k = w1k*w2k;
+                    for (size_t q = 0; q < s; q++)
+                    {
+                        const complex a = x[q + s*(k +  0)];
+                        const complex b = x[q + s*(k + n1)];
+                        const complex c = x[q + s*(k + n2)];
+                        const complex d = x[q + s*(k + n3)];
+                        const complex  apc = a + c;
+                        const complex  amc = a - c;
+                        const complex  bpd = b + d;
+                        const complex jbmd = j*(b - d);
+                        X[q + s*(4*k + 0)] =      apc +  bpd;
+                        X[q + s*(4*k + 1)] = w1k*(amc - jbmd);
+                        X[q + s*(4*k + 2)] = w2k*(apc -  bpd);
+                        X[q + s*(4*k + 3)] = w3k*(amc + jbmd);
+                    }
+                    w1k = w1k*wn;
+                }
+            }
+        };
+
+        complex* X = (complex*)std::aligned_alloc(32, 2*n*sizeof(float64)), *x = (complex*)std::aligned_alloc(32, 2*n*sizeof(float64));
+        
+        for (size_t i = 0; i < n; i++)
+        {
+            x[i] = src[i];
+        }
+        
+        for (size_t m = n, s = 1; m > 1; m /= 4, s *= 4)
+        {
+            fft_step(X, x, m, s);
+            std::swap(x, X);
+        }
+        
+        std::free(X);
+        return (float64*)x;
+    }
+
+    inline void ifft_impl_reversed(float64* dst, std::complex<float64>* src, size_t n)
+    {
+        constexpr float64 pi = 3.1415926535897931;
+        constexpr float64 pi2 = 2*pi;
+
+        for (size_t m = 2; m <= n; m *= 2)
         {
             using namespace std;
-            complex<float64> wm = exp(-pi2/m*1i);
+            complex<float64> wm = exp(pi2/m*1i);
             for (size_t k = 0; k < n; k += m)
             {
                 complex<float64> w = 1.;
                 for (size_t j = 0; j < m/2; j++)
                 {
-                    auto t = dst[(k+j+m/2)*stride];
-                    auto u = dst[(k+j)*stride];
-                    dst[(k+j)*stride] = u+t;
-                    dst[(k+j + m/2)*stride] = (u-t)*w;
+                    auto u = src[k+j];
+                    auto t = src[k+j+m/2]*w;
+                    src[k+j] = (u+t)/2.;
+                    src[k+j + m/2] = (u-t)/2.;
                     w *= wm;
                 }
             }
         }
+        for (size_t k = 0; k < n; k++)
+            dst[k] = src[k].real();
     }
 
     inline void fft2d_impl_reversed(std::complex<float64>* dst, const float64* src, size_t n)
     {
         constexpr float64 pi = 3.1415926535897931;
         constexpr float64 pi2 = 2*pi;
+        constexpr size_t block_size = 32;
         for (size_t k = 0; k < n*n; k++)
             dst[k] = src[k];
-
+        ;
         for (size_t m = n; m > 1; m /= 2)
         {
             using namespace std;
             complex<float64> wm = exp(-pi2/m*1i);
+            #pragma omp parallel for
             for (size_t l = 0; l < n; l += m)
             for (size_t k = 0; k < n; k += m)
             {
@@ -981,11 +1071,94 @@ namespace RedFish {
             }
         }
     }
+
+    inline void ifft2d_impl_reversed(float64* dst, std::complex<float64>* src, size_t n)
+    {
+        constexpr float64 pi = 3.1415926535897931;
+        constexpr float64 pi2 = 2*pi;
+
+        for (size_t m = 2; m <= n; m *= 2)
+        {
+            using namespace std;
+            complex<float64> wm = exp(pi2/m*1i);
+            #pragma omp parallel for
+            for (size_t l = 0; l < n; l += m)
+            for (size_t k = 0; k < n; k += m)
+            {
+                complex<float64> wr = 1.;
+                for (size_t i = 0; i < m/2; i++)
+                {
+                    complex<float64> wc = 1.;
+                    for (size_t j = 0; j < m/2; j++)
+                    {
+                        auto s00 = src[(l+i)*n + k+j];
+                        auto s01 = src[(l+i)*n + k+j+m/2]*wc;
+                        auto s10 = src[(l+i+m/2)*n + k+j]*wr;
+                        auto s11 = src[(l+i+m/2)*n + k+j+m/2]*wc*wr;
+                        src[(l+i)*n + k+j] = (s00 + s01 + s10 + s11)/4.;
+                        src[(l+i)*n + k+j+m/2] = (s00 - s01 + s10 - s11)/4.;
+                        src[(l+i+m/2)*n + k+j] = (s00 + s01 - s10 - s11)/4.;
+                        src[(l+i+m/2)*n + k+j+m/2] = (s00 - s01 - s10 + s11)/4.;
+                        wc *= wm;
+                    }
+                    wr *= wm;
+                }
+            }
+        }
+        for (size_t k = 0; k < n*n; k++)
+            dst[k] = src[k].real();
+    }
     
-    inline void cross_correlation_1d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_size, size_t kernel_size, size_t padding, size_t stride, size_t dilation)
+    inline void conv_1d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_size, size_t kernel_size, size_t stride, size_t dilation)
     {
         constexpr size_t block_size = 32;
-        size_t end = (t_size - (kernel_size-1)*dilation + stride - 1) / stride;
+        size_t end = (t_size + stride - (kernel_size-1)*dilation - 1) / stride;
+        size_t end_b = end - end % block_size;
+
+        for (size_t cb = 0; cb < end_b; cb += block_size)
+        for (size_t ck = 0; ck < kernel_size; ck++)
+        for (size_t c = cb; c < cb + block_size; c++)
+                dst[c] += t[c*stride + ck*dilation] * kernel[kernel_size - ck - 1];
+
+        for (size_t ck = 0; ck < kernel_size; ck++)
+        for (size_t c = end_b; c < end; c++)
+                dst[c] += t[c*stride + ck*dilation] * kernel[kernel_size - ck - 1];
+    }
+
+    inline void conv_2d_impl(float64* dst, const float64* t, const float64* kernel, Tuple2d t_size, Tuple2d kernel_size, Tuple2d stride, Tuple2d dilation)
+    {
+        constexpr size_t block_size_r = 4;
+        constexpr size_t block_size_c = 32;
+        Tuple2d end = {(t_size.y + stride.y - (kernel_size.y-1)*dilation.y - 1) / stride.y,
+                       (t_size.x + stride.x - (kernel_size.x-1)*dilation.x - 1) / stride.x};
+        Tuple2d end_b = {end.y - end.y % block_size_r, end.x - end.x % block_size_c};
+
+        const auto conv1d = [=](float64* dst, const float64* t, const float64* kernel) {
+            for (size_t cb = 0; cb < end_b.x; cb += block_size_c)
+            for (size_t ck = 0; ck < kernel_size.x; ck++)
+            for (size_t c = cb; c < cb + block_size_c; c++)
+                    dst[c] += t[c*stride.w + ck*dilation.w] * kernel[kernel_size.w - ck - 1];
+
+            for (size_t ck = 0; ck < kernel_size.x; ck++)
+            for (size_t c = end_b.x; c < end.x; c++)
+                    dst[c] += t[c*stride.w + ck*dilation.w] * kernel[kernel_size.w - ck - 1];
+        };
+
+        #pragma omp parallel for
+        for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
+        for (size_t rk = 0; rk < kernel_size.y; rk++)
+        for (size_t r = rb; r < rb + block_size_r; r++)
+            conv1d(dst + r*end.w, t + (r*stride.h + rk*dilation.h)*t_size.w, kernel + (kernel_size.h - rk - 1)*kernel_size.w);
+
+        for (size_t rk = 0; rk < kernel_size.y; rk++)
+        for (size_t r = end_b.y; r < end.y; r++)
+            conv1d(dst + r*end.w, t + (r*stride.h + rk*dilation.h)*t_size.w, kernel + (kernel_size.h - rk - 1)*kernel_size.w);
+    }
+    
+    inline void cross_correlation_1d_impl(float64* dst, const float64* t, const float64* kernel, size_t t_size, size_t kernel_size, size_t stride, size_t dilation)
+    {
+        constexpr size_t block_size = 32;
+        size_t end = (t_size + stride - (kernel_size-1)*dilation - 1) / stride;
         size_t end_b = end - end % block_size;
 
         for (size_t cb = 0; cb < end_b; cb += block_size)
@@ -1002,8 +1175,8 @@ namespace RedFish {
     {
         constexpr size_t block_size_r = 4;
         constexpr size_t block_size_c = 32;
-        Tuple2d end = {(t_size.y - (kernel_size.y-1)*dilation.y + stride.y - 1) / stride.y,
-                       (t_size.x - (kernel_size.x-1)*dilation.x + stride.x - 1) / stride.x};
+        Tuple2d end = {(t_size.y + stride.y - (kernel_size.y-1)*dilation.y - 1) / stride.y,
+                       (t_size.x + stride.x - (kernel_size.x-1)*dilation.x - 1) / stride.x};
         Tuple2d end_b = {end.y - end.y % block_size_r, end.x - end.x % block_size_c};
 
         const auto conv1d = [=](float64* dst, const float64* t, const float64* kernel) {
@@ -1032,8 +1205,8 @@ namespace RedFish {
     {
         constexpr size_t block_size_r = 4;
         constexpr size_t block_size_c = 32;
-        Tuple3d end = {0, (t_size.y - (kernel_size.y-1)*dilation.y + stride.y - 1) / stride.y,
-                          (t_size.x - (kernel_size.x-1)*dilation.x + stride.x - 1) / stride.x};
+        Tuple3d end = {0, (t_size.y + stride.y - (kernel_size.y-1)*dilation.y - 1) / stride.y,
+                          (t_size.x + stride.x - (kernel_size.x-1)*dilation.x - 1) / stride.x};
         Tuple3d end_b = {0, end.y - end.y % block_size_r, end.x - end.x % block_size_c};
 
         const auto conv1d = [=](float64* dst, const float64* t, const float64* kernel) {
@@ -1089,20 +1262,25 @@ namespace RedFish {
         else shape_r.back() = 0, size_batch = 0;
         size_t off_t = shape_t.back();
         size_t off_r = shape_r.back();
+        size_t off_p = shape_t.back()+2*padding;
 
         Tensor result(shape_r);
         result.zero();
 
+        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
         #pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
         {
+            for (size_t c = 0; c < shape_t.back(); c++)
+                padded[c + padding] = b[c + i*off_t];
+
             cross_correlation_1d_impl(
                     result.b + i*off_r,
-                    this-> b + i*off_t,
+                    padded.get(),
                     kernel.b,
-                    shape_t.back(),
+                    shape_t.back() + 2*padding,
                     shape_k.back(),
-                    padding, stride, dilation);
+                    stride, dilation);
         }
         
         return result;
@@ -1146,16 +1324,21 @@ namespace RedFish {
         for (size_t i = 0; i < size_batch; i++)
         {
             const size_t block_size = 8;
-            for (size_t rb = 0; rb < shape_t.end()[-2]; rb += block_size)
-            for (size_t cb = 0; cb < shape_t.back(); cb += block_size)
+            size_t rbend = shape_t.end()[-2] - shape_t.end()[-2] % block_size;
+            size_t cbend = shape_t.back() - shape_t.back() % block_size;
+            for (size_t rb = 0; rb < rbend; rb += block_size)
+            for (size_t cb = 0; cb < cbend; cb += block_size)
                 for (size_t r = rb; rb + r < block_size; r++)
-                for (size_t c = 0; cb + c < block_size; c++)
-                    padded[(r + padding.h)*pw + c + padding.w] = b[r*shape_t.back() + c];
+                for (size_t c = cb; cb + c < block_size; c++)
+                    padded[(r + padding.h)*pw + c + padding.w] = b[r*shape_t.back() + c + i*off_t];
+            for (size_t r = rbend; r < shape_t.end()[-2]; r++)
+            for (size_t c = cbend; c < shape_t.back();    c++)
+                padded[(r + padding.h)*pw + c + padding.w] = b[r*shape_t.back() + c + i*off_t];
                 
             
             cross_correlation_2d_impl(
                     result.b + i*off_r,
-                    padded.get() + i*off_p,
+                    padded.get(),
                     kernel.b,
                     {ph, pw},
                     {shape_k.end()[-2], shape_k.back()},
@@ -1169,6 +1352,152 @@ namespace RedFish {
     {
         PROFILE
         return Tensor();
+    }
+
+    inline Tensor Tensor::convolution1d(const Tensor& kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
+    {
+        PROFILE
+        std::vector<size_t> shape_t = shape;
+        std::vector<size_t> shape_k = kernel.shape;
+        size_t size_batch = 1;
+
+        while (shape_k.size() < 1) shape_k.insert(shape_k.begin(), 1);
+        while (shape_t.size() < 1) shape_t.insert(shape_t.begin(), 1);
+
+        for (size_t i = 0; i + 1 < shape_k.size(); i++)
+            if (shape_k[i] != 1) 
+                throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+        if (shape_k.back() == 0) 
+            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+        if (stride == 0) 
+            throw std::length_error("Invalid stride in crossCorrelation1d");
+
+        for (size_t i = 0; i + 1 < shape_t.size(); i++) size_batch *= shape_t[i];
+
+        auto shape_r = shape_t;
+        if (2*padding + shape_t.back() + stride >= (shape_k.back()-1)*dilation + 1)
+             shape_r.back() = (2*padding + shape_t.back() - (shape_k.back()-1)*dilation - 1) / stride + 1;
+        else shape_r.back() = 0, size_batch = 0;
+        size_t off_t = shape_t.back();
+        size_t off_r = shape_r.back();
+        size_t off_p = shape_t.back()+2*padding;
+
+        Tensor result(shape_r);
+        result.zero();
+
+        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
+        #pragma omp parallel for
+        for (size_t i = 0; i < size_batch; i++)
+        {
+            for (size_t c = 0; c < shape_t.back(); c++)
+                padded[c + padding] = b[c];
+
+            conv_1d_impl(
+                    result.b + i*off_r,
+                    padded.get(),
+                    kernel.b,
+                    shape_t.back() + 2*padding,
+                    shape_k.back(),
+                    stride, dilation);
+        }
+        
+        return result;
+    }
+
+    inline Tensor Tensor::convolution2d(const Tensor& kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
+    {
+        PROFILE
+        std::vector<size_t> shape_t = shape;
+        std::vector<size_t> shape_k = kernel.shape;
+        size_t size_batch = 1;
+
+        while (shape_k.size() < 2) shape_k.insert(shape_k.begin(), 1);
+        while (shape_t.size() < 2) shape_t.insert(shape_t.begin(), 1);
+
+        for (size_t i = 0; i + 2 < shape_k.size(); i++)
+            if (shape_k[i] != 1) 
+                throw std::length_error("Invalid kernel shape in conv2d");
+        if (shape_k.back() == 0 || shape_k.end()[-2] == 0) 
+            throw std::length_error("Invalid kernel shape in conv2d");
+        if (stride.x == 0 || stride.y == 0) 
+            throw std::length_error("Invalid stride in conv2d");
+
+        for (size_t i = 0; i + 2 < shape_t.size(); i++) size_batch *= shape_t[i];
+
+        auto shape_r = shape_t;
+        if (2*padding.x + shape_t.back() + stride.x >= (shape_k.back()-1)*dilation.x + 1) shape_r.back() = (2*padding.x + shape_t.back() - (shape_k.back()-1)*dilation.x + stride.x - 1) / stride.x;
+        else shape_r.back() = 0, size_batch = 0;
+        if (2*padding.y + shape_t.end()[-2] + stride.y >= (shape_k.end()[-2]-1)*dilation.y + 1) shape_r.end()[-2] = (2*padding.y + shape_t.end()[-2] - (shape_k.end()[-2]-1)*dilation.y + stride.y - 1) / stride.y;
+        else shape_r.end()[-2] = 0, size_batch = 0;
+        size_t off_t = shape_t.end()[-2]*shape_t.back();
+        size_t off_r = shape_r.end()[-2]*shape_r.back();
+        size_t ph = shape_t.end()[-2]+2*padding.h, pw = shape_t.back()+2*padding.w;
+        size_t off_p = ph*pw;
+
+        Tensor result(shape_r);
+        result.zero();
+
+        std::unique_ptr<float64[]> padded;
+        if (padding.x || padding.y)
+            padded = std::make_unique<float64[]>(off_p);
+
+        //#pragma omp parallel for
+        for (size_t i = 0; i < size_batch; i++)
+        {
+            float64* ptr = b + i*off_t;
+            if (padding.x || padding.y)
+            {
+                constexpr size_t block_size = 64 / sizeof(float64);
+                size_t rbend = shape_t.end()[-2] - shape_t.end()[-2] % block_size;
+                size_t cbend = shape_t.back() - shape_t.back() % block_size;
+                for (size_t rb = 0; rb < rbend; rb += block_size)
+                for (size_t cb = 0; cb < cbend; cb += block_size)
+                    for (size_t r = rb; rb + r < block_size; r++)
+                    for (size_t c = cb; cb + c < block_size; c++)
+                        padded[(r + padding.h)*pw + c + padding.w] = b[r*shape_t.back() + c + i*off_t];
+                for (size_t r = rbend; r < shape_t.end()[-2]; r++)
+                for (size_t c = cbend; c < shape_t.back();    c++)
+                    padded[(r + padding.h)*pw + c + padding.w] = b[r*shape_t.back() + c + i*off_t];
+                ptr = padded.get();
+            }
+            
+            conv_2d_impl(
+                    result.b + i*off_r,
+                    ptr,
+                    kernel.b,
+                    {ph, pw},
+                    {shape_k.end()[-2], shape_k.back()},
+                    stride, dilation);
+        }
+        
+        return result;
+    }
+
+    inline void copy_2d(float64* src, float64* dst, Tuple2d size, size_t stride_out, size_t stride_in)
+    {
+        constexpr size_t block_size = 8;
+        size_t endw = size.w - size.w % block_size;
+        size_t endh = size.h - size.h % block_size;
+
+        for (size_t rb = 0; rb < endh; rb += block_size)
+        {
+            for (size_t cb = 0; cb < endw; cb += block_size)
+                for (size_t r = rb; r < rb + block_size; r++)
+                for (size_t c = cb; c < cb + block_size; c++)
+                    dst[r*stride_out + c] = src[r*stride_in + c];
+
+                for (size_t r = rb; r < rb + block_size; r++)
+                for (size_t c = endw; c < size.w; c++)
+                    dst[r*stride_out + c] = src[r*stride_in + c];
+        }
+            for (size_t cb = 0; cb < endw; cb += block_size)
+                for (size_t r = endh; r < size.h; r++)
+                for (size_t c = cb; c < cb + block_size; c++)
+                    dst[r*stride_out + c] = src[r*stride_in + c];
+
+                for (size_t r = endh; r < size.h; r++)
+                for (size_t c = endw; c < size.w; c++)
+                    dst[r*stride_out + c] = src[r*stride_in + c];
     }
 
     inline float64 Tensor::squareSum() const
@@ -1337,25 +1666,6 @@ namespace RedFish {
         }
     }
 
-
-    inline float64& Tensor::operator()(size_t index)
-    {
-        #ifdef CHECK_BOUNDS
-            if(index > size)
-                throw new std::range_error("Out of bound in Tensor () operetor");
-        #endif 
-        return this->b[index];
-    }
-
-    inline float64 Tensor::operator()(size_t index) const
-    {
-        #ifdef CHECK_BOUNDS
-            if(index > size)
-                throw new std::range_error("Out of bound in Tensor () operetor");
-        #endif 
-        return this->b[index];
-    }
-
     template <size_t N>
     inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index)
     {
@@ -1370,7 +1680,7 @@ namespace RedFish {
                 throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
         }
         for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(shape.end()-N);
+            new_shape[i] = *(shape.end()-N+i);
 
         return DirectTensorView({new_shape, new_shape+N}, b + off);
     }
@@ -1389,7 +1699,7 @@ namespace RedFish {
                 throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
         }
         for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(shape.end()-N);
+            new_shape[i] = *(shape.end()-N+i);
 
         return DirectTensorView({new_shape, new_shape+N}, b + off);
     }
@@ -1398,6 +1708,42 @@ namespace RedFish {
     inline const DirectTensorView Tensor::getRow(const std::vector<size_t> &index) const    { return sliceLastNDims<1>(index); }
     inline       DirectTensorView Tensor::getMatrix(const std::vector<size_t> &index)       { return sliceLastNDims<2>(index); }
     inline const DirectTensorView Tensor::getMatrix(const std::vector<size_t> &index) const { return sliceLastNDims<2>(index); }
+
+    inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index, size_t N)
+    {
+        if (index.size() + N > shape.size())
+            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+
+        size_t new_shape[N], off = 0;
+        for (size_t i = 0; i < index.size(); i++)
+        {
+            off = (off + index[i]) * *(shape.end()-index.size()+i-N+1);
+            if (index[i] >= *(shape.end()-index.size()+i-N))
+                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+        }
+        for (size_t i = 0; i < N; i++)
+            new_shape[i] = *(shape.end()-N+i);
+
+        return DirectTensorView({new_shape, new_shape+N}, b + off);
+    }
+
+    inline const DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index, size_t N) const
+    {
+        if (index.size() + N > shape.size())
+            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+
+        size_t new_shape[N], off = 0;
+        for (size_t i = 0; i < index.size(); i++)
+        {
+            off = (off + index[i]) * *(shape.end()-index.size()+i-N+1);
+            if (index[i] >= *(shape.end()-index.size()+i-N))
+                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+        }
+        for (size_t i = 0; i < N; i++)
+            new_shape[i] = *(shape.end()-N+i);
+
+        return DirectTensorView({new_shape, new_shape+N}, b + off);
+    }
 
     inline bool Tensor::operator==(const Tensor &t) const
     {
