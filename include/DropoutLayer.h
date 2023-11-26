@@ -7,11 +7,14 @@ namespace RedFish
     class DropoutLayer : public Layer 
     {
     public:
-        DropoutLayer(float64 rate, std::vector<size_t> shape);
+        DropoutLayer(float64 rate);
         Tensor farward(const Tensor& X);
         Tensor backward(const Tensor& X, const Tensor& d);
     private:
+        Tensor output;
         float64 rate;
-        std::vector<size_t> shape;
+        size_t skip_size;
+        size_t batch_size;
+        float64 factor;
     };
 }

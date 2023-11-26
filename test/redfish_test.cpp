@@ -20,12 +20,15 @@ TEST(RedFishTest, RedFishTestFlattenLayer)
     EXPECT_TRUE(l2.farward(t1) == expected_result);
 }
 
+TEST(RedFishTest, RedFishTestDropOutLayer)
+{
+    Tensor t({5, 2, 2});
+    t.rand();
+    DropoutLayer layer(0.5);
+}
+
 
 TEST(RedFishTest, RedFishTestWhatever)
 {
-    Tensor t({5, 2});
-    t.rand();
-    DropoutLayer layer(0.1, {2});   
-    std::cout << t << std::endl;
-    std::cout << layer.farward(t) << std::endl;
+
 }
