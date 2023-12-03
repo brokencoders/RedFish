@@ -76,6 +76,11 @@ namespace RedFish {
         return grad;
     }
 
+    uint64_t MaxPool1dLayer::save(std::ofstream &file) const
+    {
+        return 0;
+    }
+
     MaxPool2dLayer::MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride, Tuple2d padding, Tuple2d dilation) 
         :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation) {  }
 
@@ -161,6 +166,11 @@ namespace RedFish {
         return grad; 
     }
 
+    uint64_t MaxPool2dLayer::save(std::ofstream &file) const
+    {
+        return 0;
+    }
+
     MaxPool3dLayer::MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride, Tuple3d padding, Tuple3d dilation)
         :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation)
     {
@@ -174,5 +184,10 @@ namespace RedFish {
     Tensor MaxPool3dLayer::backward(const Tensor &X, const Tensor &d)
     {
         return Tensor();
+    }
+
+    uint64_t MaxPool3dLayer::save(std::ofstream &file) const
+    {
+        return 0;
     }
 }

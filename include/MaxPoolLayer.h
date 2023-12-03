@@ -10,6 +10,8 @@ namespace RedFish {
         MaxPool1dLayer(size_t kernel_size, size_t stride = 1, size_t padding = 0,  size_t dilation = 1);
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
+        uint64_t save(std::ofstream& file) const override;
+        
     private:
         size_t kernel_size;
         size_t stride;
@@ -23,6 +25,8 @@ namespace RedFish {
         MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride = 1, Tuple2d padding = 0,  Tuple2d dilation = 1);
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
+        uint64_t save(std::ofstream& file) const override;
+
     private:
         Tuple2d kernel_size;
         Tuple2d stride;
@@ -35,6 +39,8 @@ namespace RedFish {
         MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride = 1, Tuple3d padding = 0,  Tuple3d dilation = 1);
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
+        uint64_t save(std::ofstream& file) const override;
+
     private:
         Tuple3d kernel_size;
         Tuple3d stride;

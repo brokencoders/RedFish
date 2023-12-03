@@ -21,12 +21,17 @@ namespace RedFish {
         const float64 lambda = .001;
         Tensor dX = d.matmul(weights, Transpose::RIGHT);
         Tensor grad = X.matmul(d, Transpose::LEFT) + weights * lambda;
-        Tensor bias_grad = d.sum((size_t)1);
+        Tensor bias_grad = d.sum((size_t)1) + biases * lambda;
 
         optimizer->updateParameter(w_id, weights, grad);
         optimizer->updateParameter(b_id, biases, bias_grad);
 
         return dX;
+    }
+
+    uint64_T LinearLayer::save(std::ofstream &file) const
+    {
+        return 0;
     }
 
     void LinearLayer::print()

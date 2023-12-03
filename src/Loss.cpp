@@ -12,7 +12,14 @@ namespace RedFish {
         return 2 * (prediction - ground_truth);
     }
 
-
+    uint64_t SquareLoss::save(std::ofstream &file) const
+    {
+        const char name[] = "Loss::Square";
+        file.write(name, sizeof(name));
+        uint64_t i = 0;
+        file.write((char*)&i, sizeof(i));
+        return sizeof(name) + sizeof(i);
+    }
 
     double CrossEntropyLoss::farward(const Tensor& prediction, const Tensor& ground_truth) const
     {
@@ -37,6 +44,15 @@ namespace RedFish {
             ret(r, idx) = std::min(- avg / prediction(r, idx), std::numeric_limits<float64>::max());
         }
         return ret;
+    }
+
+    uint64_t CrossEntropyLoss::save(std::ofstream &file) const
+    {
+        const char name[] = "Loss::CrossEntropy";
+        file.write(name, sizeof(name));
+        uint64_t i = 0;
+        file.write((char*)&i, sizeof(i));
+        return sizeof(name) + sizeof(i);
     }
 
     Loss* make_loss(uint32_t l)

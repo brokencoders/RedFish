@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <stdexcept>
+#include <fstream>
 #include "Tensor.h"
 #include "Optimizer.h"
 
@@ -39,6 +40,7 @@ namespace RedFish {
     public:
         virtual Tensor farward(const Tensor& X) = 0;
         virtual Tensor backward(const Tensor& X, const Tensor& d) = 0;
+        virtual uint64_t save(std::ofstream& file) const = 0;
     
         struct Descriptor
         {

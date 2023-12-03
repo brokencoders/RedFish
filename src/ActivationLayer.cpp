@@ -1,10 +1,21 @@
 #include "ActivationLayer.h"
+#include <string>
 
 namespace RedFish::Activation
 {
 
+    uint64_t save_act(std::ofstream &file, std::string name)
+    {
+        name = "Layer::Activation::" + name;
+        file.write(name.c_str(), name.size() + 1);
+        uint64_t i = 0;
+        file.write((char*)&i, sizeof(i));
+        return name.size() + 1 + sizeof(i);
+    }
+
     Tensor Identity::farward(const Tensor& X) { return X; }
     Tensor Identity::backward(const Tensor& X, const Tensor& d) { return d; }
+    uint64_t Identity::save(std::ofstream &file) const { return save_act(file, "Identity"); }
 
 
     double ReLU::relu(double n)   { return n < 0. ? 0. : n; }      /* { return (n >= 0.) * n; } */
@@ -12,6 +23,7 @@ namespace RedFish::Activation
 
     Tensor ReLU::farward(const Tensor& X) { return forEach<relu>(X); }
     Tensor ReLU::backward(const Tensor& X, const Tensor& d) { return d * forEach<relu_d>(X); }
+    uint64_t ReLU::save(std::ofstream &file) const { return save_act(file, "ReLU"); }
 
 
     double LeakyReLU::lrelu(double n)   { return n < 0. ? 0.01 * n : n; }   /* { return ((n < 0.) * .01 + (n >= 0.)) * n; } */
@@ -19,6 +31,7 @@ namespace RedFish::Activation
 
     Tensor LeakyReLU::farward(const Tensor& X) { return forEach<lrelu>(X); }
     Tensor LeakyReLU::backward(const Tensor& X, const Tensor& d) { return d * forEach<lrelu_d>(X); }
+    uint64_t LeakyReLU::save(std::ofstream &file) const { return save_act(file, "LeakyReLU"); }
 
 
     double PReLU::prelu(double n, double a)   { return n < 0. ? a * n : n; }    /* { return ((n < 0.) * a + (n >= 0.)) * n; } */
@@ -31,6 +44,16 @@ namespace RedFish::Activation
 
     Tensor PReLU::farward(const Tensor& X) { return forEach(X, prelua); }
     Tensor PReLU::backward(const Tensor& X, const Tensor& d) { return d * forEach(X, prelua_d); }
+    uint64_t PReLU::save(std::ofstream &file) const
+    {
+        const char name[] = "Layer::Activation::PReLU";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(float64);
+        file.write((char*)&size, sizeof(size));
+        float64 a = prelua(-1.) * -1.;
+        file.write((char*)&a, sizeof(a));
+        return size + sizeof(name) + sizeof(size);
+    }
 
 
     double Sigmoid::sigmoid(double n)   { return 1. / (1. + std::exp(-n)); }
@@ -38,6 +61,7 @@ namespace RedFish::Activation
 
     Tensor Sigmoid::farward(const Tensor& X) { return forEach<sigmoid>(X); }
     Tensor Sigmoid::backward(const Tensor& X, const Tensor& d) { return d * forEach<sigmoid_d>(X); }
+    uint64_t Sigmoid::save(std::ofstream &file) const { return save_act(file, "Sigmoid"); }
 
 
     double TanH::tanh(double n)   { double exp_n = std::exp(n), exp_m_n = 1. / exp_n; return (exp_n - exp_m_n) / (exp_n + exp_m_n); }
@@ -45,6 +69,7 @@ namespace RedFish::Activation
 
     Tensor TanH::farward(const Tensor& X) { return forEach<tanh>(X); }
     Tensor TanH::backward(const Tensor& X, const Tensor& d) { return d * forEach<tanh_d>(X); }
+    uint64_t TanH::save(std::ofstream &file) const { return save_act(file, "TanH"); }
 
 
     double Softplus::softplus(double n)   { return std::log(1 + std::exp(n)); }
@@ -52,6 +77,7 @@ namespace RedFish::Activation
 
     Tensor Softplus::farward(const Tensor& X) { return forEach<softplus>(X); }
     Tensor Softplus::backward(const Tensor& X, const Tensor& d) { return d * forEach<softplus_d>(X); }
+    uint64_t Softplus::save(std::ofstream &file) const { return save_act(file, "Softplus"); }
 
 
     double SiLU::silu(double n)   { return n / (1 + std::exp(-n)); }
@@ -59,6 +85,7 @@ namespace RedFish::Activation
 
     Tensor SiLU::farward(const Tensor& X) { return forEach<silu>(X); }
     Tensor SiLU::backward(const Tensor& X, const Tensor& d) { return d * forEach<silu_d>(X); }
+    uint64_t SiLU::save(std::ofstream &file) const { return save_act(file, "SiLU"); }
 
 
     double Gaussian::gaussian(double n)   { return std::exp(-n*n); }
@@ -66,6 +93,7 @@ namespace RedFish::Activation
 
     Tensor Gaussian::farward(const Tensor& X) { return forEach<gaussian>(X); }
     Tensor Gaussian::backward(const Tensor& X, const Tensor& d) { return d * forEach<gaussian_d>(X); }
+    uint64_t Gaussian::save(std::ofstream &file) const { return save_act(file, "Gaussian"); }
 
 
     Tensor Softmax::farward(const Tensor& X)
@@ -111,5 +139,7 @@ namespace RedFish::Activation
 
         return grad;
     }
+
+    uint64_t Softmax::save(std::ofstream &file) const { return save_act(file, "Softmax"); }
 
 }

@@ -42,13 +42,13 @@ int main(int, char**)
 
     std::string category[] = { "airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"};
     auto [batch, data] = readCIFRA10Dataset(dataset_folder + "CIFRA10/data_batch_1.bin");
-    Model model({/* {Layer::Descriptor::CONV2D, {(size_t)3,  (size_t)16, Tuple2d(3), Tuple2d(1), Tuple2d(1), Tuple2d(1), (int8_t)PaddingMode::ZERO}},
+    Model model({{Layer::Descriptor::CONV2D, {(size_t)3,  (size_t)16, Tuple2d(3), Tuple2d(1), Tuple2d(1), Tuple2d(1), (int8_t)PaddingMode::ZERO}},
                  {Layer::Descriptor::LEAKY_RELU},
                  {Layer::Descriptor::CONV2D, {(size_t)16, (size_t)32, Tuple2d(3), Tuple2d(1), Tuple2d(1), Tuple2d(1), (int8_t)PaddingMode::ZERO}},
                  {Layer::Descriptor::LEAKY_RELU},
-                 {Layer::Descriptor::MAXPOOL2D, {Tuple2d(2), Tuple2d(2), Tuple2d(0), Tuple2d(1)}}, */
+                 {Layer::Descriptor::MAXPOOL2D, {Tuple2d(2), Tuple2d(2), Tuple2d(0), Tuple2d(1)}},
                  {Layer::Descriptor::FLATTEN, {(size_t)1, (size_t)-1}},
-                 {Layer::Descriptor::LINEAR, {(size_t)/* 256*32 */32*32*3, (size_t)256}},
+                 {Layer::Descriptor::LINEAR, {(size_t)256*32, (size_t)256}},
                  {Layer::Descriptor::RELU},
                  {Layer::Descriptor::LINEAR, {(size_t)256, (size_t)10}},
                  {Layer::Descriptor::SOFTMAX}},
@@ -56,19 +56,19 @@ int main(int, char**)
                  ADAM_OPTIMIZER);
 
     data.reshape({data.getSize(), 1});
-    model.train(batch, data, {3,32,32}, 10, .03, 5);
+    model.train(batch, data, 300, .0005, 10);
 
     auto [test_batch, test_data] = readCIFRA10Dataset(dataset_folder + "CIFRA10/data_batch_1.bin");
     test_data.reshape({data.getSize(), 1});
 
-    double accuracy = model.test(test_batch, test_data, [](const Tensor& m1, const Tensor& m2) {
+    double accuracy = model.test(/* test_ */batch, /* test_ */data, [](const Tensor& pred, const Tensor& gt) {
         double max = 0; 
         int max_index = 0;
-        int result_index = m2((size_t)0);
+        int result_index = gt((size_t)0);
         ///cout << m1 << m2;
-        for (size_t i = 0; i < m1.getSize(); i++)
+        for (size_t i = 0; i < pred.getSize(); i++)
         {
-            if (m1(i) > max) max = m1(i), max_index = i; 
+            if (pred(i) > max) max = pred(i), max_index = i; 
         }
         return result_index == max_index;
     });

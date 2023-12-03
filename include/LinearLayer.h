@@ -12,6 +12,7 @@ namespace RedFish {
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
+        uint64_t save(std::ofstream& file) const override;
 
         void print();
 

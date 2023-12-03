@@ -10,6 +10,8 @@ namespace RedFish
         DropoutLayer(float64 rate);
         Tensor farward(const Tensor& X);
         Tensor backward(const Tensor& X, const Tensor& d);
+        uint64_t save(std::ofstream& file) const override;
+        
     private:
         Tensor output;
         float64 rate;

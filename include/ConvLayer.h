@@ -12,7 +12,12 @@ namespace RedFish {
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
 
-    //private:
+        uint64_t save(std::ofstream& file) const override;
+
+        const Tensor& getKernels() const;
+        const Tensor& getBiases() const;
+
+    private:
         Tensor kernels, bias;
         size_t k_id, b_id;
         size_t stride;
@@ -29,7 +34,13 @@ namespace RedFish {
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
+
+        uint64_t save(std::ofstream& file) const override;
     
+        const Tensor& getKernels() const;
+        const Tensor& getBiases() const;
+
+    private:
         Tensor kernels, bias;
         size_t k_id, b_id;
         Tuple2d stride;
@@ -46,6 +57,11 @@ namespace RedFish {
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
+
+        uint64_t save(std::ofstream& file) const override;
+
+        const Tensor& getKernels() const;
+        const Tensor& getBiases() const;
 
     private:
         Tensor kernels, bias;

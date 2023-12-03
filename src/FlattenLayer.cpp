@@ -34,4 +34,9 @@ namespace RedFish {
         grad.reshape(X.getShape());
         return grad;
     }
+
+    uint64_t FlattenLayer::save(std::ofstream &file) const
+    {
+        return 0;
+    }
 }

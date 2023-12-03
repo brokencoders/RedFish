@@ -5,8 +5,8 @@ namespace RedFish {
     Conv1dLayer::Conv1dLayer(size_t in_channels, size_t out_channels, size_t kernel_size, Optimizer* optimizer, size_t stride, size_t padding, size_t dilation, PaddingMode pm)
         : kernels({out_channels,in_channels,kernel_size}), bias({out_channels, 1}), stride(stride), padding(padding), dilation(dilation), pm(pm), optimizer(optimizer)
     {
-        kernels.rand(-.5, .5);
-        bias.rand(-.5, .5);
+        kernels.randUniform(-.5, .5);
+        bias.randUniform(-.5, .5);
         k_id = optimizer->allocateParameter(kernels);
         b_id = optimizer->allocateParameter(bias);
     }
@@ -97,11 +97,26 @@ namespace RedFish {
         return xgrad;
     }
 
+    int Conv1dLayer::save(std::ofstream &file)
+    {
+        return 0;
+    }
+
+    const Tensor &Conv1dLayer::getKernels() const
+    {
+        return kernels;
+    }
+
+    const Tensor &Conv1dLayer::getBiases() const
+    {
+        return bias;
+    }
+
     Conv2dLayer::Conv2dLayer(size_t in_channels, size_t out_channels, Tuple2d kernel_size, Optimizer* optimizer, Tuple2d stride, Tuple2d padding, Tuple2d dilation, PaddingMode pm)
         : kernels({out_channels,in_channels,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1}), stride(stride), padding(padding), dilation(dilation), pm(pm), optimizer(optimizer)
     {
-        kernels.rand(-.5, .5);
-        bias.rand(-.5, .5);
+        kernels.randUniform(-.5, .5);
+        bias.randUniform(-.5, .5);
         k_id = optimizer->allocateParameter(kernels);
         b_id = optimizer->allocateParameter(bias);
     }
@@ -137,6 +152,7 @@ namespace RedFish {
 
     Tensor Conv2dLayer::backward(const Tensor& X, const Tensor& d) 
     {
+        const float64 lambda = .001;
         if (X.getShape().size() < 4)
             throw std::length_error("Invalid size of X in Conv2d backward");
         if (d.getShape().size() < 4)
@@ -168,7 +184,9 @@ namespace RedFish {
                 for (size_t k = 0; k < kernels.getShape()[1]; k++)
                     kgrad.getMatrix({j, k}) += X.getMatrix({i, k}).crossCorrelation2d(d.getMatrix({i, j}), padding, dilation, stride, pm);
         
-        Tensor bgrad = d.sum(0).sum(1).sum(3);
+        kgrad += kernels * lambda;
+
+        Tensor bgrad = d.sum(0).sum(1).sum(3) + bias * lambda;
 
         Tensor xgrad = zeros_like(X);
         Tensor dilated({d.getShape().end()[-4], d.getShape().end()[-3], (d.getShape().end()[-2]-1)*stride.y + 1 + 2*kernels.getShape().end()[-2] - 2 - 2*padding.y, (d.getShape().back()-1)*stride.x + 1 + 2*kernels.getShape().back() - 2 - 2*padding.x});
@@ -205,7 +223,19 @@ namespace RedFish {
         optimizer->updateParameter(k_id, kernels, kgrad);
         optimizer->updateParameter(b_id, bias, bgrad);
 
+        //std::cout << d;
+
         return xgrad;
+    }
+
+    const Tensor &Conv2dLayer::getKernels() const
+    {
+        return kernels;
+    }
+
+    const Tensor &Conv2dLayer::getBiases() const
+    {
+        return bias;
     }
 
     Conv3dLayer::Conv3dLayer(size_t in_channels, size_t out_channels, Tuple3d kernel_size, Optimizer *optimizer, Tuple3d stride, Tuple3d padding, Tuple3d dilation, PaddingMode pm)
@@ -221,6 +251,16 @@ namespace RedFish {
     Tensor Conv3dLayer::backward(const Tensor &X, const Tensor &d)
     {
         return Tensor();
+    }
+
+    const Tensor &Conv3dLayer::getKernels() const
+    {
+        return kernels;
+    }
+
+    const Tensor &Conv3dLayer::getBiases() const
+    {
+        return bias;
     }
 }
 

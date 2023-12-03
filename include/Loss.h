@@ -1,6 +1,7 @@
 #pragma once
 #include "Tensor.h"
 #include <limits>
+#include <fstream>
 
 namespace RedFish {
 
@@ -8,6 +9,7 @@ namespace RedFish {
     public:
         virtual double farward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
         virtual Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
+        virtual uint64_t save(std::ofstream& file) const = 0;
     };
 
     enum : uint32_t {
@@ -21,7 +23,7 @@ namespace RedFish {
 
         double farward(const Tensor& prediction, const Tensor& ground_truth) const override;
         Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const override;
-
+        uint64_t save(std::ofstream& file) const override;
     };
 
 
@@ -31,7 +33,7 @@ namespace RedFish {
 
         double farward(const Tensor& prediction, const Tensor& ground_truth) const override;
         Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const override;
-
+        uint64_t save(std::ofstream& file) const override;
     };
     
     Loss* make_loss(uint32_t l);
