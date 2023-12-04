@@ -17,12 +17,6 @@
 #include <immintrin.h>
 #include <fstream>
 
-#ifdef USE_PROFILING
-#include "Profiler.h"
-#else
-#define PROFILE
-#endif
-
 namespace RedFish
 {
     class Tensor;
@@ -266,7 +260,6 @@ namespace RedFish
         }
         DirectTensorView &operator=(const Tensor &t)
         {
-            PROFILE
             if (!sizeMatch(this->shape, t.shape))
                 throw std::length_error("Tensor sizes not matching in assignment operation");
 
@@ -277,7 +270,6 @@ namespace RedFish
         }
         DirectTensorView &operator=(const DirectTensorView &t)
         {
-            PROFILE
             if (!sizeMatch(this->shape, t.shape))
                 throw std::length_error("Tensor sizes not matching in assignment operation");
 
@@ -323,7 +315,6 @@ namespace RedFish
     inline Tensor::Tensor(const std::vector<size_t> &shape)
         : shape(shape)
     {
-        PROFILE
         size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
@@ -335,7 +326,6 @@ namespace RedFish
     inline Tensor::Tensor(const size_t *shape, size_t len)
         : shape(shape, shape + len)
     {
-        PROFILE
         size = 1;
         for (size_t i = 0; i < len; i++)
             size *= shape[i];
@@ -347,7 +337,6 @@ namespace RedFish
     inline Tensor::Tensor(const std::vector<size_t> &shape, float64 *buff, bool copy)
         : shape(shape)
     {
-        PROFILE
         size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
@@ -368,7 +357,6 @@ namespace RedFish
 
     inline Tensor::Tensor(const Tensor &t)
     {
-        PROFILE
         this->shape = t.shape;
         this->size = t.size;
         if (size)
@@ -406,7 +394,6 @@ namespace RedFish
 
     inline Tensor &Tensor::operator=(const Tensor &t)
     {
-        PROFILE
         this->shape = t.shape;
         this->size = t.size;
         if (size)
@@ -423,7 +410,6 @@ namespace RedFish
 
     inline Tensor &Tensor::operator=(Tensor &&t)
     {
-        PROFILE
         this->shape = t.shape;
         this->size = t.size;
         this->b_mem = std::move(t.b_mem);
@@ -438,7 +424,6 @@ namespace RedFish
 
     inline void Tensor::resize(const std::vector<size_t> &shape)
     {
-        PROFILE
         this->shape = shape;
         size = 1;
         for (size_t i = 0; i < shape.size(); i++)
@@ -450,7 +435,6 @@ namespace RedFish
 
     inline void Tensor::reshape(const std::vector<size_t> &shape)
     {
-        PROFILE
         size_t new_size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             new_size *= shape[i];
@@ -468,7 +452,7 @@ namespace RedFish
         size_t i_end = cols - cols % block_size;
         size_t k_end = mid - mid % block_size;
 
-#pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t jc = 0; jc < j_end; jc += block_size)
         {
             for (size_t kc = 0; kc < k_end; kc += block_size)
@@ -529,7 +513,7 @@ namespace RedFish
         size_t i_end = cols - cols % block_size;
         size_t k_end = mid - mid % block_size;
 
-#pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t jc = 0; jc < j_end; jc += block_size)
         {
             for (size_t kc = 0; kc < k_end; kc += block_size)
@@ -585,7 +569,6 @@ namespace RedFish
 
     inline Tensor Tensor::matmul(const Tensor &t, const Transpose trsp) const
     {
-        PROFILE
         Tensor result;
         std::vector<size_t> shapeT1, matShapeT1(shape.begin() + std::max<int64_t>(0, (int64_t)shape.size() - 2), shape.end());
         std::vector<size_t> shapeT2, matShapeT2(t.shape.begin() + std::max<int64_t>(0, (int64_t)t.shape.size() - 2), t.shape.end());
@@ -696,7 +679,6 @@ namespace RedFish
 
     inline Tensor Tensor::T() const
     {
-        PROFILE
         Tensor t(shape);
 
         if (shape.size() < 1)
@@ -779,7 +761,6 @@ namespace RedFish
 
     inline Tensor Tensor::operator+(const float64 val) const
     {
-        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] + val;
@@ -802,7 +783,6 @@ namespace RedFish
 
     inline Tensor &Tensor::operator+=(const float64 val)
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] += val;
 
@@ -818,7 +798,6 @@ namespace RedFish
 
     inline Tensor Tensor::operator-(const float64 val) const
     {
-        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] - val;
@@ -828,7 +807,6 @@ namespace RedFish
 
     inline Tensor Tensor::operator-() const
     {
-        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = -this->b[i];
@@ -838,7 +816,6 @@ namespace RedFish
 
     inline Tensor operator-(const float64 val, const Tensor &t)
     {
-        PROFILE
         Tensor ret = empty_like(t);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = val - t.b[i];
@@ -856,7 +833,6 @@ namespace RedFish
 
     inline Tensor &Tensor::operator-=(const float64 val)
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] -= val;
 
@@ -872,7 +848,6 @@ namespace RedFish
 
     inline Tensor Tensor::operator*(const float64 val) const
     {
-        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] * val;
@@ -895,7 +870,6 @@ namespace RedFish
 
     inline Tensor &Tensor::operator*=(const float64 val)
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] *= val;
 
@@ -911,7 +885,6 @@ namespace RedFish
 
     inline Tensor Tensor::operator/(const float64 val) const
     {
-        PROFILE
         Tensor result(this->shape);
         for (size_t i = 0; i < size; i++)
             result.b[i] = this->b[i] / val;
@@ -921,7 +894,6 @@ namespace RedFish
 
     inline Tensor operator/(const float64 val, const Tensor &t)
     {
-        PROFILE
         Tensor ret = empty_like(t);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = val / t.b[i];
@@ -939,7 +911,6 @@ namespace RedFish
 
     inline Tensor &Tensor::operator/=(const float64 val)
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             this->b[i] /= val;
 
@@ -1123,7 +1094,7 @@ namespace RedFish
         {
             using namespace std;
             complex<float64> wm = exp(-pi2 / m * 1i);
-#pragma omp parallel for
+            //#pragma omp parallel for
             for (size_t l = 0; l < n; l += m)
                 for (size_t k = 0; k < n; k += m)
                 {
@@ -1158,7 +1129,7 @@ namespace RedFish
         {
             using namespace std;
             complex<float64> wm = exp(pi2 / m * 1i);
-#pragma omp parallel for
+            //#pragma omp parallel for
             for (size_t l = 0; l < n; l += m)
                 for (size_t k = 0; k < n; k += m)
                 {
@@ -1222,7 +1193,7 @@ namespace RedFish
                     dst[c] += t[c * stride.w + ck * dilation.w] * kernel[kernel_size.w - ck - 1];
         };
 
-#pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
             for (size_t rk = 0; rk < kernel_size.y; rk++)
                 for (size_t r = rb; r < rb + block_size_r; r++)
@@ -1269,7 +1240,7 @@ namespace RedFish
                     dst[c] += t[c * stride.w + ck * dilation.w] * kernel[ck];
         };
 
-#pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
             for (size_t rk = 0; rk < kernel_size.y; rk++)
                 for (size_t r = rb; r < rb + block_size_r; r++)
@@ -1319,7 +1290,6 @@ namespace RedFish
 
     inline Tensor Tensor::crossCorrelation1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
     {
-        PROFILE
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
@@ -1353,7 +1323,7 @@ namespace RedFish
         result.zero();
 
         std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-#pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
         {
             for (size_t c = 0; c < shape_t.back(); c++)
@@ -1373,7 +1343,6 @@ namespace RedFish
 
     inline Tensor Tensor::crossCorrelation2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
     {
-        PROFILE
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
@@ -1431,13 +1400,11 @@ namespace RedFish
 
     inline Tensor Tensor::crossCorrelation3d(const Tensor &kernel, Tuple3d padding, Tuple3d stride, Tuple3d dilation, PaddingMode pm) const
     {
-        PROFILE
         return Tensor();
     }
 
     inline Tensor Tensor::convolution1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
     {
-        PROFILE
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
@@ -1471,7 +1438,7 @@ namespace RedFish
         result.zero();
 
         std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-#pragma omp parallel for
+        //#pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
         {
             for (size_t c = 0; c < shape_t.back(); c++)
@@ -1491,7 +1458,6 @@ namespace RedFish
 
     inline Tensor Tensor::convolution2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
     {
-        PROFILE
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
@@ -1866,7 +1832,6 @@ namespace RedFish
 
     inline bool Tensor::operator==(const Tensor &t) const
     {
-        PROFILE
         if (!sizeMatch(shape, t.shape))
             return false;
 
@@ -1959,21 +1924,18 @@ namespace RedFish
 
     inline void Tensor::zero()
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             b[i] = 0;
     }
 
     inline void Tensor::ones()
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             b[i] = 1;
     }
 
     inline void Tensor::rand()
     {
-        PROFILE
         float64 inv = 1. / RAND_MAX;
         for (size_t i = 0; i < size; i++)
             b[i] = std::rand() * inv;
@@ -1981,7 +1943,6 @@ namespace RedFish
 
     inline void Tensor::rand(float64 start, float64 end)
     {
-        PROFILE
         float64 l = (end - start) / RAND_MAX;
         for (size_t i = 0; i < size; i++)
             b[i] = std::rand() * l + start;
@@ -1989,7 +1950,6 @@ namespace RedFish
 
     inline void Tensor::randUniform(float64 a, float64 b)
     {
-        PROFILE
         std::uniform_real_distribution<> dis(a, b);
         for (size_t i = 0; i < size; i++)
             this->b[i] = dis(gen);
@@ -1997,7 +1957,6 @@ namespace RedFish
 
     inline void Tensor::randNormal(float64 mean, float64 std)
     {
-        PROFILE
         std::normal_distribution<double> distribution(mean, std);
         for (size_t i = 0; i < size; i++)
             b[i] = distribution(gen);
@@ -2005,7 +1964,6 @@ namespace RedFish
 
     inline void Tensor::costant(float64 val)
     {
-        PROFILE
         for (size_t i = 0; i < size; i++)
             b[i] = val;
     }
@@ -2033,7 +1991,6 @@ namespace RedFish
 
     inline bool Tensor::sizeMatch(const std::vector<size_t> &s1, const std::vector<size_t> &s2)
     {
-        PROFILE
         // if (size != t.size) return false;
         size_t end = std::min(s1.size(), s2.size());
         for (size_t i = 1; i <= end; i++)
@@ -2053,7 +2010,6 @@ namespace RedFish
 
     inline bool broadcastable(const std::vector<size_t> &i1, const std::vector<size_t> &i2)
     {
-        PROFILE
         auto p1 = i1.end() - 1;
         auto p2 = i2.end() - 1;
 
@@ -2088,7 +2044,6 @@ namespace RedFish
     template <float64 (*fn)(float64)>
     inline Tensor forEach(const Tensor &t)
     {
-        PROFILE
         Tensor ret(t.shape);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = fn(t.b[i]);
@@ -2097,7 +2052,6 @@ namespace RedFish
 
     inline Tensor forEach(const Tensor &t, std::function<float64(float64)> fn)
     {
-        PROFILE
         Tensor ret(t.shape);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = fn(t.b[i]);
@@ -2107,7 +2061,6 @@ namespace RedFish
     template <float64 (*fn)(float64)>
     inline Tensor &forEachInPlace(Tensor &t)
     {
-        PROFILE
         for (size_t i = 0; i < t.size; i++)
             t.b[i] = fn(t.b[i]);
         return t;
@@ -2115,7 +2068,6 @@ namespace RedFish
 
     inline Tensor &forEachInPlace(Tensor &t, std::function<float64(float64)> fn)
     {
-        PROFILE
         for (size_t i = 0; i < t.size; i++)
             t.b[i] = fn(t.b[i]);
         return t;
@@ -2124,7 +2076,6 @@ namespace RedFish
     template <void (*fn)(float64 &, float64)>
     inline Tensor op_along_axes(const Tensor &t, size_t d, const float64 init_val)
     {
-        PROFILE
         d = t.shape.size() - d - 1;
         auto shape = t.shape;
         shape[d] = std::min((size_t)1, shape[d]);
@@ -2185,7 +2136,6 @@ namespace RedFish
     template <float64 (*fn)(float64, float64)>
     inline Tensor ew_or_broadcast(const Tensor &t1, const Tensor &t2, const char *err_msg)
     {
-        PROFILE
         Tensor result;
         if (Tensor::sizeMatch(t1.shape, t2.shape))
         {
@@ -2231,7 +2181,6 @@ namespace RedFish
     template <float64 (*fn)(float64, float64)>
     inline void ew_or_broadcast_assign(Tensor &t1, const Tensor &t2, const char *err_msg)
     {
-        PROFILE
         if (Tensor::sizeMatch(t1.shape, t2.shape))
         {
             for (size_t i = 0; i < t1.size; i++)
@@ -2287,7 +2236,6 @@ namespace RedFish
     template <float64 (*fn)(float64, float64)>
     inline void ew_or_left_broadcast_assign(Tensor &t1, const Tensor &t2, const char *err_msg)
     {
-        PROFILE
         if (Tensor::sizeMatch(t1.shape, t2.shape))
         {
             for (size_t i = 0; i < t1.size; i++)
@@ -2378,13 +2326,11 @@ namespace RedFish
                              size_t foff, size_t foff1, size_t foff2,
                              Args... args)
     {
-        PROFILE
         broadcast_op_impl<fn, Args...>(dst, src1, src2, shape, shape1, shape2, depth, foff, foff1, foff2, (size_t)0, (size_t)0, (size_t)0, args...);
     }
 
     inline RedFish::Tensor stack(const RedFish::Tensor &t1, const RedFish::Tensor &t2, size_t dim)
     {
-        PROFILE
         if (t1.shape.size() <= dim)
             throw std::length_error("Tensor has not that many dimensions");
 
@@ -2519,7 +2465,6 @@ namespace std
 
     inline RedFish::Tensor pow(const RedFish::Tensor &t, RedFish::float64 power)
     {
-        PROFILE
         RedFish::Tensor ret = RedFish::empty_like(t);
         for (size_t i = 0; i < t.size; i++)
             ret.b[i] = std::pow(t.b[i], power);
@@ -2529,7 +2474,6 @@ namespace std
 
     inline RedFish::Tensor pow(const RedFish::Tensor &t, const RedFish::Tensor &power)
     {
-        PROFILE
         if (!t.sizeMatch(t.shape, power.shape))
             throw std::length_error("Tensor sizes not matching in std::pow operation");
 
