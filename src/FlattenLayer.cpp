@@ -37,6 +37,15 @@ namespace RedFish {
 
     uint64_t FlattenLayer::save(std::ofstream &file) const
     {
-        return 0;
+        const char name[] = "Layer::Flatten";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(start_dim) + sizeof(end_dim);
+
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&start_dim, sizeof(start_dim));
+        file.write((char*)&end_dim, sizeof(end_dim));
+ 
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 }

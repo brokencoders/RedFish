@@ -47,5 +47,21 @@ namespace RedFish
 
         return grad;
     }
-    
+
+    uint64_t DropoutLayer::save(std::ofstream &file) const
+    {
+        const char name[] = "Layer::Dropout";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(rate) + sizeof(skip_size)
+                      + sizeof(batch_size) + sizeof(factor);
+
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&rate, sizeof(rate));
+        file.write((char*)&skip_size, sizeof(skip_size));
+        file.write((char*)&batch_size, sizeof(batch_size));
+        file.write((char*)&factor, sizeof(factor));
+ 
+        return size + sizeof(uint64_t) + sizeof(name);
+    }
 }

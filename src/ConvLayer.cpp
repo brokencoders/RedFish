@@ -97,9 +97,33 @@ namespace RedFish {
         return xgrad;
     }
 
-    int Conv1dLayer::save(std::ofstream &file)
+    uint64_t Conv1dLayer::save(std::ofstream &file) const
     {
-        return 0;
+        const char name[] = "Layer::Conv1d";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(k_id) + sizeof(b_id)
+                      + sizeof(stride) + sizeof(padding)
+                      + sizeof(dilation) + sizeof(pm);
+
+        auto spos = file.tellp();
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&k_id, sizeof(k_id));
+        file.write((char*)&b_id, sizeof(b_id));
+        file.write((char*)&stride, sizeof(stride));
+        file.write((char*)&padding, sizeof(padding));
+        file.write((char*)&dilation, sizeof(dilation));
+        file.write((char*)&pm, sizeof(pm));
+ 
+        size += kernels.save(file);
+        size += bias.save(file);
+
+        auto cpos = file.tellp();
+        file.seekp(spos);
+        file.write((char*)&size, sizeof(size));
+        file.seekp(cpos);
+        
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 
     const Tensor &Conv1dLayer::getKernels() const
@@ -228,6 +252,35 @@ namespace RedFish {
         return xgrad;
     }
 
+    uint64_t Conv2dLayer::save(std::ofstream &file) const
+    {
+        const char name[] = "Layer::Conv2d";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(k_id) + sizeof(b_id)
+                      + sizeof(stride) + sizeof(padding)
+                      + sizeof(dilation) + sizeof(pm);
+
+        auto spos = file.tellp();
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&k_id, sizeof(k_id));
+        file.write((char*)&b_id, sizeof(b_id));
+        file.write((char*)&stride, sizeof(stride));
+        file.write((char*)&padding, sizeof(padding));
+        file.write((char*)&dilation, sizeof(dilation));
+        file.write((char*)&pm, sizeof(pm));
+ 
+        size += kernels.save(file);
+        size += bias.save(file);
+
+        auto cpos = file.tellp();
+        file.seekp(spos);
+        file.write((char*)&size, sizeof(size));
+        file.seekp(cpos);
+        
+        return size + sizeof(uint64_t) + sizeof(name);
+    }
+
     const Tensor &Conv2dLayer::getKernels() const
     {
         return kernels;
@@ -251,6 +304,35 @@ namespace RedFish {
     Tensor Conv3dLayer::backward(const Tensor &X, const Tensor &d)
     {
         return Tensor();
+    }
+
+    uint64_t Conv3dLayer::save(std::ofstream &file) const
+    {
+        const char name[] = "Layer::Conv3d";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(k_id) + sizeof(b_id)
+                      + sizeof(stride) + sizeof(padding)
+                      + sizeof(dilation) + sizeof(pm);
+
+        auto spos = file.tellp();
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&k_id, sizeof(k_id));
+        file.write((char*)&b_id, sizeof(b_id));
+        file.write((char*)&stride, sizeof(stride));
+        file.write((char*)&padding, sizeof(padding));
+        file.write((char*)&dilation, sizeof(dilation));
+        file.write((char*)&pm, sizeof(pm));
+ 
+        size += kernels.save(file);
+        size += bias.save(file);
+
+        auto cpos = file.tellp();
+        file.seekp(spos);
+        file.write((char*)&size, sizeof(size));
+        file.seekp(cpos);
+        
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 
     const Tensor &Conv3dLayer::getKernels() const

@@ -29,9 +29,27 @@ namespace RedFish {
         return dX;
     }
 
-    uint64_T LinearLayer::save(std::ofstream &file) const
+    uint64_t LinearLayer::save(std::ofstream &file) const
     {
-        return 0;
+        const char name[] = "Layer::Linear";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(w_id) + sizeof(b_id);
+
+        auto spos = file.tellp();
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&w_id, sizeof(w_id));
+        file.write((char*)&b_id, sizeof(b_id));
+ 
+        size += weights.save(file);
+        size += biases.save(file);
+
+        auto cpos = file.tellp();
+        file.seekp(spos);
+        file.write((char*)&size, sizeof(size));
+        file.seekp(cpos);
+        
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 
     void LinearLayer::print()

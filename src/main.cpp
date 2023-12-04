@@ -75,5 +75,7 @@ int main(int, char**)
 
     std::cout << "Accuracy: " << accuracy * 100 << " %\n";
 
+    model.save("img_classifier.mod", true);
+
     return 0;
 }

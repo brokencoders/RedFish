@@ -78,7 +78,19 @@ namespace RedFish {
 
     uint64_t MaxPool1dLayer::save(std::ofstream &file) const
     {
-        return 0;
+        const char name[] = "Layer::MaxPool1d";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(kernel_size) + sizeof(stride)
+                      + sizeof(padding) + sizeof(dilation);
+
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&kernel_size, sizeof(kernel_size));
+        file.write((char*)&stride, sizeof(stride));
+        file.write((char*)&padding, sizeof(padding));
+        file.write((char*)&dilation, sizeof(dilation));
+ 
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 
     MaxPool2dLayer::MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride, Tuple2d padding, Tuple2d dilation) 
@@ -168,7 +180,19 @@ namespace RedFish {
 
     uint64_t MaxPool2dLayer::save(std::ofstream &file) const
     {
-        return 0;
+        const char name[] = "Layer::MaxPool2d";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(kernel_size) + sizeof(stride)
+                      + sizeof(padding) + sizeof(dilation);
+
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&kernel_size, sizeof(kernel_size));
+        file.write((char*)&stride, sizeof(stride));
+        file.write((char*)&padding, sizeof(padding));
+        file.write((char*)&dilation, sizeof(dilation));
+ 
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 
     MaxPool3dLayer::MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride, Tuple3d padding, Tuple3d dilation)
@@ -188,6 +212,18 @@ namespace RedFish {
 
     uint64_t MaxPool3dLayer::save(std::ofstream &file) const
     {
-        return 0;
+        const char name[] = "Layer::MaxPool3d";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(kernel_size) + sizeof(stride)
+                      + sizeof(padding) + sizeof(dilation);
+
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&kernel_size, sizeof(kernel_size));
+        file.write((char*)&stride, sizeof(stride));
+        file.write((char*)&padding, sizeof(padding));
+        file.write((char*)&dilation, sizeof(dilation));
+ 
+        return size + sizeof(uint64_t) + sizeof(name);
     }
 }
