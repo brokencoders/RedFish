@@ -5,6 +5,24 @@ namespace RedFish {
     MaxPool1dLayer::MaxPool1dLayer(size_t kernel_size, size_t stride, size_t padding, size_t dilation) 
         :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation) {  }
 
+    MaxPool1dLayer::MaxPool1dLayer(std::ifstream &file)
+    {
+        const std::string name = "Layer::MaxPool1d";
+        char rname[sizeof("Layer::MaxPool1d")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in MaxPool1dLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&kernel_size, sizeof(kernel_size));
+        file.read((char*)&stride, sizeof(stride));
+        file.read((char*)&padding, sizeof(padding));
+        file.read((char*)&dilation, sizeof(dilation));
+    }
+
     // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool1d.html
     Tensor MaxPool1dLayer::farward(const Tensor &X)
     {
@@ -95,6 +113,24 @@ namespace RedFish {
 
     MaxPool2dLayer::MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride, Tuple2d padding, Tuple2d dilation) 
         :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation) {  }
+
+    MaxPool2dLayer::MaxPool2dLayer(std::ifstream &file)
+    {
+        const std::string name = "Layer::MaxPool2d";
+        char rname[sizeof("Layer::MaxPool2d")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in MaxPool2dLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&kernel_size, sizeof(kernel_size));
+        file.read((char*)&stride, sizeof(stride));
+        file.read((char*)&padding, sizeof(padding));
+        file.read((char*)&dilation, sizeof(dilation));
+    }
 
     Tensor MaxPool2dLayer::farward(const Tensor &X)
     {
@@ -198,6 +234,24 @@ namespace RedFish {
     MaxPool3dLayer::MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride, Tuple3d padding, Tuple3d dilation)
         :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation)
     {
+    }
+
+    MaxPool3dLayer::MaxPool3dLayer(std::ifstream &file)
+    {
+        const std::string name = "Layer::MaxPool3d";
+        char rname[sizeof("Layer::MaxPool3d")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in MaxPool3dLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&kernel_size, sizeof(kernel_size));
+        file.read((char*)&stride, sizeof(stride));
+        file.read((char*)&padding, sizeof(padding));
+        file.read((char*)&dilation, sizeof(dilation));
     }
 
     Tensor MaxPool3dLayer::farward(const Tensor &X)

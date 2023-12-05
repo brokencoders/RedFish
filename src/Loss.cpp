@@ -66,4 +66,27 @@ namespace RedFish {
         }
     }
 
+    Loss *make_loss(std::ifstream &file)
+    {
+        auto spos = file.tellg();
+        char name[128] = "", c = 1;
+        for (size_t i = 0; i < sizeof(name) && c != '\0'; name[i] = c, i++)
+            file.get(c);
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        if (size > 0) file.seekg(spos);
+        
+        const std::string loss = "Loss::";
+        if (std::string(name).find_first_of(loss) != 0)
+            throw std::runtime_error("Invalid file content in make_loss(std::ifstram&)");
+
+        const std::string loss_name = name + sizeof("Loss::") - 1;
+
+        if (loss_name == "Square")       return new SquareLoss();
+        if (loss_name == "CrossEntropy") return new CrossEntropyLoss();
+
+        return nullptr;
+    }
 }

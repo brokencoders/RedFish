@@ -20,7 +20,7 @@ namespace RedFish {
         double test(const Tensor& in, const Tensor& out, std::function<double(const Tensor&, const Tensor&)> accuracy);
         Tensor estimate(const Tensor& in);
 
-        uint64_t save(const std::string& file_path, bool save_optimizer);
+        uint64_t save(const std::string& file_path, bool release);
 
     private:
         std::vector<Layer*> layers;

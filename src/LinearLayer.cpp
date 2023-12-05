@@ -11,6 +11,26 @@ namespace RedFish {
         b_id = optimizer->allocateParameter(biases);
     }
 
+    LinearLayer::LinearLayer(std::ifstream &file, Optimizer* optimizer)
+        : optimizer(optimizer)
+    {
+        const std::string name = "Layer::Linear";
+        char rname[sizeof("Layer::Linear")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in LinearLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&w_id, sizeof(w_id));
+        file.read((char*)&b_id, sizeof(b_id));
+ 
+        weights = Tensor(file);
+        biases  = Tensor(file);
+    }
+
     Tensor LinearLayer::farward(const Tensor &X)
     {
         return X.matmul(weights) + biases;

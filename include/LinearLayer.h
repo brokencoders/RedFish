@@ -9,6 +9,7 @@ namespace RedFish {
     class LinearLayer : public Layer  {
     public:
         LinearLayer(size_t input_size, size_t neuron_count, Optimizer* optimizer);
+        LinearLayer(std::ifstream& file, Optimizer* optimizer);
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;

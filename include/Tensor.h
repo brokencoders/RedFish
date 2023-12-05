@@ -56,6 +56,7 @@ namespace RedFish
     {
         Tuple2d(size_t y, size_t x) : y(y), x(x) {}
         Tuple2d(size_t n) : y(n), x(n) {}
+        Tuple2d() : y(0), x(0) {}
         union
         {
             size_t y, h;
@@ -70,6 +71,7 @@ namespace RedFish
     {
         Tuple3d(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
         Tuple3d(size_t n) : z(n), y(n), x(n) {}
+        Tuple3d() : y(0), x(0) {}
         union
         {
             size_t z, d;
@@ -111,8 +113,10 @@ namespace RedFish
         Tensor(const std::vector<size_t> &shape = {});
         Tensor(const size_t *shape, size_t len);
         Tensor(const std::vector<size_t> &shape, float64 *buff, bool copy = true);
-        Tensor(const Tensor &t); // Copy Constructor
+        Tensor(const Tensor &t);  // Copy Constructor
+        Tensor(Tensor &&t);       // Move Constructor
         Tensor(const std::vector<size_t> &shape, std::initializer_list<float64> data);
+        Tensor(std::ifstream& file);
         ~Tensor();
 
         Tensor &operator=(const Tensor &t);
@@ -367,6 +371,16 @@ namespace RedFish
             this->b[i] = t.b[i];
     }
 
+    inline Tensor::Tensor(Tensor &&t)
+    {
+        this->shape = t.shape;
+        this->size = t.size;
+        this->b_mem = std::move(t.b_mem);
+        b = b_mem.get();
+        t.shape = {0};
+        t.size = 0;
+    }
+
     inline Tensor::Tensor(const std::vector<size_t> &shape, std::initializer_list<float64> data)
         : shape(shape)
     {
@@ -390,6 +404,34 @@ namespace RedFish
 
         for (size_t i = 0; i < size; i++)
             this->b[i] = data.begin()[i];
+    }
+
+    inline Tensor::Tensor(std::ifstream &file)
+    {
+        const std::string name = "Tensor";
+        char rname[sizeof("Tensor")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in Tensor(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        this->size = 1;
+        uint64_t shape_size = 0;
+        file.read((char*)&shape_size, sizeof(shape_size));
+        shape.reserve(shape_size);
+        for (size_t i = 0; i < shape_size; i++)
+        {
+            uint64_t shape_size = 0;
+            file.read((char*)&shape_size, sizeof(shape_size));
+            shape.push_back(shape_size);
+            this->size *= shape_size;
+        }
+
+        b = (b_mem = std::make_unique<float64[]>(this->size)).get();
+        file.read((char*)b, this->size * sizeof(float64));
     }
 
     inline Tensor &Tensor::operator=(const Tensor &t)
@@ -416,6 +458,7 @@ namespace RedFish
         b = b_mem.get();
         t.shape = {0};
         t.size = 0;
+        t.b = nullptr;
 
         return *this;
     }
@@ -1984,7 +2027,7 @@ namespace RedFish
             file.write((char*)&shape_size, sizeof(shape_size));
         }
 
-        file.write((char*)&b, this->size * sizeof(float64));
+        file.write((char*)b, this->size * sizeof(float64));
 
         return size + sizeof(uint64_t) + sizeof(name);
     }

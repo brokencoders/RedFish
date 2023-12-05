@@ -1,5 +1,6 @@
 #include "Model.h"
 #include <chrono>
+#include <string>
 
 namespace RedFish
 {
@@ -11,38 +12,38 @@ namespace RedFish
             this->layers.push_back(make_layer(layer, this->optimizer));
     }
 
-    /* Model::Model(const std::string &file_path, const Loss* loss, const Optimizer* optimizer)
-        : loss(loss)
+    Model::Model(const std::string &file_path)
+        : optimizer(nullptr), loss(nullptr)
     {
         std::ifstream file(file_path, std::ios::binary);
 
-        file.read((char*)&input_size, 4);
+        const std::string name = "RedFishDeepModel";
+        char rname[sizeof("RedFishDeepModel")];
+        file.read(rname, sizeof(rname));
 
-        uint32_t layer_count;
-        file.read((char*)&layer_count, 4);
-        layers.reserve(layer_count);
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in Model(const std::string&)");
 
-        uint32_t layer_input_size = input_size;
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
 
-        for (size_t i = 0; i < layer_count; i++)
+        bool release = true;
+        file.read((char*)&release, sizeof(release));
+
+        if (!release)
         {
-            file.read((char*)&layer_input_size, 4);
-
-            uint32_t neuron_count;
-            file.read((char*)&neuron_count, 4);
-
-            layers.emplace_back(layer_input_size, neuron_count, optimizer);
-
-            for (auto& neuron : layers.back().neurons)
-            {
-                file.read((char*)&neuron.bias, 8);
-                file.read((char*)&neuron.weights(0UL), 8 * layer_input_size);
-            }
-
-            layer_input_size = layers.back().neurons.size();
+            this->optimizer = make_optimizer(file);
+            this->loss = make_loss(file);
         }
 
-    } */
+        uint64_t layer_count = 0;
+        file.read((char*)&layer_count, sizeof(layer_count));
+
+        layers.reserve(layer_count);
+        for (size_t i = 0; i < layer_count; i++)
+            layers.push_back(make_layer(file, this->optimizer));
+
+    }
 
     void Model::train(const Tensor &in, const Tensor &out, uint32_t epochs, double learning_rate, size_t mini_batch_size)
     {
@@ -117,7 +118,7 @@ namespace RedFish
         return fw_res;
     }
 
-    uint64_t Model::save(const std::string &file_path, bool optimizer)
+    uint64_t Model::save(const std::string &file_path, bool release)
     {
         std::ofstream file(file_path, std::ios::binary);
 
@@ -125,18 +126,22 @@ namespace RedFish
         file.write(name, sizeof(name));
 
         auto spos = file.tellp();
-        uint64_t size = sizeof(uint64_t);
+        uint64_t size = sizeof(uint64_t) + sizeof(release);
         file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&release, sizeof(release));
         
+        if (!release)
+        {
+            size += this->optimizer->save(file);
+            size += this->loss->save(file);
+        }
+
         uint64_t layer_count = layers.size();
         file.write((char*)&layer_count, sizeof(layer_count));
 
         for (size_t i = 0; i < layers.size(); i++)
             size += layers[i]->save(file);
-
-        size += loss->save(file);
-        if(optimizer)
-            size += this->optimizer->save(file);
 
         file.seekp(spos);
         file.write((char*)&size, sizeof(size));
@@ -144,33 +149,3 @@ namespace RedFish
         return size + sizeof(name) + sizeof(size);
     }
 }
-
-/**
- * Model
- *
- */
-
-/**
-        std::ofstream file(file_path, std::ios::binary);
-
-    file.write((char*)&input_size, 4);
-
-    uint32_t layer_count = layers.size();
-    file.write((char*)&layer_count, 4);
-
-    uint32_t layer_input_size = input_size;
-
-    for (auto& layer : layers)
-    {
-        file.write((char*)&layer_input_size, 4);
-
-        uint32_t neuron_count = layer.biases.getSize();
-        file.write((char*)&neuron_count, 8);
-
-        file.write((char*)&layer.biases(0UL),  8 * layer.biases.getSize());
-        file.write((char*)&layer.weights(0UL), 8 * layer.weights.getSize());
-
-        layer_input_size = layer.weights.rowSize();
-    }
-
- */

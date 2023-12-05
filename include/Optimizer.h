@@ -31,6 +31,7 @@ namespace RedFish
     {
     public:
         Adam();
+        Adam(std::ifstream& file);
         size_t allocateParameter(const Tensor& t) override;
         void updateParameter(size_t i, Tensor& value, const Tensor& grad) override;
         void step() override;
@@ -50,5 +51,6 @@ namespace RedFish
 
 
     Optimizer* make_optimizer(uint32_t o);
+    Optimizer* make_optimizer(std::ifstream& file);
 
 }

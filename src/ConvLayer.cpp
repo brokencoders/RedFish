@@ -11,6 +11,30 @@ namespace RedFish {
         b_id = optimizer->allocateParameter(bias);
     }
 
+    Conv1dLayer::Conv1dLayer(std::ifstream &file, Optimizer* optimizer)
+        : optimizer(optimizer)
+    {
+        const std::string name = "Layer::Conv1d";
+        char rname[sizeof("Layer::Conv1d")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in Conv1dLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&k_id, sizeof(k_id));
+        file.read((char*)&b_id, sizeof(b_id));
+        file.read((char*)&stride, sizeof(stride));
+        file.read((char*)&padding, sizeof(padding));
+        file.read((char*)&dilation, sizeof(dilation));
+        file.read((char*)&pm, sizeof(pm));
+ 
+        kernels = Tensor(file);
+        bias    = Tensor(file);
+    }
+
     Tensor Conv1dLayer::farward(const Tensor& X)
     {
         if (X.getShape().size() < 3)
@@ -143,6 +167,30 @@ namespace RedFish {
         bias.randUniform(-.5, .5);
         k_id = optimizer->allocateParameter(kernels);
         b_id = optimizer->allocateParameter(bias);
+    }
+
+    Conv2dLayer::Conv2dLayer(std::ifstream &file, Optimizer* optimizer)
+        : optimizer(optimizer)
+    {
+        const std::string name = "Layer::Conv2d";
+        char rname[sizeof("Layer::Conv2d")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in Conv2dLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&k_id, sizeof(k_id));
+        file.read((char*)&b_id, sizeof(b_id));
+        file.read((char*)&stride, sizeof(stride));
+        file.read((char*)&padding, sizeof(padding));
+        file.read((char*)&dilation, sizeof(dilation));
+        file.read((char*)&pm, sizeof(pm));
+ 
+        kernels = Tensor(file);
+        bias    = Tensor(file);
     }
 
     Tensor Conv2dLayer::farward(const Tensor& X)
@@ -294,6 +342,30 @@ namespace RedFish {
     Conv3dLayer::Conv3dLayer(size_t in_channels, size_t out_channels, Tuple3d kernel_size, Optimizer *optimizer, Tuple3d stride, Tuple3d padding, Tuple3d dilation, PaddingMode pm)
         : kernels({out_channels,in_channels,kernel_size.d,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1, 1}), stride(stride), padding(padding), dilation(dilation), pm(pm), optimizer(optimizer)
     {
+    }
+
+    Conv3dLayer::Conv3dLayer(std::ifstream &file, Optimizer* optimizer)
+        : optimizer(optimizer)
+    {
+        const std::string name = "Layer::Conv3d";
+        char rname[sizeof("Layer::Conv3d")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in Conv3dLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&k_id, sizeof(k_id));
+        file.read((char*)&b_id, sizeof(b_id));
+        file.read((char*)&stride, sizeof(stride));
+        file.read((char*)&padding, sizeof(padding));
+        file.read((char*)&dilation, sizeof(dilation));
+        file.read((char*)&pm, sizeof(pm));
+ 
+        kernels = Tensor(file);
+        bias    = Tensor(file);
     }
 
     Tensor Conv3dLayer::farward(const Tensor &X)

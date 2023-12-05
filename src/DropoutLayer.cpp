@@ -5,6 +5,24 @@ namespace RedFish
     DropoutLayer::DropoutLayer(float64 rate)
         :rate(rate) { }
 
+    DropoutLayer::DropoutLayer(std::ifstream &file)
+    {
+        const std::string name = "Layer::Dropout";
+        char rname[sizeof("Layer::Dropout")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in DropoutLayer(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&rate, sizeof(rate));
+        file.read((char*)&skip_size, sizeof(skip_size));
+        file.read((char*)&batch_size, sizeof(batch_size));
+        file.read((char*)&factor, sizeof(factor));
+    }
+
     Tensor DropoutLayer::farward(const Tensor& X)
     {
         if(output.getShape().size() == 0)

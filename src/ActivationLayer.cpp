@@ -4,6 +4,11 @@
 namespace RedFish::Activation
 {
 
+    Layer *new_Activation(std::ifstream &file)
+    {
+        return nullptr;
+    }
+
     uint64_t save_act(std::ofstream &file, std::string name)
     {
         name = "Layer::Activation::" + name;
@@ -41,6 +46,25 @@ namespace RedFish::Activation
         : prelua([a](double n){return prelu(n, a);}),
           prelua_d([a](double n){return prelu_d(n, a);})
     {}
+
+    PReLU::PReLU(std::ifstream &file, Optimizer* optimizer)
+    {
+        const std::string name = "Layer::Activation::PReLU";
+        char rname[sizeof("Layer::Activation::PReLU")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in PReLU(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        float64 a = .25;
+        file.read((char*)&a, sizeof(a));
+
+        prelua   = [a](double n){return prelu(n, a);};
+        prelua_d = [a](double n){return prelu_d(n, a);};
+    }
 
     Tensor PReLU::farward(const Tensor& X) { return forEach(X, prelua); }
     Tensor PReLU::backward(const Tensor& X, const Tensor& d) { return d * forEach(X, prelua_d); }

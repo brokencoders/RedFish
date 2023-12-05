@@ -6,6 +6,8 @@
 
 namespace RedFish::Activation
 {
+
+    Layer* new_Activation(std::ifstream& file);
     
     class Identity : public Layer  {
 
@@ -46,6 +48,7 @@ namespace RedFish::Activation
 
     public:
         PReLU(float64 initial = .25);
+        PReLU(std::ifstream& file, Optimizer* optimizer);
 
         Tensor farward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;

@@ -37,5 +37,6 @@ namespace RedFish {
     };
     
     Loss* make_loss(uint32_t l);
+    Loss* make_loss(std::ifstream& file);
 
 }

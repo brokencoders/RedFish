@@ -10,9 +10,9 @@ namespace RedFish {
 
     union Param
     {
-        Param(Tuple2d n)  {_tuple2d = n;}  
-        Param(Tuple3d n)  {_tuple3d = n;}  
-        Param(size_t n)   {_size_t = n;}  
+        Param(Tuple2d n)  {_tuple2d = n;}
+        Param(Tuple3d n)  {_tuple3d = n;}
+        Param(size_t n)   {_size_t = n;}
         Param(uint32_t n) {_uint32 = n;}
         Param(uint16_t n) {_uint16 = n;}
         Param(uint8_t n)  {_uint8 = n;}
@@ -21,7 +21,7 @@ namespace RedFish {
         Param(int16_t n)  {_integer16 = n;}
         Param(int8_t n)   {_integer8 = n;}
         Param(float n)    {_float = n;}
-        Param(double n)   {_double = n;}  
+        Param(double n)   {_double = n;}
         Tuple2d  _tuple2d;
         Tuple3d  _tuple3d;
         size_t   _size_t;
@@ -34,6 +34,7 @@ namespace RedFish {
         int8_t   _integer8;
         float    _float;
         double   _double;
+        float64  _float64;
     };
 
     class Layer {
@@ -53,6 +54,7 @@ namespace RedFish {
                 MAXPOOL2D,
                 MAXPOOL3D,
                 FLATTEN,
+                DROPOUT,
                 IDENTITY,
                 RELU,
                 LEAKY_RELU,
@@ -72,5 +74,6 @@ namespace RedFish {
     };
 
     Layer* make_layer(const Layer::Descriptor& dsc, Optimizer* opt);
+    Layer* make_layer(std::ifstream& file, Optimizer* opt);
 
 }

@@ -5,6 +5,22 @@ namespace RedFish {
     FlattenLayer::FlattenLayer(size_t start_dim, size_t end_dim)
         :start_dim(start_dim), end_dim(end_dim) { }
 
+    FlattenLayer::FlattenLayer(std::ifstream &file)
+    {
+        const std::string name = "Layer::Flatten";
+        char rname[sizeof("Layer::Flatten")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in FlattenLayer(std::ifstream&)");
+        
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&start_dim, sizeof(start_dim));
+        file.read((char*)&end_dim, sizeof(end_dim));
+    }
+
     Tensor FlattenLayer::farward(const Tensor& X)
     {
         Tensor flatten(X);
