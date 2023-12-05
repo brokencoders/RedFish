@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SOURCE_FOLDER "src")
 set(HEADER_FOLDER "include")
 
+find_package(OpenCL REQUIRED)
+
+
 find_package(Boost REQUIRED COMPONENTS iostreams system filesystem)
 include_directories(${Boost_INCLUDE_DIRS})
 
@@ -34,11 +37,11 @@ endif()
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
-target_include_directories(RedFish PUBLIC include)
-target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/)
+target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
+target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
 target_link_libraries(RedFishMain PUBLIC RedFish)
 
-target_link_libraries(RedFishMain PRIVATE Boost::iostreams Boost::system Boost::filesystem)
+target_link_libraries(RedFishMain PRIVATE Boost::iostreams Boost::system Boost::filesystem  OpenCL::OpenCL)
 
 add_subdirectory(test)
 

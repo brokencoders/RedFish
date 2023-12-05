@@ -17,6 +17,18 @@ using namespace RedFish;
 
 namespace RedFish {
 
+    inline std::string loadFile(const std::string& filename) 
+    {
+        std::ifstream file(filename);
+        if (!file.is_open())
+            throw std::runtime_error("Error: Could not open file ");
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        file.close();
+        return buffer.str();
+    }
+
     // MINST Dataset http://yann.lecun.com/exdb/mnist/
     char grayscale[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 
