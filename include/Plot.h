@@ -4,7 +4,7 @@
 #include <thread>
 #include "Tensor.h"
 
-#include "../lib/gnuplot/gnuplot-iostream.h"
+#include "gnuplot-iostream.h"
 
 namespace RedFish
 {

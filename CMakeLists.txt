@@ -24,6 +24,7 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/DropoutLayer.cpp
 )
 add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
+add_executable(MatrixMain "${SOURCE_FOLDER}/mainMatrixMul.cpp")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 find_package(OpenMP)
@@ -40,6 +41,7 @@ set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
 target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
 target_link_libraries(RedFishMain PUBLIC RedFish)
+target_link_libraries(MatrixMain PUBLIC RedFish PRIVATE Boost::iostreams Boost::system Boost::filesystem  OpenCL::OpenCL)
 
 target_link_libraries(RedFishMain PRIVATE Boost::iostreams Boost::system Boost::filesystem  OpenCL::OpenCL)
 
