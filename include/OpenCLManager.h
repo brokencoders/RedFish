@@ -35,7 +35,7 @@ namespace RedFish
         template <typename T>
         static void loadReadBuffer(size_t buffer, size_t size, void* data);
 
-        static void execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> buffers, size_t size);
+        static void execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> buffers, std::vector<size_t> size);
 
     private:
         OpenCLManager() = delete;
@@ -121,7 +121,7 @@ namespace RedFish
         queue.enqueueReadBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
     }
 
-    inline void OpenCLManager::execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> arguments, size_t size)
+    inline void OpenCLManager::execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> arguments, std::vector<size_t> size)
     {
         if(kernel >= kernels.size())
             throw std::runtime_error("Is not a valid kernel!\n");
@@ -143,7 +143,8 @@ namespace RedFish
             kernels[kernel].setArg(i + int_arguments.size(), buffers[arguments[i]]);
         }
 
-        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size, size), cl::NDRange(1, 1));
+        // Find Solution for NDRange
+        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(1, 1));
         cl_int status = queue.finish();
         if (status != CL_SUCCESS) {
             throw std::runtime_error("Is not a valid kernel!\n");
