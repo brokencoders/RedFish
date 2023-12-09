@@ -15,6 +15,20 @@ namespace RedFish
         gp << "clear" << std::endl;
     }
 
+    inline void plot_function_data(std::vector<std::vector<std::pair<double, double>>> data, const std::pair<double, double>& x_range, const std::pair<double, double>& y_range, const std::vector<std::string> name)
+    {
+        gp << "set xrange [" << x_range.first << ":" << x_range.second << "]\n";
+        gp << "set yrange [" << y_range.first << ":" << y_range.second << "]\n";
+        for(size_t i = 0; i < data.size(); i++)
+        {
+            if(i == 0)
+                gp << "plot " << gp.file1d(data[i]) << " with lines title '" << name[i] << "'";
+            else 
+                gp << ", " << gp.file1d(data[i]) << " with lines title '" << name[i] << "'";
+        }
+        gp << "\n";
+    }
+
     inline void plot_RGBimage(const Tensor& batch, size_t index = 0, size_t size_data = 1, size_t plot_height = 0, size_t plot_width = 0)
     {
         size_t channels = 3;

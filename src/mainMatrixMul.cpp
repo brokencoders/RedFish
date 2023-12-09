@@ -1,3 +1,5 @@
+#include <iostream>
+#include <random>
 #include "RedFish.h"
 
 std::random_device rd;
@@ -44,64 +46,85 @@ void cpp_matrix_mul(const int M, const int N, const int K, const double* A, cons
     }
 }
 
-
 int main()
 {
-    int square_size = 500;
-    int M = square_size;
-    int N = square_size;
-    int K = square_size;
-    int dim = M * N;
-
-    double A[M*K];           // A        (M, K)
-    double B[K*N];           // B        (K, N)
-    double C[dim];           // C        (M, N)
-    double C_OPENCL[dim];    // C_OPENCL (M, N)
-
-    init_matrix(A, M*K);
-    init_matrix(B, K*N);
 
     // Cpu TEST
     OpenCLManager::init();
     OpenCLManager::createSourceFromFile("../src/kernels/TensorMul.cl");
     OpenCLManager::createProgram();
-
+    
     Kernel kernel = OpenCLManager::createKernel("tensor_tensor_math_mul");
 
+    std::vector<std::vector<std::pair<double, double>>> benchmarcks;
+    std::vector<std::pair<double, double>> benchmarcks_C;
+    std::vector<std::pair<double, double>> benchmarcks_C_OPENGL;
+    std::vector<std::pair<double, double>> benchmarcks_BOSE;
 
-    Buffer buffer_A = OpenCLManager::createBuffer<double>(M*K);
-    Buffer buffer_B = OpenCLManager::createBuffer<double>(K*N);
-    Buffer buffer_C = OpenCLManager::createBuffer<double>(dim);
-   
-    auto start_opencl = std::chrono::high_resolution_clock::now();
-    OpenCLManager::loadWriteBuffer<double>(buffer_B, K*N, B);
-    OpenCLManager::loadWriteBuffer<double>(buffer_A, M*K, A);
+    for(size_t i = 1; i < 10; i++)
+    {
+        int square_size = 100 * i;
+        int M = square_size;
+        int N = square_size;
+        int K = square_size;
+        int dim = M * N;
+
+        double* A = new double[M*K];           // A        (M, K)
+        double* B = new double[K*N];           // B        (K, N)
+        double* C = new double[dim];           // C        (M, N)
+        double* C_OPENCL = new double[dim];    // C_OPENCL (M, N)
+
+        init_matrix(A, M*K);
+        init_matrix(B, K*N);
+
+        // DELETE BUFFERS
+        Buffer buffer_A = OpenCLManager::createBuffer<double>(M*K);
+        Buffer buffer_B = OpenCLManager::createBuffer<double>(K*N);
+        Buffer buffer_C = OpenCLManager::createBuffer<double>(dim);
     
-    // Take multiple data and plot 
+        auto start_opencl = std::chrono::high_resolution_clock::now();
+        OpenCLManager::loadWriteBuffer<double>(buffer_B, K*N, B);
+        OpenCLManager::loadWriteBuffer<double>(buffer_A, M*K, A);
+        
+        // Take multiple data and plot 
 
-    OpenCLManager::execute(kernel, { M, N, K}, { buffer_A, buffer_B, buffer_C}, {(size_t)M, (size_t)N});
-    OpenCLManager::loadReadBuffer<double>(buffer_C, dim, C_OPENCL);
-    auto stop_opencl = std::chrono::high_resolution_clock::now();
-    auto duration_opencl = std::chrono::duration_cast<std::chrono::microseconds>(stop_opencl - start_opencl);
-    std::cout << "Time taken by Daniel OpenCL: " << duration_opencl.count() << " microseconds" << std::endl;
+        OpenCLManager::execute(kernel, { M, N, K}, { buffer_A, buffer_B, buffer_C}, {(size_t)M, (size_t)N}, {(size_t)10, (size_t)10});
+        OpenCLManager::loadReadBuffer<double>(buffer_C, dim, C_OPENCL);
+        auto stop_opencl = std::chrono::high_resolution_clock::now();
+        auto duration_opencl = std::chrono::duration_cast<std::chrono::microseconds>(stop_opencl - start_opencl);
+        std::cout << "Time taken by Daniel OpenCL: " << duration_opencl.count() << " microseconds" << std::endl;
+        benchmarcks_C_OPENGL.push_back(std::make_pair(square_size, duration_opencl.count()));
 
-    auto start_c = std::chrono::high_resolution_clock::now();
-    cpp_matrix_mul(M, N, K, A, B, C);
-    auto stop_c = std::chrono::high_resolution_clock::now();
-    auto duration_c = std::chrono::duration_cast<std::chrono::microseconds>(stop_c - start_c);
-    std::cout << "Time taken by C: " << duration_c.count() << " microseconds" << std::endl;
+        auto start_c = std::chrono::high_resolution_clock::now();
+        cpp_matrix_mul(M, N, K, A, B, C);
+        auto stop_c = std::chrono::high_resolution_clock::now();
+        auto duration_c = std::chrono::duration_cast<std::chrono::microseconds>(stop_c - start_c);
+        std::cout << "Time taken by C: " << duration_c.count() << " microseconds" << std::endl;
+        benchmarcks_C.push_back(std::make_pair(square_size, duration_c.count()));
 
+        Tensor TA({(size_t)M, (size_t)K}, A);
+        Tensor TB({(size_t)K, (size_t)N}, B);
+        auto start_bose = std::chrono::high_resolution_clock::now();
+        Tensor TC = TA * TB;
+        auto stop_bose = std::chrono::high_resolution_clock::now();
+        auto duration_bose = std::chrono::duration_cast<std::chrono::microseconds>(stop_bose - start_bose);
+        std::cout << "Time taken by Bose: " << duration_bose.count() << " microseconds" << std::endl;
+        benchmarcks_BOSE.push_back(std::make_pair(square_size, duration_bose.count()));
 
-    Tensor TA({(size_t)M, (size_t)K}, A);
-    Tensor TB({(size_t)K, (size_t)N}, B);
-    auto start_bose = std::chrono::high_resolution_clock::now();
-    Tensor TC = TA * TB;
-    auto stop_bose = std::chrono::high_resolution_clock::now();
-    auto duration_bose = std::chrono::duration_cast<std::chrono::microseconds>(stop_bose - start_bose);
-    std::cout << "Time taken by Bose: " << duration_bose.count() << " microseconds" << std::endl;
+        if (check(C, C_OPENCL, N))
+            std::cout << "OPENCL Correct" << std::endl;
+        
+        delete[] A;
+        delete[] B;
+        delete[] C;
+        delete[] C_OPENCL;
+    }
 
-    if (check(C, C_OPENCL, N))
-        std::cout << "OPENCL Correct" << std::endl;
+    benchmarcks.push_back(benchmarcks_C);
+    benchmarcks.push_back(benchmarcks_C_OPENGL);
+    benchmarcks.push_back(benchmarcks_BOSE);
+
+    plot_function_data(benchmarcks, {0, 1000}, {0, 100000}, {"C", "OPENCL", "BOSE"});
 
     return 0;
 }

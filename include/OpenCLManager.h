@@ -19,6 +19,7 @@ namespace RedFish
     {
     public:
         static void init();
+        static void free();
 
         static void createSource(const std::string& src);
         static void createSourceFromFile(const std::string& src_path);
@@ -35,11 +36,12 @@ namespace RedFish
         template <typename T>
         static void loadReadBuffer(size_t buffer, size_t size, void* data);
 
-        static void execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> buffers, std::vector<size_t> size);
+        static void execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> buffers, std::vector<size_t> size, std::vector<size_t> ts);
 
     private:
         OpenCLManager() = delete;
         static inline std::vector<cl::Platform> all_platforms;
+        static inline std::vector<cl::Device> all_devices;
         static inline cl::Platform default_platform;
         static inline cl::Device default_device;
         static inline cl::Context context;
@@ -54,29 +56,35 @@ namespace RedFish
     
     inline void OpenCLManager::init()
     {
-        // get all platforms (drivers)
-        cl::Platform::get(&all_platforms);
-
-        if (all_platforms.empty())
+        if (cl::Platform::get(&all_platforms) !=  CL_SUCCESS)
             throw std::runtime_error("No OpenCL platforms found. Check OpenCL installation!\n");
 
         default_platform = all_platforms[0];
-        std::cout << "Using platform: " << default_platform.getInfo<CL_PLATFORM_NAME>() << "\n";
-
-        // get default device of the default platform
-        std::vector<cl::Device> all_devices;
-        default_platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
-        if (all_devices.size() == 0)
-            throw std::runtime_error(" No devices found. Check OpenCL installation!\n");
+        std::cout << "Using platform : " << default_platform.getInfo<CL_PLATFORM_NAME>() << "\n";
+        std::cout << "Version        : " << default_platform.getInfo<CL_PLATFORM_VERSION>() << "\n";
+        
+        if (default_platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices) != CL_SUCCESS)
+            throw std::runtime_error("No devices found. Check OpenCL installation!\n");
 
         default_device = all_devices[0];
-        std::cout << "Using device: " << default_device.getInfo<CL_DEVICE_NAME>() << "\n";
+        std::cout << "Using device   : " << default_device.getInfo<CL_DEVICE_NAME>() << "\n";
+        std::cout << "Vendor         : " << default_device.getInfo<CL_DEVICE_VENDOR>() << "\n";
+        std::cout << "Device version : " << default_device.getInfo<CL_DEVICE_VERSION>() << "\n";
+        std::cout << "Driver version : " << default_device.getInfo<CL_DRIVER_VERSION>() << "\n";
 
-        context = cl::Context({default_device});
+        cl_int contextError;
+        context = cl::Context({default_device}, nullptr, nullptr, nullptr, &contextError);
 
-        //create queue to which we will push commands for the device.
-        queue = cl::CommandQueue(context,default_device);
+        if (contextError != CL_SUCCESS)
+            throw std::runtime_error("OpenCL context creation failed");
+
+        cl_int queueError;
+        queue = cl::CommandQueue(context,default_device, 0, &queueError);
+        if (queueError != CL_SUCCESS)
+            throw std::runtime_error("OpenCL command queue creation failed");
     }
+
+    inline void OpenCLManager::free() { }
 
     inline void OpenCLManager::createSource(const std::string& src)
     {
@@ -121,7 +129,7 @@ namespace RedFish
         queue.enqueueReadBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
     }
 
-    inline void OpenCLManager::execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> arguments, std::vector<size_t> size)
+    inline void OpenCLManager::execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> arguments, std::vector<size_t> size,  std::vector<size_t> ts)
     {
         if(kernel >= kernels.size())
             throw std::runtime_error("Is not a valid kernel!\n");
@@ -144,7 +152,7 @@ namespace RedFish
         }
 
         // Find Solution for NDRange
-        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(1, 1));
+        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(ts[0], ts[1]));
         cl_int status = queue.finish();
         if (status != CL_SUCCESS) {
             throw std::runtime_error("Is not a valid kernel!\n");
