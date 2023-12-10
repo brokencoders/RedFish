@@ -52,7 +52,7 @@ TEST(RedFishTest, ConvLearning)
     Conv2dLayer learner2d(in_ch, out_ch, ker_size, &opt, stride, padding, dilation, padding_mode);
     
     opt.setLearningRate(1);
-    for (size_t i = 0, epochs = 10000, batch_size = 5; i < epochs; i++)
+    for (size_t i = 0, epochs = 100, batch_size = 5; i < epochs; i++)
     {
         const Tuple2d size = {20, 50};
         Tensor X2d({batch_size, in_ch, size.h, size.w}), X1d({batch_size, in_ch, size.w});

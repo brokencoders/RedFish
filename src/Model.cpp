@@ -45,6 +45,14 @@ namespace RedFish
 
     }
 
+    Model::~Model()
+    {
+        if (optimizer) delete optimizer;
+        if (loss) delete loss;
+        for (auto l : layers)
+            if (l) delete l;
+    }
+
     void Model::train(const Tensor &in, const Tensor &out, uint32_t epochs, double learning_rate, size_t mini_batch_size)
     {
         auto begin = std::chrono::high_resolution_clock::now();
@@ -53,6 +61,8 @@ namespace RedFish
         auto mbsi = in.getShape();
         auto mbso = out.getShape();
         mbsi[0] = mbso[0] = mini_batch_size;
+        std::cout << "Epoch - - loss: -" << std::endl;
+        float64 last_losses[5] = {0,0,0,0,0};
         for (size_t i = 0; i < epochs; i++)
         {
             auto batch_begin = std::chrono::high_resolution_clock::now();
@@ -74,9 +84,12 @@ namespace RedFish
             for (size_t j = 1; j < layers.size(); j++)
                 fw_res.emplace_back(layers[j]->farward(fw_res[j - 1]));
 
-            double lossV = loss->farward(fw_res.back(), mini_batch_out);
+            float64 lossV = loss->farward(fw_res.back(), mini_batch_out);
+            last_losses[i % 5] = lossV;
+            float64 avg_loss = 0;
+            for (size_t i = 0; i < 5; i++) avg_loss += last_losses[i] / 5.;
 
-            std::cout << "Epoch " << i << " - loss: " << lossV << std::endl;
+            std::cout << "\r\033[1F\x1b[2KEpoch " << i << " - loss: " << lossV << " - avg. loss (5 samples): " << avg_loss << std::endl;
 
             Tensor bw_res = layers.back()->backward(fw_res[fw_res.size() - 2], loss->backward(fw_res.back(), mini_batch_out));
             for (size_t j = layers.size() - 2; j > 0; j--)

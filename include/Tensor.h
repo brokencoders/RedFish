@@ -1459,11 +1459,11 @@ namespace RedFish
 
         for (size_t i = 0; i + 1 < shape_k.size(); i++)
             if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+                throw std::length_error("Invalid kernel shape in convolution1d");
         if (shape_k.back() == 0)
-            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
+            throw std::length_error("Invalid kernel shape in convolution1d");
         if (stride == 0)
-            throw std::length_error("Invalid stride in crossCorrelation1d");
+            throw std::length_error("Invalid stride in convolution1d");
 
         for (size_t i = 0; i + 1 < shape_t.size(); i++)
             size_batch *= shape_t[i];
@@ -1481,16 +1481,20 @@ namespace RedFish
         result.zero();
 
         std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
+        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
+        for (size_t r = 0; r < kernel.shape.back(); r++)
+            f_kern[r] = kernel.b[kernel.shape.back() - r - 1];
+        
         //#pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
         {
             for (size_t c = 0; c < shape_t.back(); c++)
                 padded[c + padding] = b[c];
 
-            conv_1d_impl(
+            cross_correlation_1d_impl(
                 result.b + i * off_r,
                 padded.get(),
-                kernel.b,
+                f_kern.get(),
                 shape_t.back() + 2 * padding,
                 shape_k.back(),
                 stride, dilation);
@@ -1512,11 +1516,11 @@ namespace RedFish
 
         for (size_t i = 0; i + 2 < shape_k.size(); i++)
             if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in conv2d");
+                throw std::length_error("Invalid kernel shape in convolution2d");
         if (shape_k.back() == 0 || shape_k.end()[-2] == 0)
-            throw std::length_error("Invalid kernel shape in conv2d");
+            throw std::length_error("Invalid kernel shape in convolution2d");
         if (stride.x == 0 || stride.y == 0)
-            throw std::length_error("Invalid stride in conv2d");
+            throw std::length_error("Invalid stride in convolution2d");
 
         for (size_t i = 0; i + 2 < shape_t.size(); i++)
             size_batch *= shape_t[i];
@@ -1541,6 +1545,10 @@ namespace RedFish
         std::unique_ptr<float64[]> padded;
         if (padding.x || padding.y)
             padded = std::make_unique<float64[]>(off_p);
+        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
+        for (size_t r = 0; r < kernel.shape.end()[-2]; r++)
+        for (size_t c = 0; c < kernel.shape.back(); c++)
+            f_kern[r*kernel.shape.back() + c] = kernel.b[(kernel.shape.end()[-2] - r)*kernel.shape.back() - c - 1];
 
         // #pragma omp parallel for
         for (size_t i = 0; i < size_batch; i++)
@@ -1552,10 +1560,10 @@ namespace RedFish
                 ptr = padded.get();
             }
 
-            conv_2d_impl(
+            cross_correlation_2d_impl(
                 result.b + i * off_r,
                 ptr,
-                kernel.b,
+                f_kern.get(),
                 {ph, pw},
                 {shape_k.end()[-2], shape_k.back()},
                 stride, dilation);

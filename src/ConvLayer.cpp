@@ -213,9 +213,10 @@ namespace RedFish {
 
         Tensor conv({dim, kernels.getShape()[0], conv_length.y, conv_length.x});
         conv.zero();
-        for (size_t i = 0; i < dim; i++)
-            for (size_t j = 0; j < kernels.getShape()[0]; j++)
-                for (size_t k = 0; k < kernels.getShape()[1]; k++)
+        #pragma omp parallel for
+        for (size_t k = 0; k < kernels.getShape()[1]; k++)
+            for (size_t i = 0; i < dim; i++)
+                for (size_t j = 0; j < kernels.getShape()[0]; j++)
                     conv.getMatrix({i, j}) += X.getMatrix({i, k}).crossCorrelation2d(kernels.getMatrix({j, k}), padding, stride, dilation, pm);
                 
         conv += bias;
@@ -251,23 +252,24 @@ namespace RedFish {
 
         Tensor kgrad = zeros_like(kernels);
 
+        #pragma omp parallel for
         for (size_t i = 0; i < dim; i++)
             for (size_t j = 0; j < kernels.getShape()[0]; j++)
                 for (size_t k = 0; k < kernels.getShape()[1]; k++)
                     kgrad.getMatrix({j, k}) += X.getMatrix({i, k}).crossCorrelation2d(d.getMatrix({i, j}), padding, dilation, stride, pm);
         
-        kgrad += kernels * lambda;
+        /* kgrad += kernels * lambda; */
 
-        Tensor bgrad = d.sum(0).sum(1).sum(3) + bias * lambda;
+        Tensor bgrad = d.sum(0).sum(1).sum(3) /* + bias * lambda */;
 
         Tensor xgrad = zeros_like(X);
         Tensor dilated({d.getShape().end()[-4], d.getShape().end()[-3], (d.getShape().end()[-2]-1)*stride.y + 1 + 2*kernels.getShape().end()[-2] - 2 - 2*padding.y, (d.getShape().back()-1)*stride.x + 1 + 2*kernels.getShape().back() - 2 - 2*padding.x});
         int newpady = (int64_t)kernels.getShape().end()[-2] - 1 - padding.y;
         int newpadx = (int64_t)kernels.getShape().back() - 1 - padding.x;
 
-
-        for (size_t i = 0; i < dim; i++)
-            for (size_t j = 0; j < kernels.getShape()[0]; j++)
+        #pragma omp parallel for
+        for (size_t j = 0; j < kernels.getShape()[0]; j++)
+            for (size_t i = 0; i < dim; i++)
                 for (size_t k = 0; k < kernels.getShape()[1]; k++)
                 {
 
