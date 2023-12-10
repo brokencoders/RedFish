@@ -71,6 +71,9 @@ namespace RedFish
         std::cout << "Vendor         : " << default_device.getInfo<CL_DEVICE_VENDOR>() << "\n";
         std::cout << "Device version : " << default_device.getInfo<CL_DEVICE_VERSION>() << "\n";
         std::cout << "Driver version : " << default_device.getInfo<CL_DRIVER_VERSION>() << "\n";
+        std::cout << "Address bits   : " << default_device.getInfo<CL_DEVICE_ADDRESS_BITS>() << "\n";
+        std::cout << "Broup SIze     : " << default_device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << "\n";
+
 
         cl_int contextError;
         context = cl::Context({default_device}, nullptr, nullptr, nullptr, &contextError);
@@ -151,7 +154,6 @@ namespace RedFish
             kernels[kernel].setArg(i + int_arguments.size(), buffers[arguments[i]]);
         }
 
-        // Find Solution for NDRange
         queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(ts[0], ts[1]));
         cl_int status = queue.finish();
         if (status != CL_SUCCESS) {
