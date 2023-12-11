@@ -28,15 +28,18 @@ namespace RedFish
         static size_t createKernel(const std::string& name);
 
         template <typename T>
-        static size_t createBuffer(size_t size);
+        static Buffer createBuffer(size_t size);
+
+        static cl::Buffer& getBuffer(Buffer buffer);
 
         template <typename T>
-        static void loadWriteBuffer(size_t buffer, size_t size, void* data);
+        static void loadWriteBuffer(Buffer buffer, size_t size, void* data);
         
         template <typename T>
-        static void loadReadBuffer(size_t buffer, size_t size, void* data);
+        static void loadReadBuffer(Buffer buffer, size_t size, void* data);
 
-        static void execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> buffers, std::vector<size_t> size, std::vector<size_t> ts);
+        template<typename... Args>
+        static void execute(size_t kernel, std::vector<size_t> size, std::vector<size_t> ts, Args... args);
 
     private:
         OpenCLManager() = delete;
@@ -113,46 +116,52 @@ namespace RedFish
         return kernels.size() - 1;
     }
 
-    template <typename T>
-    inline size_t OpenCLManager::createBuffer(size_t size)
+    inline cl::Buffer& OpenCLManager::getBuffer(Buffer buffer)
     {
-        buffers.emplace_back(context, CL_MEM_READ_WRITE, sizeof(T) * size);
-        return buffers.size() - 1;
+        return buffers[buffer];
     }
 
     template <typename T>
-    inline void OpenCLManager::loadWriteBuffer(size_t buffer, size_t size, void* data)
+    inline Buffer OpenCLManager::createBuffer(size_t size)
+    {
+        buffers.emplace_back(context, CL_MEM_READ_WRITE, sizeof(T) * size);
+        return buffers.size()-1;
+    }
+
+    template <typename T>
+    inline void OpenCLManager::loadWriteBuffer(Buffer buffer, size_t size, void* data)
     {
         queue.enqueueWriteBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
     }
 
     template <typename T>
-    inline void OpenCLManager::loadReadBuffer(size_t buffer, size_t size, void* data)
+    inline void OpenCLManager::loadReadBuffer(Buffer buffer, size_t size, void* data)
     {
         queue.enqueueReadBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
     }
 
-    inline void OpenCLManager::execute(size_t kernel, std::vector<int> int_arguments, std::vector<size_t> arguments, std::vector<size_t> size,  std::vector<size_t> ts)
+    template<int I = 0, typename Arg, typename... Args>
+    inline void set_args(cl::Kernel& kernel, Arg arg, Args... args)
+    {
+        kernel.setArg(I, arg);
+        if constexpr (sizeof...(args) > 0)
+            set_args<I + 1>(kernel, args...);
+    }
+
+    inline void set_args(cl::Kernel& kernel) {}
+
+    template<typename... Args>
+    inline void OpenCLManager::execute(size_t kernel, std::vector<size_t> size,  std::vector<size_t> ts, Args... args)
     {
         if(kernel >= kernels.size())
             throw std::runtime_error("Is not a valid kernel!\n");
         
         size_t expectedArgs = kernels[kernel].getInfo<CL_KERNEL_NUM_ARGS>();
-        if (arguments.size() + int_arguments.size() != expectedArgs) {
+        if (sizeof...(Args) != expectedArgs) {
             throw std::runtime_error("Incorrect number of kernel arguments");
         }
 
-        for (size_t i = 0; i < int_arguments.size(); i++)
-            kernels[kernel].setArg(i, int_arguments[i]);
-
-        for (size_t i = 0; i < arguments.size(); i++)
-        {
-            size_t bufferIndex = arguments[i];
-            if (bufferIndex >= buffers.size()) {
-                throw std::runtime_error("Invalid buffer index for argument " + std::to_string(i) + "\n");
-            }
-            kernels[kernel].setArg(i + int_arguments.size(), buffers[arguments[i]]);
-        }
+        set_args(kernels[kernel], args...);
 
         queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(ts[0], ts[1]));
         cl_int status = queue.finish();

@@ -156,14 +156,14 @@ namespace RedFish {
         
         Tensor img_tensor({1, (unsigned long)channels, (unsigned long)height, (unsigned long)width});
 
-        for (int y = 0; y < height; y++) 
+        for (size_t y = 0; y < height; y++) 
         {
-            for (int x = 0; x < width; x++) 
+            for (size_t x = 0; x < width; x++) 
             {
-                for (int k = 0; k < channels; k++)
+                for (size_t k = 0; k < channels; k++)
                 {
-                    int index = (y * width + x) * channels;
-                    img_tensor(0, k, y, x) = img[index + k];
+                    size_t index = (y * width + x) * channels;
+                    img_tensor(0UL, k, y, x) = img[index + k];
                 }
             }
         }
@@ -202,10 +202,10 @@ namespace RedFish {
                     double y_weight = y - y_1;
 
                     // Formula https://en.wikipedia.org/wiki/Bilinear_interpolation#On_the_unit_square
-                    new_image(0, k, i, j) = image(0, k, y_1, x_1) * (1 - x_weight) * (1 - y_weight) + 
-                                            image(0, k, y_1, x_2) * x_weight * (1 - y_weight) + 
-                                            image(0, k, y_2, x_1) * y_weight * (1 - x_weight) + 
-                                            image(0, k, y_2, x_2) * x_weight * y_weight;
+                    new_image(0UL, k, i, j) = image(0UL, k, (size_t)y_1, (size_t)x_1) * (1 - x_weight) * (1 - y_weight) + 
+                                              image(0UL, k, (size_t)y_1, (size_t)x_2) * x_weight * (1 - y_weight) + 
+                                              image(0UL, k, (size_t)y_2, (size_t)x_1) * y_weight * (1 - x_weight) + 
+                                              image(0UL, k, (size_t)y_2, (size_t)x_2) * x_weight * y_weight;
                 }
             }
         }
