@@ -12,9 +12,7 @@
 #include <functional>
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <random>
-#include <immintrin.h>
 #include <fstream>
 
 namespace RedFish
@@ -57,14 +55,8 @@ namespace RedFish
         Tuple2d(size_t y, size_t x) : y(y), x(x) {}
         Tuple2d(size_t n) : y(n), x(n) {}
         Tuple2d() : y(0), x(0) {}
-        union
-        {
-            size_t y, h;
-        };
-        union
-        {
-            size_t x, w;
-        };
+        union { size_t y, h; };
+        union { size_t x, w; };
     };
 
     struct Tuple3d
@@ -72,18 +64,9 @@ namespace RedFish
         Tuple3d(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
         Tuple3d(size_t n) : z(n), y(n), x(n) {}
         Tuple3d() : y(0), x(0) {}
-        union
-        {
-            size_t z, d;
-        };
-        union
-        {
-            size_t y, h;
-        };
-        union
-        {
-            size_t x, w;
-        };
+        union { size_t z, d; };
+        union { size_t y, h; };
+        union { size_t x, w; };
     };
 
     template <void (*fn)(float64 &, float64)>
@@ -100,8 +83,12 @@ namespace RedFish
     void ew_or_broadcast_assign(Tensor &, const Tensor &, const char *);
     template <float64 (*fn)(float64, float64)>
     void ew_or_left_broadcast_assign(Tensor &, const Tensor &, const char *);
-    bool broadcastable(const std::vector<size_t> &, const std::vector<size_t> &);
     void copy_2d(float64 *, float64 *, Tuple2d, size_t, size_t);
+    Tensor operator+(const float64 val, const Tensor &t);
+    Tensor operator-(const float64 val, const Tensor &t);
+    Tensor operator*(const float64 val, const Tensor &t);
+    Tensor operator/(const float64 val, const Tensor &t);
+
 
     class Tensor
     {
@@ -117,58 +104,40 @@ namespace RedFish
         Tensor(Tensor &&t);       // Move Constructor
         Tensor(const std::vector<size_t> &shape, std::initializer_list<float64> data);
         Tensor(std::ifstream& file);
-        ~Tensor();
-
-        Tensor &operator=(const Tensor &t);
-        Tensor &operator=(Tensor &&t);
-        void resize(const std::vector<size_t> &shape);
-        void reshape(const std::vector<size_t> &shape);
-
-        Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
-        Tensor T() const;
-        Tensor T(size_t dimension1, size_t dimension2);
 
         // Operetors
-        Tensor operator+(const Tensor &t) const;
-        Tensor operator+(const float64 val) const;
-        Tensor &operator+=(const Tensor &t);
-        Tensor &operator+=(const float64 val);
-        Tensor operator-(const Tensor &t) const;
-        Tensor operator-(const float64 val) const;
-        Tensor operator-() const;
-        Tensor &operator-=(const Tensor &t);
-        Tensor &operator-=(const float64 val);
-        Tensor operator*(const Tensor &t) const;
-        Tensor operator*(const float64 val) const;
-        Tensor &operator*=(const Tensor &t);
-        Tensor &operator*=(const float64 val);
-        Tensor operator/(const Tensor &t) const;
-        Tensor operator/(const float64 val) const;
-        Tensor &operator/=(const Tensor &t);
-        Tensor &operator/=(const float64 val);
+        Tensor &operator=(const Tensor &t);
+        Tensor &operator=(Tensor &&t);
+        Tensor  operator+(const Tensor &t) const;
+        Tensor  operator+(const float64 val) const;
+        Tensor& operator+=(const Tensor &t);
+        Tensor& operator+=(const float64 val);
+        Tensor  operator-(const Tensor &t) const;
+        Tensor  operator-(const float64 val) const;
+        Tensor  operator-() const;
+        Tensor& operator-=(const Tensor &t);
+        Tensor& operator-=(const float64 val);
+        Tensor  operator*(const Tensor &t) const;
+        Tensor  operator*(const float64 val) const;
+        Tensor& operator*=(const Tensor &t);
+        Tensor& operator*=(const float64 val);
+        Tensor  operator/(const Tensor &t) const;
+        Tensor  operator/(const float64 val) const;
+        Tensor& operator/=(const Tensor &t);
+        Tensor& operator/=(const float64 val);
+        Tensor  operator==(const Tensor &other) const;
+        Tensor  operator>=(const Tensor &other) const;
+        Tensor  operator<=(const Tensor &other) const;
+        Tensor  operator>(const Tensor &other) const;
+        Tensor  operator<(const Tensor &other) const;
 
-        Tensor crossCorrelation1d(const Tensor &kernel, size_t padding = 0, size_t stride = 1, size_t dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor crossCorrelation2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor crossCorrelation3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution1d(const Tensor &kernel, size_t padding = 0, size_t stride = 1, size_t dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
-
-        float64 squareSum() const;
-        Tensor squareSum(size_t dimension) const;
-        float64 max() const;
-        Tensor max(size_t dimension) const;
-        float64 min() const;
-        Tensor min(size_t dimension) const;
-        float64 sum() const;
-        Tensor sum(size_t dimension) const;
-
-        float64 &operator()(const std::vector<size_t> &index);
-        float64 operator()(const std::vector<size_t> &index) const;
+        float64& operator()(const std::vector<size_t> &index);
+        float64  operator()(const std::vector<size_t> &index) const;
 
         template <typename... Args>
-        float64 &operator()(Args... indices);
+        float64& operator()(Args... indices);
         template <typename... Args>
-        float64 operator()(Args... indices) const;
+        float64  operator()(Args... indices) const;
 
         DirectTensorView getRow(const std::vector<size_t> &index);
         const DirectTensorView getRow(const std::vector<size_t> &index) const;
@@ -181,62 +150,94 @@ namespace RedFish
         DirectTensorView sliceLastNDims(const std::vector<size_t> &index, size_t N);
         const DirectTensorView sliceLastNDims(const std::vector<size_t> &index, size_t N) const;
 
-        bool operator==(const Tensor &other) const;
+        void resize(const std::vector<size_t> &new_shape);
+        void reshape(const std::vector<size_t> &new_shape);
 
+        Tensor T() const;
+        Tensor T(size_t dimension1, size_t dimension2);
+
+        void zero();
+        void ones();
+        void costant(float64 val);
+        void randUniform(float64 a = 0.0, float64 b = 1.0);
+        void randNormal(float64 mean = 0.0, float64 std = 1.0);
+
+        float64 squareSum() const;
+        Tensor  squareSum(size_t dimension) const;
+        float64 max() const;
+        Tensor  max(size_t dimension) const;
+        float64 min() const;
+        Tensor  min(size_t dimension) const;
+        float64 sum() const;
+        Tensor  sum(size_t dimension) const;
+        
+        Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
+        Tensor crossCorrelation1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor crossCorrelation2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor crossCorrelation3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
+
+        friend void reprint(std::ostream &, const Tensor &, size_t, std::vector<size_t> &);
+        friend std::ostream &operator<<(std::ostream &, const Tensor &);
+        
+        uint64_t save(std::ofstream &file) const;
+        static bool sizeMatch(const std::vector<size_t> &s1, const std::vector<size_t> &s2);
+        static bool broadcastable(const std::vector<size_t>& s1, const std::vector<size_t>& s2);
+
+        static Tensor empty_like(const Tensor& t);
+        static Tensor zeros_like(const Tensor& t);
+        static Tensor ones_like(const Tensor& t);
+        
         friend Tensor operator-(const float64, const Tensor &);
         friend Tensor operator/(const float64, const Tensor &);
-        friend std::ostream &operator<<(std::ostream &, const Tensor &);
-        friend void reprint(std::ostream &, const Tensor &, size_t, std::vector<size_t> &);
-        friend Tensor empty_like(const Tensor &);
-        friend Tensor zeros_like(const Tensor &);
-        friend Tensor ones_like(const Tensor &);
+        
         template <float64 (*fn)(float64)>
         friend Tensor forEach(const Tensor &);
         friend Tensor forEach(const Tensor &, std::function<float64(float64)>);
+        
         template <float64 (*fn)(float64)>
         friend Tensor &forEachInPlace(Tensor &);
         friend Tensor &forEachInPlace(Tensor &, std::function<float64(float64)>);
+        
         template <void (*fn)(float64 &, float64)>
         friend Tensor op_along_axes(const Tensor &, size_t, const float64);
+        
         template <void (*fn)(float64 &, float64)>
         friend float64 op_along_all_axes(const Tensor &, const float64);
+        
         template <float64 (*fn)(float64, float64)>
         friend void broadcast_ew_assign(Tensor &, const Tensor &, const Tensor &, const size_t *, const size_t *, const size_t *, size_t, size_t, size_t, size_t);
+        
         template <float64 (*fn)(float64, float64)>
         friend Tensor ew_or_broadcast(const Tensor &, const Tensor &, const char *);
+        
         template <float64 (*fn)(float64, float64)>
         friend void ew_or_broadcast_assign(Tensor &, const Tensor &, const char *);
+        
         template <float64 (*fn)(float64, float64)>
         friend void ew_or_left_broadcast_assign(Tensor &, const Tensor &, const char *);
+        
+        friend Tensor stack(const Tensor &t1, const Tensor &t2, size_t dim);
+        
         friend Tensor std::sqrt(const Tensor &);
         friend Tensor std::exp(const Tensor &);
         friend Tensor std::log(const Tensor &);
         friend Tensor std::pow(const Tensor &, RedFish::float64);
         friend Tensor std::pow(const Tensor &, const Tensor &);
-
-        friend Tensor stack(const Tensor &t1, const Tensor &t2, size_t dim);
-
-        // For Testing
+        
+        // For Debug only 
         friend bool debug(const Tensor &t1, const Tensor &t2, float64 delta);
 
-        void zero();
-        void ones();
-        void rand();
-        void rand(float64 start, float64 end);
-        void randUniform(float64 a = 0.0, float64 b = 1.0);
-        void randNormal(float64 mean = 0.0, float64 std = 1.0);
-        void costant(float64 val);
 
-        uint64_t save(std::ofstream &file) const;
-
-        static std::random_device &getRandomDevice() { return rd; }
-
-        static bool sizeMatch(const std::vector<size_t> &s1, const std::vector<size_t> &s2);
-
+        /* Get */
         size_t colSize() const { return this->shape.back(); }
         size_t rowSize() const { return *(this->shape.end() - 2); }
         size_t getSize() const { return size; }
         const std::vector<size_t> &getShape() const { return shape; }
+        
+        static std::random_device &getRandomDevice() { return rd; }
 
     protected:
         std::unique_ptr<float64[]> b_mem;
@@ -253,1412 +254,16 @@ namespace RedFish
     class DirectTensorView : public Tensor
     {
     public:
-        DirectTensorView(const std::vector<size_t> &new_shape, float64 *ptr)
-            : Tensor({0})
-        {
-            shape = new_shape;
-            size = 1;
-            for (size_t i = 0; i < shape.size(); i++)
-                size *= shape[i];
-            b = ptr;
-        }
-        DirectTensorView &operator=(const Tensor &t)
-        {
-            if (!sizeMatch(this->shape, t.shape))
-                throw std::length_error("Tensor sizes not matching in assignment operation");
-
-            for (size_t i = 0; i < size; i++)
-                this->b[i] = t.b[i];
-
-            return *this;
-        }
-        DirectTensorView &operator=(const DirectTensorView &t)
-        {
-            if (!sizeMatch(this->shape, t.shape))
-                throw std::length_error("Tensor sizes not matching in assignment operation");
-
-            for (size_t i = 0; i < size; i++)
-                this->b[i] = t.b[i];
-
-            return *this;
-        }
+        DirectTensorView(const std::vector<size_t> &new_shape, float64 *ptr);
+        DirectTensorView &operator=(const Tensor &t);
+        DirectTensorView &operator=(const DirectTensorView &t);
         Tensor &operator=(Tensor &&t) = delete;
         void resize(const std::vector<size_t> &shape) = delete;
-        Tensor &operator+=(const Tensor &t)
-        {
-            constexpr auto fn = [](float64 n1, float64 n2)
-            {  return n1  +  n2; };
-            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in sum operation");
-            return *this;
-        }
-        Tensor &operator-=(const Tensor &t)
-        {
-            constexpr auto fn = [](float64 n1, float64 n2)
-            {  return n1  -  n2; };
-            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in subtruction operation");
-            return *this;
-        }
-        Tensor &operator*=(const Tensor &t)
-        {
-            constexpr auto fn = [](float64 n1, float64 n2)
-            {  return n1  *  n2; };
-            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
-            return *this;
-        }
-        Tensor &operator/=(const Tensor &t)
-        {
-            constexpr auto fn = [](float64 n1, float64 n2)
-            {  return n1  +  n2; };
-            ew_or_left_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in division operation");
-            return *this;
-        }
+        Tensor &operator+=(const Tensor &t);
+        Tensor &operator-=(const Tensor &t);
+        Tensor &operator*=(const Tensor &t);
+        Tensor &operator/=(const Tensor &t);
     };
-
-    /* -------- Constructors -------- */
-
-    inline Tensor::Tensor(const std::vector<size_t> &shape)
-        : shape(shape)
-    {
-        size = 1;
-        for (size_t i = 0; i < shape.size(); i++)
-            size *= shape[i];
-
-        if (size)
-            b = (b_mem = std::make_unique<float64[]>(size)).get();
-    }
-
-    inline Tensor::Tensor(const size_t *shape, size_t len)
-        : shape(shape, shape + len)
-    {
-        size = 1;
-        for (size_t i = 0; i < len; i++)
-            size *= shape[i];
-
-        if (size)
-            b = (b_mem = std::make_unique<float64[]>(size)).get();
-    }
-
-    inline Tensor::Tensor(const std::vector<size_t> &shape, float64 *buff, bool copy)
-        : shape(shape)
-    {
-        size = 1;
-        for (size_t i = 0; i < shape.size(); i++)
-            size *= shape[i];
-
-        if (copy)
-        {
-            if (size)
-            {
-                b_mem = std::make_unique<float64[]>(size);
-                std::copy(buff, buff + size, b_mem.get());
-            }
-        }
-        else
-            b_mem.reset(buff);
-
-        b = b_mem.get();
-    }
-
-    inline Tensor::Tensor(const Tensor &t)
-    {
-        this->shape = t.shape;
-        this->size = t.size;
-        if (size)
-            this->b_mem = std::make_unique<float64[]>(size);
-        b = b_mem.get();
-
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = t.b[i];
-    }
-
-    inline Tensor::Tensor(Tensor &&t)
-    {
-        this->shape = t.shape;
-        this->size = t.size;
-        this->b_mem = std::move(t.b_mem);
-        b = b_mem.get();
-        t.shape = {0};
-        t.size = 0;
-    }
-
-    inline Tensor::Tensor(const std::vector<size_t> &shape, std::initializer_list<float64> data)
-        : shape(shape)
-    {
-        if (shape.size() != 0)
-        {
-            size = 1;
-            for (size_t i = 0; i < shape.size(); i++)
-                size *= shape[i];
-        }
-        else
-        {
-            this->shape.push_back(data.size());
-            size = data.size();
-        }
-
-        if (size != data.size())
-            throw std::length_error("Invalid number of data given to Tensor for this shape");
-
-        if (size)
-            b = (b_mem = std::make_unique<float64[]>(size)).get();
-
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = data.begin()[i];
-    }
-
-    inline Tensor::Tensor(std::ifstream &file)
-    {
-        const std::string name = "Tensor";
-        char rname[sizeof("Tensor")];
-        file.read(rname, sizeof(rname));
-
-        if (name != rname)
-            throw std::runtime_error("Invalid file content in Tensor(std::ifstream&)");
-
-        uint64_t size = 0;
-        file.read((char*)&size, sizeof(size));
-
-        this->size = 1;
-        uint64_t shape_size = 0;
-        file.read((char*)&shape_size, sizeof(shape_size));
-        shape.reserve(shape_size);
-        for (size_t i = 0; i < shape_size; i++)
-        {
-            uint64_t shape_size = 0;
-            file.read((char*)&shape_size, sizeof(shape_size));
-            shape.push_back(shape_size);
-            this->size *= shape_size;
-        }
-
-        b = (b_mem = std::make_unique<float64[]>(this->size)).get();
-        file.read((char*)b, this->size * sizeof(float64));
-    }
-
-    inline Tensor &Tensor::operator=(const Tensor &t)
-    {
-        this->shape = t.shape;
-        this->size = t.size;
-        if (size)
-            this->b_mem = std::make_unique<float64[]>(size);
-        else
-            this->b_mem = nullptr;
-        b = b_mem.get();
-
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = t.b[i];
-
-        return *this;
-    }
-
-    inline Tensor &Tensor::operator=(Tensor &&t)
-    {
-        this->shape = t.shape;
-        this->size = t.size;
-        this->b_mem = std::move(t.b_mem);
-        b = b_mem.get();
-        t.shape = {0};
-        t.size = 0;
-        t.b = nullptr;
-
-        return *this;
-    }
-
-    inline Tensor::~Tensor() {}
-
-    inline void Tensor::resize(const std::vector<size_t> &shape)
-    {
-        this->shape = shape;
-        size = 1;
-        for (size_t i = 0; i < shape.size(); i++)
-            size *= shape[i];
-
-        b_mem = std::make_unique<float64[]>(size);
-        b = b_mem.get();
-    }
-
-    inline void Tensor::reshape(const std::vector<size_t> &shape)
-    {
-        size_t new_size = 1;
-        for (size_t i = 0; i < shape.size(); i++)
-            new_size *= shape[i];
-
-        if (new_size != size)
-            throw std::length_error("Invalid new shape in Tensor reshape");
-
-        this->shape = shape;
-    }
-
-    inline void matmul_gotoblas(float64 *dst, const float64 *m1, const float64 *m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
-    {
-        const size_t block_size = 8;
-        size_t j_end = rows - rows % block_size;
-        size_t i_end = cols - cols % block_size;
-        size_t k_end = mid - mid % block_size;
-
-        //#pragma omp parallel for
-        for (size_t jc = 0; jc < j_end; jc += block_size)
-        {
-            for (size_t kc = 0; kc < k_end; kc += block_size)
-            {
-                for (size_t ic = 0; ic < i_end; ic += block_size)
-                    for (size_t jr = jc; jr < jc + block_size; jr++)
-                        for (size_t ir = ic; ir < ic + block_size; ir++)
-                            for (size_t k = kc; k < kc + block_size; k++)
-                                dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-
-                for (size_t jr = jc; jr < jc + block_size; jr++)
-                    for (size_t ir = i_end; ir < cols; ir++)
-                        for (size_t k = kc; k < kc + block_size; k++)
-                            dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-            }
-
-            for (size_t ic = 0; ic < i_end; ic += block_size)
-                for (size_t jr = jc; jr < jc + block_size; jr++)
-                    for (size_t ir = ic; ir < ic + block_size; ir++)
-                        for (size_t k = k_end; k < mid; k++)
-                            dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-
-            for (size_t jr = jc; jr < jc + block_size; jr++)
-                for (size_t ir = i_end; ir < cols; ir++)
-                    for (size_t k = k_end; k < mid; k++)
-                        dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-        }
-        for (size_t kc = 0; kc < k_end; kc += block_size)
-        {
-            for (size_t ic = 0; ic < i_end; ic += block_size)
-                for (size_t jr = j_end; jr < rows; jr++)
-                    for (size_t ir = ic; ir < ic + block_size; ir++)
-                        for (size_t k = kc; k < kc + block_size; k++)
-                            dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-
-            for (size_t jr = j_end; jr < rows; jr++)
-                for (size_t ir = i_end; ir < cols; ir++)
-                    for (size_t k = kc; k < kc + block_size; k++)
-                        dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-        }
-
-        for (size_t ic = 0; ic < i_end; ic += block_size)
-            for (size_t jr = j_end; jr < rows; jr++)
-                for (size_t ir = ic; ir < ic + block_size; ir++)
-                    for (size_t k = k_end; k < mid; k++)
-                        dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-
-        for (size_t jr = j_end; jr < rows; jr++)
-            for (size_t ir = i_end; ir < cols; ir++)
-                for (size_t k = k_end; k < mid; k++)
-                    dst[jr * ld0 + ir] += m1[jr * ld1 + k] * m2[ir + k * ld2];
-    }
-
-    inline void matmul_left_T(float64 *dst, const float64 *m1, const float64 *m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2)
-    {
-        const size_t block_size = 256;
-        size_t j_end = rows - rows % block_size;
-        size_t i_end = cols - cols % block_size;
-        size_t k_end = mid - mid % block_size;
-
-        //#pragma omp parallel for
-        for (size_t jc = 0; jc < j_end; jc += block_size)
-        {
-            for (size_t kc = 0; kc < k_end; kc += block_size)
-            {
-                for (size_t ic = 0; ic < i_end; ic += block_size)
-                    for (size_t jr = jc; jr < jc + block_size; jr++)
-                        for (size_t k = kc; k < kc + block_size; k++)
-                            for (size_t ir = ic; ir < ic + block_size; ir++)
-                                dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-
-                for (size_t jr = jc; jr < jc + block_size; jr++)
-                    for (size_t ir = i_end; ir < cols; ir++)
-                        for (size_t k = kc; k < kc + block_size; k++)
-                            dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-            }
-
-            for (size_t ic = 0; ic < i_end; ic += block_size)
-                for (size_t jr = jc; jr < jc + block_size; jr++)
-                    for (size_t k = k_end; k < mid; k++)
-                        for (size_t ir = ic; ir < ic + block_size; ir++)
-                            dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-
-            for (size_t jr = jc; jr < jc + block_size; jr++)
-                for (size_t k = k_end; k < mid; k++)
-                    for (size_t ir = i_end; ir < cols; ir++)
-                        dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-        }
-        for (size_t kc = 0; kc < k_end; kc += block_size)
-        {
-            for (size_t ic = 0; ic < i_end; ic += block_size)
-                for (size_t jr = j_end; jr < rows; jr++)
-                    for (size_t k = kc; k < kc + block_size; k++)
-                        for (size_t ir = ic; ir < ic + block_size; ir++)
-                            dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-
-            for (size_t jr = j_end; jr < rows; jr++)
-                for (size_t k = kc; k < kc + block_size; k++)
-                    for (size_t ir = i_end; ir < cols; ir++)
-                        dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-        }
-
-        for (size_t ic = 0; ic < i_end; ic += block_size)
-            for (size_t jr = j_end; jr < rows; jr++)
-                for (size_t k = k_end; k < mid; k++)
-                    for (size_t ir = ic; ir < ic + block_size; ir++)
-                        dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-
-        for (size_t jr = j_end; jr < rows; jr++)
-            for (size_t k = k_end; k < mid; k++)
-                for (size_t ir = i_end; ir < cols; ir++)
-                    dst[jr * ld0 + ir] += m1[jr + k * ld1] * m2[ir + k * ld2];
-    }
-
-    inline Tensor Tensor::matmul(const Tensor &t, const Transpose trsp) const
-    {
-        Tensor result;
-        std::vector<size_t> shapeT1, matShapeT1(shape.begin() + std::max<int64_t>(0, (int64_t)shape.size() - 2), shape.end());
-        std::vector<size_t> shapeT2, matShapeT2(t.shape.begin() + std::max<int64_t>(0, (int64_t)t.shape.size() - 2), t.shape.end());
-        size_t size1 = 1, size2 = 1;
-
-        for (size_t i = 0; i < (int64_t)shape.size() - 2; i++)
-            shapeT1.push_back(shape[i]), size1 *= shape[i];
-        for (size_t i = 0; i < (int64_t)t.shape.size() - 2; i++)
-            shapeT2.push_back(t.shape[i]), size2 *= t.shape[i];
-        matShapeT1.insert(matShapeT1.begin(), std::max<int64_t>(0, (int64_t)2 - shape.size()), 1);
-        matShapeT2.insert(matShapeT2.begin(), std::max<int64_t>(0, (int64_t)2 - t.shape.size()), 1);
-        if (t.shape.size() == 1)
-            std::swap(matShapeT2[0], matShapeT2[1]);
-        if (trsp == LEFT)
-            std::swap(matShapeT1[0], matShapeT1[1]);
-        else if (trsp == RIGHT)
-            std::swap(matShapeT2[0], matShapeT2[1]);
-
-        if (shapeT1.size() > shapeT2.size())
-            shapeT2.insert(shapeT2.begin(), shapeT1.size() - shapeT2.size(), 1);
-        else if (shapeT1.size() < shapeT2.size())
-            shapeT1.insert(shapeT1.begin(), shapeT2.size() - shapeT1.size(), 1);
-
-        if (matShapeT1[1] != matShapeT2[0])
-            throw std::length_error("Matrix size not matching in Tensor matmul");
-
-        size_t rows = matShapeT1[0];
-        size_t mid = matShapeT1[1];
-        size_t cols = matShapeT2[1];
-        size_t matsize0 = rows * cols;
-        size_t matsize1 = rows * mid;
-        size_t matsize2 = mid * cols;
-
-        if (sizeMatch(shapeT1, shapeT2))
-        {
-            shapeT1.push_back(rows);
-            shapeT1.push_back(cols);
-            result.resize(shapeT1);
-            result.zero();
-            switch (trsp)
-            {
-            case LEFT:
-                for (size_t i = 0; i < size1; i++)
-                    matmul_left_T(result.b + i * matsize0, b + i * matsize1, t.b + i * matsize2, rows, mid, cols, cols, rows, cols);
-                break;
-            case RIGHT:
-            {
-                auto tt = t.T();
-                for (size_t i = 0; i < size1; i++)
-                    matmul_gotoblas(result.b + i * matsize0, b + i * matsize1, tt.b + i * matsize2, rows, mid, cols, cols, mid, mid);
-                break;
-            }
-            case NONE:
-            default:
-                for (size_t i = 0; i < size1; i++)
-                    matmul_gotoblas(result.b + i * matsize0, b + i * matsize1, t.b + i * matsize2, rows, mid, cols, cols, mid, cols);
-                break;
-            }
-        }
-        else if (broadcastable(shapeT1, shapeT2))
-        {
-            std::vector<size_t> shapeDst(shapeT1.size());
-            for (size_t i = 0; i < shapeT1.size(); i++)
-                shapeDst[i] = shapeT1[i] == 1 ? shapeT2[i] : shapeT1[i];
-
-            shapeDst.push_back(rows);
-            shapeDst.push_back(cols);
-
-            result.resize(shapeDst);
-            result.zero();
-            if (result.size)
-                switch (trsp)
-                {
-                case LEFT:
-                    broadcast_op<matmul_left_T>(result.b, this->b, t.b,
-                                                shapeDst.data(), shapeT1.data(), shapeT2.data(),
-                                                shapeDst.size() - 2,
-                                                rows * cols, rows * mid, mid * cols,
-                                                rows, mid, cols, cols, rows, cols);
-                    break;
-                case RIGHT:
-                    broadcast_op<matmul_gotoblas>(result.b, this->b, t.T().b,
-                                                  shapeDst.data(), shapeT1.data(), shapeT2.data(),
-                                                  shapeDst.size() - 2,
-                                                  rows * cols, rows * mid, mid * cols,
-                                                  rows, mid, cols, cols, mid, cols);
-                    break;
-                case NONE:
-                default:
-                    broadcast_op<matmul_gotoblas>(result.b, this->b, t.b,
-                                                  shapeDst.data(), shapeT1.data(), shapeT2.data(),
-                                                  shapeDst.size() - 2,
-                                                  rows * cols, rows * mid, mid * cols,
-                                                  rows, mid, cols, cols, mid, cols);
-                    break;
-                }
-        }
-        else
-            throw std::length_error("Shapes not matching in Tensor matmul");
-
-        return result;
-    }
-
-    inline Tensor matmul(const Tensor &t1, const Tensor &t2, const Transpose transpose = NONE)
-    {
-        return t1.matmul(t2, transpose);
-    }
-
-    inline Tensor Tensor::T() const
-    {
-        Tensor t(shape);
-
-        if (shape.size() < 1)
-            t.b[0] = this->b[0];
-        else
-        {
-            size_t end = 1;
-            size_t cols = t.shape.back();
-            size_t rows = shape.size() < 2 ? 1 : t.shape[t.shape.size() - 2];
-            std::swap(t.shape.back(), t.shape[t.shape.size() - 2]);
-
-            for (size_t i = 0; i < (int64_t)t.shape.size() - 2; i++)
-                end *= t.shape[i];
-
-            const size_t block_size = 8;
-            const size_t k_end = rows - rows % block_size;
-            const size_t j_end = cols - cols % block_size;
-
-            for (size_t i = 0, stride = rows * cols; i < end; i++)
-            {
-                float64 *tp = t.b + i * stride, *thisp = this->b + i * stride;
-
-                for (size_t k = 0; k < k_end; k += block_size)
-                {
-                    for (size_t j = 0; j < j_end; j += block_size)
-                        for (size_t r = k; r < k + block_size; r++)
-                            for (size_t c = j; c < j + block_size; c++)
-                                tp[c * rows + r] = thisp[r * cols + c];
-
-                    for (size_t r = k; r < k + block_size; r++)
-                        for (size_t c = j_end; c < cols; c++)
-                            tp[c * rows + r] = thisp[r * cols + c];
-                }
-                for (size_t j = 0; j < j_end; j += block_size)
-                    for (size_t r = k_end; r < rows; r++)
-                        for (size_t c = j; c < j + block_size; c++)
-                            tp[c * rows + r] = thisp[r * cols + c];
-
-                for (size_t r = k_end; r < rows; r++)
-                    for (size_t c = j_end; c < cols; c++)
-                        tp[c * rows + r] = thisp[r * cols + c];
-            }
-        }
-
-        return t;
-    }
-
-    inline Tensor Tensor::T(size_t d1, size_t d2)
-    {
-        if (d1 == d2 || d1 >= shape.size() || d2 >= shape.size())
-            throw std::range_error("invalid dimensions in Tensor transposition T()");
-
-        if (d1 < d2)
-            std::swap(d1, d2);
-
-        Tensor t(shape);
-        d1 = t.shape.size() - 1 - d1, d2 = t.shape.size() - 1 - d2;
-        size_t rows = t.shape[d1], cols = t.shape[d2], end = 1, stride = 1, step = 1;
-        std::swap(t.shape[d1], t.shape[d2]);
-
-        for (size_t i = 0; i < d1; i++)
-            end *= t.shape[i];
-        for (size_t i = d1 + 1; i < d2; i++)
-            step *= t.shape[i];
-        for (size_t i = d2 + 1; i < t.shape.size(); i++)
-            stride *= t.shape[i];
-
-        // To-Do
-
-        return t;
-    }
-
-    /* Operetors */
-    inline Tensor Tensor::operator+(const Tensor &t) const
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  +  n2; };
-        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in sum operation");
-    }
-
-    inline Tensor Tensor::operator+(const float64 val) const
-    {
-        Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] + val;
-
-        return result;
-    }
-
-    inline Tensor operator+(const float64 val, const Tensor &t)
-    {
-        return t + val;
-    }
-
-    inline Tensor &Tensor::operator+=(const Tensor &t)
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  +  n2; };
-        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in sum operation");
-        return *this;
-    }
-
-    inline Tensor &Tensor::operator+=(const float64 val)
-    {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] += val;
-
-        return *this;
-    }
-
-    inline Tensor Tensor::operator-(const Tensor &t) const
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  -  n2; };
-        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in subtraction operation");
-    }
-
-    inline Tensor Tensor::operator-(const float64 val) const
-    {
-        Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] - val;
-
-        return result;
-    }
-
-    inline Tensor Tensor::operator-() const
-    {
-        Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = -this->b[i];
-
-        return result;
-    }
-
-    inline Tensor operator-(const float64 val, const Tensor &t)
-    {
-        Tensor ret = empty_like(t);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = val - t.b[i];
-
-        return ret;
-    }
-
-    inline Tensor &Tensor::operator-=(const Tensor &t)
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  -  n2; };
-        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in subtruction operation");
-        return *this;
-    }
-
-    inline Tensor &Tensor::operator-=(const float64 val)
-    {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] -= val;
-
-        return *this;
-    }
-
-    inline Tensor Tensor::operator*(const Tensor &t) const
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  *  n2; };
-        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
-    }
-
-    inline Tensor Tensor::operator*(const float64 val) const
-    {
-        Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] * val;
-
-        return result;
-    }
-
-    inline Tensor operator*(const float64 val, const Tensor &t)
-    {
-        return t * val;
-    }
-
-    inline Tensor &Tensor::operator*=(const Tensor &t)
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  *  n2; };
-        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in multiplication operation");
-        return *this;
-    }
-
-    inline Tensor &Tensor::operator*=(const float64 val)
-    {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] *= val;
-
-        return *this;
-    }
-
-    inline Tensor Tensor::operator/(const Tensor &t) const
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  /  n2; };
-        return ew_or_broadcast<fn>(*this, t, "Tensor sizes not matching in division operation");
-    }
-
-    inline Tensor Tensor::operator/(const float64 val) const
-    {
-        Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] / val;
-
-        return result;
-    }
-
-    inline Tensor operator/(const float64 val, const Tensor &t)
-    {
-        Tensor ret = empty_like(t);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = val / t.b[i];
-
-        return ret;
-    }
-
-    inline Tensor &Tensor::operator/=(const Tensor &t)
-    {
-        constexpr auto fn = [](float64 n1, float64 n2)
-        {  return n1  +  n2; };
-        ew_or_broadcast_assign<fn>(*this, t, "Tensor sizes not matching in division operation");
-        return *this;
-    }
-
-    inline Tensor &Tensor::operator/=(const float64 val)
-    {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] /= val;
-
-        return *this;
-    }
-
-    inline uint8_t reverse(uint8_t b)
-    {
-        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-        return b;
-    }
-
-    inline size_t reverse_bits(size_t i, size_t shift)
-    {
-        size_t ret;
-        uint8_t *bt = (uint8_t *)&i;
-        uint8_t *btr = (uint8_t *)&ret;
-        if constexpr (sizeof(size_t) > 0)
-            btr[sizeof(size_t) - 1] = reverse(bt[0]);
-        if constexpr (sizeof(size_t) > 1)
-            btr[sizeof(size_t) - 2] = reverse(bt[1]);
-        if constexpr (sizeof(size_t) > 2)
-            btr[sizeof(size_t) - 3] = reverse(bt[2]);
-        if constexpr (sizeof(size_t) > 3)
-            btr[sizeof(size_t) - 4] = reverse(bt[3]);
-        if constexpr (sizeof(size_t) > 4)
-            btr[sizeof(size_t) - 5] = reverse(bt[4]);
-        if constexpr (sizeof(size_t) > 5)
-            btr[sizeof(size_t) - 6] = reverse(bt[5]);
-        if constexpr (sizeof(size_t) > 6)
-            btr[sizeof(size_t) - 7] = reverse(bt[6]);
-        if constexpr (sizeof(size_t) > 7)
-            btr[sizeof(size_t) - 8] = reverse(bt[7]);
-        if constexpr (sizeof(size_t) > 8)
-            btr[sizeof(size_t) - 9] = reverse(bt[8]);
-        if constexpr (sizeof(size_t) > 9)
-            btr[sizeof(size_t) - 10] = reverse(bt[9]);
-        return ret >> shift;
-    }
-
-    inline void fft_impl(std::complex<float64> *dst, const float64 *src, size_t n)
-    {
-        constexpr float64 pi = 3.1415926535897931;
-        constexpr float64 pi2 = 2 * pi;
-        size_t shift = sizeof(size_t) * 8 - std::log2(n);
-        for (size_t k = 0; k < n; k++)
-            dst[reverse_bits(k, shift)] = src[k];
-
-        for (size_t m = 2; m <= n; m *= 2)
-        {
-            using namespace std;
-            complex<float64> wm = exp(-pi2 / m * 1i);
-            for (size_t k = 0; k < n; k += m)
-            {
-                complex<float64> w = 1.;
-                for (size_t j = 0; j < m / 2; j++)
-                {
-                    auto t = dst[k + j + m / 2] * w;
-                    auto u = dst[k + j];
-                    dst[k + j] = u + t;
-                    dst[k + j + m / 2] = u - t;
-                    w *= wm;
-                }
-            }
-        }
-    }
-
-    inline float64 *fft_impl_reversed(const float64 *src, size_t n)
-    {
-        constexpr float64 pi = 3.1415926535897931;
-        constexpr float64 pi2 = 2 * pi;
-        struct complex
-        {
-            float64 re, im;
-            constexpr complex(float64 n) : re(n), im(0) {}
-            constexpr complex(float64 re, float64 im) : re(re), im(im) {}
-            constexpr complex operator+(const complex &c) const { return {re + c.re, im + c.im}; }
-            constexpr complex operator-(const complex &c) const { return {re - c.re, im - c.im}; }
-            constexpr complex operator*(const complex &c) const { return {re * c.re - im * c.im, im * c.re + re * c.im}; }
-        };
-
-        constexpr auto fft_step = [](complex *X, complex *x, size_t n, size_t s)
-        {
-            if (n == 2)
-            {
-                for (int q = 0; q < s; q++)
-                {
-                    const complex a = x[q + 0];
-                    const complex b = x[q + s];
-                    x[q + 0] = a + b;
-                    x[q + s] = a - b;
-                }
-            }
-            else
-            {
-                constexpr complex j = {0., 1.};
-                const int n1 = n / 4;
-                const int n2 = n / 2;
-                const int n3 = n1 + n2;
-                const float64 theta0 = pi2 / n;
-                const complex wn = {std::cos(theta0), -std::sin(theta0)};
-                complex w1k = 1.;
-                for (size_t k = 0; k < n1; k++)
-                {
-                    const complex w2k = w1k * w1k;
-                    const complex w3k = w1k * w2k;
-                    for (size_t q = 0; q < s; q++)
-                    {
-                        const complex a = x[q + s * (k + 0)];
-                        const complex b = x[q + s * (k + n1)];
-                        const complex c = x[q + s * (k + n2)];
-                        const complex d = x[q + s * (k + n3)];
-                        const complex apc = a + c;
-                        const complex amc = a - c;
-                        const complex bpd = b + d;
-                        const complex jbmd = j * (b - d);
-                        X[q + s * (4 * k + 0)] = apc + bpd;
-                        X[q + s * (4 * k + 1)] = w1k * (amc - jbmd);
-                        X[q + s * (4 * k + 2)] = w2k * (apc - bpd);
-                        X[q + s * (4 * k + 3)] = w3k * (amc + jbmd);
-                    }
-                    w1k = w1k * wn;
-                }
-            }
-        };
-
-        complex *X = (complex *)std::aligned_alloc(32, 2 * n * sizeof(float64)), *x = (complex *)std::aligned_alloc(32, 2 * n * sizeof(float64));
-
-        for (size_t i = 0; i < n; i++)
-        {
-            x[i] = src[i];
-        }
-
-        for (size_t m = n, s = 1; m > 1; m /= 4, s *= 4)
-        {
-            fft_step(X, x, m, s);
-            std::swap(x, X);
-        }
-
-        std::free(X);
-        return (float64 *)x;
-    }
-
-    inline void ifft_impl_reversed(float64 *dst, std::complex<float64> *src, size_t n)
-    {
-        constexpr float64 pi = 3.1415926535897931;
-        constexpr float64 pi2 = 2 * pi;
-
-        for (size_t m = 2; m <= n; m *= 2)
-        {
-            using namespace std;
-            complex<float64> wm = exp(pi2 / m * 1i);
-            for (size_t k = 0; k < n; k += m)
-            {
-                complex<float64> w = 1.;
-                for (size_t j = 0; j < m / 2; j++)
-                {
-                    auto u = src[k + j];
-                    auto t = src[k + j + m / 2] * w;
-                    src[k + j] = (u + t) / 2.;
-                    src[k + j + m / 2] = (u - t) / 2.;
-                    w *= wm;
-                }
-            }
-        }
-        for (size_t k = 0; k < n; k++)
-            dst[k] = src[k].real();
-    }
-
-    inline void fft2d_impl_reversed(std::complex<float64> *dst, const float64 *src, size_t n)
-    {
-        constexpr float64 pi = 3.1415926535897931;
-        constexpr float64 pi2 = 2 * pi;
-        constexpr size_t block_size = 32;
-        for (size_t k = 0; k < n * n; k++)
-            dst[k] = src[k];
-        ;
-        for (size_t m = n; m > 1; m /= 2)
-        {
-            using namespace std;
-            complex<float64> wm = exp(-pi2 / m * 1i);
-            //#pragma omp parallel for
-            for (size_t l = 0; l < n; l += m)
-                for (size_t k = 0; k < n; k += m)
-                {
-                    complex<float64> wr = 1.;
-                    for (size_t i = 0; i < m / 2; i++)
-                    {
-                        complex<float64> wc = 1.;
-                        for (size_t j = 0; j < m / 2; j++)
-                        {
-                            auto s00 = dst[(l + i) * n + k + j];
-                            auto s01 = dst[(l + i) * n + k + j + m / 2];
-                            auto s10 = dst[(l + i + m / 2) * n + k + j];
-                            auto s11 = dst[(l + i + m / 2) * n + k + j + m / 2];
-                            dst[(l + i) * n + k + j] = s00 + s01 + s10 + s11;
-                            dst[(l + i) * n + k + j + m / 2] = (s00 - s01 + s10 - s11) * wc;
-                            dst[(l + i + m / 2) * n + k + j] = (s00 + s01 - s10 - s11) * wr;
-                            dst[(l + i + m / 2) * n + k + j + m / 2] = (s00 - s01 - s10 + s11) * wc * wr;
-                            wc *= wm;
-                        }
-                        wr *= wm;
-                    }
-                }
-        }
-    }
-
-    inline void ifft2d_impl_reversed(float64 *dst, std::complex<float64> *src, size_t n)
-    {
-        constexpr float64 pi = 3.1415926535897931;
-        constexpr float64 pi2 = 2 * pi;
-
-        for (size_t m = 2; m <= n; m *= 2)
-        {
-            using namespace std;
-            complex<float64> wm = exp(pi2 / m * 1i);
-            //#pragma omp parallel for
-            for (size_t l = 0; l < n; l += m)
-                for (size_t k = 0; k < n; k += m)
-                {
-                    complex<float64> wr = 1.;
-                    for (size_t i = 0; i < m / 2; i++)
-                    {
-                        complex<float64> wc = 1.;
-                        for (size_t j = 0; j < m / 2; j++)
-                        {
-                            auto s00 = src[(l + i) * n + k + j];
-                            auto s01 = src[(l + i) * n + k + j + m / 2] * wc;
-                            auto s10 = src[(l + i + m / 2) * n + k + j] * wr;
-                            auto s11 = src[(l + i + m / 2) * n + k + j + m / 2] * wc * wr;
-                            src[(l + i) * n + k + j] = (s00 + s01 + s10 + s11) / 4.;
-                            src[(l + i) * n + k + j + m / 2] = (s00 - s01 + s10 - s11) / 4.;
-                            src[(l + i + m / 2) * n + k + j] = (s00 + s01 - s10 - s11) / 4.;
-                            src[(l + i + m / 2) * n + k + j + m / 2] = (s00 - s01 - s10 + s11) / 4.;
-                            wc *= wm;
-                        }
-                        wr *= wm;
-                    }
-                }
-        }
-        for (size_t k = 0; k < n * n; k++)
-            dst[k] = src[k].real();
-    }
-
-    inline void conv_1d_impl(float64 *dst, const float64 *t, const float64 *kernel, size_t t_size, size_t kernel_size, size_t stride, size_t dilation)
-    {
-        constexpr size_t block_size = 32;
-        size_t end = (t_size + stride - (kernel_size - 1) * dilation - 1) / stride;
-        size_t end_b = end - end % block_size;
-
-        for (size_t cb = 0; cb < end_b; cb += block_size)
-            for (size_t ck = 0; ck < kernel_size; ck++)
-                for (size_t c = cb; c < cb + block_size; c++)
-                    dst[c] += t[c * stride + ck * dilation] * kernel[kernel_size - ck - 1];
-
-        for (size_t ck = 0; ck < kernel_size; ck++)
-            for (size_t c = end_b; c < end; c++)
-                dst[c] += t[c * stride + ck * dilation] * kernel[kernel_size - ck - 1];
-    }
-
-    inline void conv_2d_impl(float64 *dst, const float64 *t, const float64 *kernel, Tuple2d t_size, Tuple2d kernel_size, Tuple2d stride, Tuple2d dilation)
-    {
-        constexpr size_t block_size_r = 4;
-        constexpr size_t block_size_c = 32;
-        Tuple2d end = {(t_size.y + stride.y - (kernel_size.y - 1) * dilation.y - 1) / stride.y,
-                       (t_size.x + stride.x - (kernel_size.x - 1) * dilation.x - 1) / stride.x};
-        Tuple2d end_b = {end.y - end.y % block_size_r, end.x - end.x % block_size_c};
-
-        const auto conv1d = [=](float64 *dst, const float64 *t, const float64 *kernel)
-        {
-            for (size_t cb = 0; cb < end_b.x; cb += block_size_c)
-                for (size_t ck = 0; ck < kernel_size.x; ck++)
-                    for (size_t c = cb; c < cb + block_size_c; c++)
-                        dst[c] += t[c * stride.w + ck * dilation.w] * kernel[kernel_size.w - ck - 1];
-
-            for (size_t ck = 0; ck < kernel_size.x; ck++)
-                for (size_t c = end_b.x; c < end.x; c++)
-                    dst[c] += t[c * stride.w + ck * dilation.w] * kernel[kernel_size.w - ck - 1];
-        };
-
-        //#pragma omp parallel for
-        for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
-            for (size_t rk = 0; rk < kernel_size.y; rk++)
-                for (size_t r = rb; r < rb + block_size_r; r++)
-                    conv1d(dst + r * end.w, t + (r * stride.h + rk * dilation.h) * t_size.w, kernel + (kernel_size.h - rk - 1) * kernel_size.w);
-
-        for (size_t rk = 0; rk < kernel_size.y; rk++)
-            for (size_t r = end_b.y; r < end.y; r++)
-                conv1d(dst + r * end.w, t + (r * stride.h + rk * dilation.h) * t_size.w, kernel + (kernel_size.h - rk - 1) * kernel_size.w);
-    }
-
-    inline void cross_correlation_1d_impl(float64 *dst, const float64 *t, const float64 *kernel, size_t t_size, size_t kernel_size, size_t stride, size_t dilation)
-    {
-        constexpr size_t block_size = 32;
-        size_t end = (t_size + stride - (kernel_size - 1) * dilation - 1) / stride;
-        size_t end_b = end - end % block_size;
-
-        for (size_t cb = 0; cb < end_b; cb += block_size)
-            for (size_t ck = 0; ck < kernel_size; ck++)
-                for (size_t c = cb; c < cb + block_size; c++)
-                    dst[c] += t[c * stride + ck * dilation] * kernel[ck];
-
-        for (size_t ck = 0; ck < kernel_size; ck++)
-            for (size_t c = end_b; c < end; c++)
-                dst[c] += t[c * stride + ck * dilation] * kernel[ck];
-    }
-
-    inline void cross_correlation_2d_impl(float64 *dst, const float64 *t, const float64 *kernel, Tuple2d t_size, Tuple2d kernel_size, Tuple2d stride, Tuple2d dilation)
-    {
-        constexpr size_t block_size_r = 4;
-        constexpr size_t block_size_c = 32;
-        Tuple2d end = {(t_size.y + stride.y - (kernel_size.y - 1) * dilation.y - 1) / stride.y,
-                       (t_size.x + stride.x - (kernel_size.x - 1) * dilation.x - 1) / stride.x};
-        Tuple2d end_b = {end.y - end.y % block_size_r, end.x - end.x % block_size_c};
-
-        const auto conv1d = [=](float64 *dst, const float64 *t, const float64 *kernel)
-        {
-            for (size_t cb = 0; cb < end_b.x; cb += block_size_c)
-                for (size_t ck = 0; ck < kernel_size.x; ck++)
-                    for (size_t c = cb; c < cb + block_size_c; c++)
-                        dst[c] += t[c * stride.w + ck * dilation.w] * kernel[ck];
-
-            for (size_t ck = 0; ck < kernel_size.x; ck++)
-                for (size_t c = end_b.x; c < end.x; c++)
-                    dst[c] += t[c * stride.w + ck * dilation.w] * kernel[ck];
-        };
-
-        //#pragma omp parallel for
-        for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
-            for (size_t rk = 0; rk < kernel_size.y; rk++)
-                for (size_t r = rb; r < rb + block_size_r; r++)
-                    conv1d(dst + r * end.w, t + (r * stride.h + rk * dilation.h) * t_size.w, kernel + rk * kernel_size.w);
-
-        for (size_t rk = 0; rk < kernel_size.y; rk++)
-            for (size_t r = end_b.y; r < end.y; r++)
-                conv1d(dst + r * end.w, t + (r * stride.h + rk * dilation.h) * t_size.w, kernel + rk * kernel_size.w);
-    }
-
-    inline void cross_correlation_3d_impl(float64 *dst, const float64 *t, const float64 *kernel, Tuple3d t_size, Tuple3d kernel_size, Tuple3d stride, Tuple3d dilation)
-    {
-        constexpr size_t block_size_r = 4;
-        constexpr size_t block_size_c = 32;
-        Tuple3d end = {0, (t_size.y + stride.y - (kernel_size.y - 1) * dilation.y - 1) / stride.y,
-                       (t_size.x + stride.x - (kernel_size.x - 1) * dilation.x - 1) / stride.x};
-        Tuple3d end_b = {0, end.y - end.y % block_size_r, end.x - end.x % block_size_c};
-
-        const auto conv1d = [=](float64 *dst, const float64 *t, const float64 *kernel)
-        {
-            for (size_t cb = 0; cb < end_b.x; cb += block_size_c)
-                for (size_t ck = 0; ck < kernel_size.x; ck++)
-                    for (size_t c = cb; c < cb + block_size_c; c++)
-                        dst[c] += t[c * stride.w + ck * dilation.w] * kernel[ck];
-
-            for (size_t ck = 0; ck < kernel_size.x; ck++)
-                for (size_t c = end_b.x; c < end.x; c++)
-                    dst[c] += t[c * stride.w + ck * dilation.w] * kernel[ck];
-        };
-
-        const auto conv2d = [=](float64 *dst, const float64 *t, const float64 *kernel)
-        {
-            for (size_t rb = 0; rb < end_b.y; rb += block_size_r)
-                for (size_t rk = 0; rk < kernel_size.y; rk++)
-                    for (size_t r = rb; r < rb + block_size_r; r++)
-                        conv1d(dst + r * end.w, t + (r * stride.h + rk * dilation.h) * t_size.w, kernel + rk * kernel_size.w);
-
-            for (size_t rk = 0; rk < kernel_size.y; rk++)
-                for (size_t r = end_b.y; r < end.y; r++)
-                    conv1d(dst + r * end.w, t + (r * stride.h + rk * dilation.h) * t_size.w, kernel + rk * kernel_size.w);
-        };
-
-        for (size_t dk = 0; dk < kernel_size.z; dk++)
-            for (size_t d = 0; d < end.z; d++)
-                conv2d(dst + d * end.h * end.w, t + (d * stride.d + dk * dilation.d) * t_size.h * t_size.w, kernel + dk * kernel_size.h * kernel_size.w);
-    }
-
-    inline Tensor Tensor::crossCorrelation1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
-    {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
-
-        while (shape_k.size() < 1)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 1)
-            shape_t.insert(shape_t.begin(), 1);
-
-        for (size_t i = 0; i + 1 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in crossCorrelation1d");
-        if (shape_k.back() == 0)
-            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
-        if (stride == 0)
-            throw std::length_error("Invalid stride in crossCorrelation1d");
-
-        for (size_t i = 0; i + 1 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
-
-        auto shape_r = shape_t;
-        if (2 * padding + shape_t.back() + stride >= (shape_k.back() - 1) * dilation + 1)
-            shape_r.back() = (2 * padding + shape_t.back() - (shape_k.back() - 1) * dilation - 1) / stride + 1;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        size_t off_t = shape_t.back();
-        size_t off_r = shape_r.back();
-        size_t off_p = shape_t.back() + 2 * padding;
-
-        Tensor result(shape_r);
-        result.zero();
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        //#pragma omp parallel for
-        for (size_t i = 0; i < size_batch; i++)
-        {
-            for (size_t c = 0; c < shape_t.back(); c++)
-                padded[c + padding] = b[c + i * off_t];
-
-            cross_correlation_1d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                kernel.b,
-                shape_t.back() + 2 * padding,
-                shape_k.back(),
-                stride, dilation);
-        }
-
-        return result;
-    }
-
-    inline Tensor Tensor::crossCorrelation2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
-    {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
-
-        while (shape_k.size() < 2)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 2)
-            shape_t.insert(shape_t.begin(), 1);
-
-        for (size_t i = 0; i + 2 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in crossCorrelation2d");
-        if (shape_k.back() == 0 || shape_k.end()[-2] == 0)
-            throw std::length_error("Invalid kernel shape in crossCorrelation2d");
-        if (stride.x == 0 || stride.y == 0)
-            throw std::length_error("Invalid stride in crossCorrelation2d");
-
-        for (size_t i = 0; i + 2 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
-
-        auto shape_r = shape_t;
-        if (2 * padding.x + shape_t.back() + stride.x >= (shape_k.back() - 1) * dilation.x + 1)
-            shape_r.back() = (2 * padding.x + shape_t.back() - (shape_k.back() - 1) * dilation.x + stride.x - 1) / stride.x;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        if (2 * padding.y + shape_t.end()[-2] + stride.y >= (shape_k.end()[-2] - 1) * dilation.y + 1)
-            shape_r.end()[-2] = (2 * padding.y + shape_t.end()[-2] - (shape_k.end()[-2] - 1) * dilation.y + stride.y - 1) / stride.y;
-        else
-            shape_r.end()[-2] = 0, size_batch = 0;
-        size_t off_t = shape_t.end()[-2] * shape_t.back();
-        size_t off_r = shape_r.end()[-2] * shape_r.back();
-        size_t ph = shape_t.end()[-2] + 2 * padding.h, pw = shape_t.back() + 2 * padding.w;
-        size_t off_p = ph * pw;
-
-        Tensor result(shape_r);
-        result.zero();
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        // #pragma omp parallel for
-        for (size_t i = 0; i < size_batch; i++)
-        {
-            copy_2d(b, padded.get(), {shape_t.end()[-2], shape_t.back()}, pw, shape_t.back());
-
-            cross_correlation_2d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                kernel.b,
-                {ph, pw},
-                {shape_k.end()[-2], shape_k.back()},
-                stride, dilation);
-        }
-
-        return result;
-    }
-
-    inline Tensor Tensor::crossCorrelation3d(const Tensor &kernel, Tuple3d padding, Tuple3d stride, Tuple3d dilation, PaddingMode pm) const
-    {
-        return Tensor();
-    }
-
-    inline Tensor Tensor::convolution1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
-    {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
-
-        while (shape_k.size() < 1)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 1)
-            shape_t.insert(shape_t.begin(), 1);
-
-        for (size_t i = 0; i + 1 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in convolution1d");
-        if (shape_k.back() == 0)
-            throw std::length_error("Invalid kernel shape in convolution1d");
-        if (stride == 0)
-            throw std::length_error("Invalid stride in convolution1d");
-
-        for (size_t i = 0; i + 1 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
-
-        auto shape_r = shape_t;
-        if (2 * padding + shape_t.back() + stride >= (shape_k.back() - 1) * dilation + 1)
-            shape_r.back() = (2 * padding + shape_t.back() - (shape_k.back() - 1) * dilation - 1) / stride + 1;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        size_t off_t = shape_t.back();
-        size_t off_r = shape_r.back();
-        size_t off_p = shape_t.back() + 2 * padding;
-
-        Tensor result(shape_r);
-        result.zero();
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
-        for (size_t r = 0; r < kernel.shape.back(); r++)
-            f_kern[r] = kernel.b[kernel.shape.back() - r - 1];
-        
-        //#pragma omp parallel for
-        for (size_t i = 0; i < size_batch; i++)
-        {
-            for (size_t c = 0; c < shape_t.back(); c++)
-                padded[c + padding] = b[c];
-
-            cross_correlation_1d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                f_kern.get(),
-                shape_t.back() + 2 * padding,
-                shape_k.back(),
-                stride, dilation);
-        }
-
-        return result;
-    }
-
-    inline Tensor Tensor::convolution2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
-    {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
-
-        while (shape_k.size() < 2)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 2)
-            shape_t.insert(shape_t.begin(), 1);
-
-        for (size_t i = 0; i + 2 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in convolution2d");
-        if (shape_k.back() == 0 || shape_k.end()[-2] == 0)
-            throw std::length_error("Invalid kernel shape in convolution2d");
-        if (stride.x == 0 || stride.y == 0)
-            throw std::length_error("Invalid stride in convolution2d");
-
-        for (size_t i = 0; i + 2 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
-
-        auto shape_r = shape_t;
-        if (2 * padding.x + shape_t.back() + stride.x >= (shape_k.back() - 1) * dilation.x + 1)
-            shape_r.back() = (2 * padding.x + shape_t.back() - (shape_k.back() - 1) * dilation.x + stride.x - 1) / stride.x;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        if (2 * padding.y + shape_t.end()[-2] + stride.y >= (shape_k.end()[-2] - 1) * dilation.y + 1)
-            shape_r.end()[-2] = (2 * padding.y + shape_t.end()[-2] - (shape_k.end()[-2] - 1) * dilation.y + stride.y - 1) / stride.y;
-        else
-            shape_r.end()[-2] = 0, size_batch = 0;
-        size_t off_t = shape_t.end()[-2] * shape_t.back();
-        size_t off_r = shape_r.end()[-2] * shape_r.back();
-        size_t ph = shape_t.end()[-2] + 2 * padding.h, pw = shape_t.back() + 2 * padding.w;
-        size_t off_p = ph * pw;
-
-        Tensor result(shape_r);
-        result.zero();
-
-        std::unique_ptr<float64[]> padded;
-        if (padding.x || padding.y)
-            padded = std::make_unique<float64[]>(off_p);
-        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
-        for (size_t r = 0; r < kernel.shape.end()[-2]; r++)
-        for (size_t c = 0; c < kernel.shape.back(); c++)
-            f_kern[r*kernel.shape.back() + c] = kernel.b[(kernel.shape.end()[-2] - r)*kernel.shape.back() - c - 1];
-
-        // #pragma omp parallel for
-        for (size_t i = 0; i < size_batch; i++)
-        {
-            float64 *ptr = b + i * off_t;
-            if (padding.x || padding.y)
-            {
-                copy_2d(b, padded.get(), {shape_t.end()[-2], shape_t.back()}, pw, shape_t.back());
-                ptr = padded.get();
-            }
-
-            cross_correlation_2d_impl(
-                result.b + i * off_r,
-                ptr,
-                f_kern.get(),
-                {ph, pw},
-                {shape_k.end()[-2], shape_k.back()},
-                stride, dilation);
-        }
-
-        return result;
-    }
-
-    inline float64 Tensor::squareSum() const
-    {
-        constexpr auto fn = [](float64 &sq_sum, float64 n)
-        {  sq_sum += n  *  n; };
-        return op_along_all_axes<fn>(*this, 0.);
-    }
-
-    inline Tensor Tensor::squareSum(size_t d) const
-    {
-        constexpr auto fn = [](float64 &sq_sum, float64 n)
-        {  sq_sum += n  *  n; };
-        return op_along_axes<fn>(*this, d, 0.);
-    }
-
-    inline float64 Tensor::max() const
-    {
-        constexpr auto fn = [](float64 &max, float64 n)
-        {if (max < n) max = n; };
-        return op_along_all_axes<fn>(*this, -std::numeric_limits<float64>::infinity());
-    }
-
-    inline Tensor Tensor::max(size_t d) const
-    {
-        constexpr auto fn = [](float64 &max, float64 n)
-        {if (max < n) max = n; };
-        return op_along_axes<fn>(*this, d, -std::numeric_limits<float64>::infinity());
-    }
-
-    inline float64 Tensor::min() const
-    {
-        constexpr auto fn = [](float64 &min, float64 n)
-        {if (min > n) min = n; };
-        return op_along_all_axes<fn>(*this, std::numeric_limits<float64>::infinity());
-    }
-
-    inline Tensor Tensor::min(size_t d) const
-    {
-        constexpr auto fn = [](float64 &min, float64 n)
-        {if (min > n) min = n; };
-        return op_along_axes<fn>(*this, d, std::numeric_limits<float64>::infinity());
-    }
-
-    inline float64 Tensor::sum() const
-    {
-        constexpr auto fn = [](float64 &sum, float64 n)
-        {  sum += n; };
-        return op_along_all_axes<fn>(*this, 0.);
-    }
-
-    inline Tensor Tensor::sum(size_t d) const
-    {
-        constexpr auto fn = [](float64 &sum, float64 n)
-        {  sum += n; };
-        return op_along_axes<fn>(*this, d, 0.);
-    }
-
-    inline float64 &Tensor::operator()(const std::vector<size_t> &index)
-    {
-#ifdef CHECK_BOUNDS
-        for (size_t i = 0; i < shape.size(); i++)
-        {
-            if (index[i] < 0 || index[i] >= shape[i])
-                throw new std::range_error("Out of bound in Tensor () operetor");
-        }
-#endif
-
-        size_t n = 0;
-        for (size_t i = 0; i < this->shape.size() - 1; i++)
-            n = (n + index[i]) * this->shape[i + 1];
-
-        return this->b[n + index[this->shape.size() - 1]];
-    }
-
-    inline float64 Tensor::operator()(const std::vector<size_t> &index) const
-    {
-#ifdef CHECK_BOUNDS
-        for (size_t i = 0; i < shape.size(); i++)
-            if (index[i] >= shape[i])
-                throw new std::range_error("Out of bound in Tensor () operetor");
-#endif
-
-        size_t n = 0;
-        for (size_t i = 0; i < this->shape.size() - 1; i++)
-            n = (n + index[i]) * this->shape[i + 1];
-
-        return this->b[n + index[this->shape.size() - 1]];
-    }
 
     template <typename... Args>
     inline float64 &Tensor::operator()(Args... indices)
@@ -1724,6 +329,7 @@ namespace RedFish
         }
     }
 
+
     template <typename... Args>
     inline float64 Tensor::operator()(Args... indices) const
     {
@@ -1788,6 +394,13 @@ namespace RedFish
         }
     }
 
+    /**
+     * @brief Returns a View of this tensor on index
+     * 
+     * @tparam N
+     * @param index shape: (x,...,x,d1,..,dN) -> index: (x,...,x)
+     * @return DirectTensorView shape: (d1,..,dN)
+     */
     template <size_t N>
     inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index)
     {
@@ -1811,6 +424,13 @@ namespace RedFish
         return DirectTensorView({new_shape, new_shape + N}, b + off);
     }
 
+    /**
+     * @brief Returns a View of this tensor on index
+     * 
+     * @tparam N
+     * @param index shape: (x,...,x,d1,..,dN) -> index: (x,...,x)
+     * @return DirectTensorView shape: (d1,..,dN)
+     */
     template <size_t N>
     inline const DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index) const
     {
@@ -1834,263 +454,8 @@ namespace RedFish
         return DirectTensorView({new_shape, new_shape + N}, b + off);
     }
 
-    inline DirectTensorView Tensor::getRow(const std::vector<size_t> &index) { return sliceLastNDims<1>(index); }
-    inline const DirectTensorView Tensor::getRow(const std::vector<size_t> &index) const { return sliceLastNDims<1>(index); }
-    inline DirectTensorView Tensor::getMatrix(const std::vector<size_t> &index) { return sliceLastNDims<2>(index); }
-    inline const DirectTensorView Tensor::getMatrix(const std::vector<size_t> &index) const { return sliceLastNDims<2>(index); }
-
-    inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index, size_t N)
-    {
-        if (index.size() + N > shape.size())
-            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
-
-        size_t new_shape[N], off = 0;
-        for (size_t i = 0; i < index.size(); i++)
-        {
-            off = (off + index[i]) * *(shape.end() - index.size() + i - N + 1);
-            if (index[i] >= *(shape.end() - index.size() + i - N))
-                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
-        }
-        for (size_t i = 0; i < N - 1; i++)
-            off *= *(shape.end() + i - N + 1);
-
-        for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(shape.end() - N + i);
-
-        return DirectTensorView({new_shape, new_shape + N}, b + off);
-    }
-
-    inline const DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index, size_t N) const
-    {
-        if (index.size() + N > shape.size())
-            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
-
-        size_t new_shape[N], off = 0;
-        for (size_t i = 0; i < index.size(); i++)
-        {
-            off = (off + index[i]) * *(shape.end() - index.size() + i - N + 1);
-            if (index[i] >= *(shape.end() - index.size() + i - N))
-                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
-        }
-        for (size_t i = 0; i < N - 1; i++)
-            off *= *(shape.end() + i - N + 1);
-
-        for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(shape.end() - N + i);
-
-        return DirectTensorView({new_shape, new_shape + N}, b + off);
-    }
-
-    inline bool Tensor::operator==(const Tensor &t) const
-    {
-        if (!sizeMatch(shape, t.shape))
-            return false;
-
-        for (size_t i = 0; i < size; i++)
-            if (b[i] != t.b[i])
-                return false;
-
-        return true;
-    }
-
-    inline void reprint(std::ostream &os, const Tensor &t, size_t depth, std::vector<size_t> &index)
-    {
-        if (depth == 0)
-        {
-            if (t.size)
-                os << t(index);
-            return;
-        }
-
-        if (depth > 1)
-        {
-            os << "[\n";
-            for (size_t i = 0; i < t.shape.size() - depth + 1; i++)
-                os << "  ";
-        }
-        else
-            os << "[";
-
-        index.push_back(0);
-        for (size_t i = 0; i + 1 < t.shape[t.shape.size() - depth]; i++)
-        {
-            index.back() = i;
-            if (i == 4 && depth == 1 && t.shape.back() > 8)
-            {
-                os << "...";
-                i = t.shape.back() - 4 - 1;
-            }
-            else if (i == 3 && depth == 2 && t.shape[t.shape.size() - depth] > 6)
-            {
-                os << "...";
-                i = t.shape[t.shape.size() - depth] - 3 - 1;
-            }
-            else if (i == 2 && depth == 3 && t.shape[t.shape.size() - depth] > 4)
-            {
-                os << "...";
-                i = t.shape[t.shape.size() - depth] - 2 - 1;
-            }
-            else if (i == 1 && depth >= 4 && t.shape[t.shape.size() - depth] > 2)
-            {
-                os << "...";
-                i = t.shape[t.shape.size() - depth] - 1 - 1;
-            }
-            else
-                reprint(os, t, depth - 1, index);
-            if (depth > 1)
-            {
-                os << ",\n";
-                for (size_t i = 0; i < t.shape.size() - depth + 1; i++)
-                    os << "  ";
-            }
-            else
-                os << ", ";
-        }
-        index.back() = t.shape[t.shape.size() - depth] - 1;
-        reprint(os, t, depth - 1, index);
-        index.pop_back();
-
-        if (depth > 1)
-        {
-            os << "\n";
-            for (size_t i = 0; i < t.shape.size() - depth; i++)
-                os << "  ";
-        }
-        os << "]";
-    }
-
-    inline std::ostream &operator<<(std::ostream &os, const Tensor &t)
-    {
-        os << "Tensor" << std::endl
-           << "Shape: (";
-        for (size_t i = 0; i < t.shape.size() - 1; i++)
-            os << t.shape[i] << ", ";
-        os << t.shape.back() << ")\n";
-
-        std::vector<size_t> v;
-        reprint(os, t, t.shape.size(), v);
-        os << '\n';
-        return os;
-    }
-
-    inline void Tensor::zero()
-    {
-        for (size_t i = 0; i < size; i++)
-            b[i] = 0;
-    }
-
-    inline void Tensor::ones()
-    {
-        for (size_t i = 0; i < size; i++)
-            b[i] = 1;
-    }
-
-    inline void Tensor::rand()
-    {
-        float64 inv = 1. / RAND_MAX;
-        for (size_t i = 0; i < size; i++)
-            b[i] = std::rand() * inv;
-    }
-
-    inline void Tensor::rand(float64 start, float64 end)
-    {
-        float64 l = (end - start) / RAND_MAX;
-        for (size_t i = 0; i < size; i++)
-            b[i] = std::rand() * l + start;
-    }
-
-    inline void Tensor::randUniform(float64 a, float64 b)
-    {
-        std::uniform_real_distribution<> dis(a, b);
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = dis(gen);
-    }
-
-    inline void Tensor::randNormal(float64 mean, float64 std)
-    {
-        std::normal_distribution<double> distribution(mean, std);
-        for (size_t i = 0; i < size; i++)
-            b[i] = distribution(gen);
-    }
-
-    inline void Tensor::costant(float64 val)
-    {
-        for (size_t i = 0; i < size; i++)
-            b[i] = val;
-    }
-
-    inline uint64_t Tensor::save(std::ofstream &file) const
-    {
-        const char name[] = "Tensor";
-        file.write(name, sizeof(name));
-
-        uint64_t size = sizeof(uint64_t) + shape.size() * sizeof(uint64_t) + sizeof(float64) * this->size;
-        file.write((char*)&size, sizeof(size));
-
-        uint64_t shape_size = shape.size();
-        file.write((char*)&shape_size, sizeof(shape_size));
-        for (size_t i = 0; i < shape.size(); i++)
-        {
-            uint64_t shape_size = shape[i];
-            file.write((char*)&shape_size, sizeof(shape_size));
-        }
-
-        file.write((char*)b, this->size * sizeof(float64));
-
-        return size + sizeof(uint64_t) + sizeof(name);
-    }
-
-    inline bool Tensor::sizeMatch(const std::vector<size_t> &s1, const std::vector<size_t> &s2)
-    {
-        // if (size != t.size) return false;
-        size_t end = std::min(s1.size(), s2.size());
-        for (size_t i = 1; i <= end; i++)
-            if (s1[s1.size() - i] != s2[s2.size() - i])
-                return false;
-        for (size_t i = 0; i < s1.size() - end; i++)
-            if (s1[i] != 1)
-                return false;
-        for (size_t i = 0; i < s2.size() - end; i++)
-            if (s2[i] != 1)
-                return false;
-
-        return true;
-    }
 
     /* ---------- Functions ---------- */
-
-    inline bool broadcastable(const std::vector<size_t> &i1, const std::vector<size_t> &i2)
-    {
-        auto p1 = i1.end() - 1;
-        auto p2 = i2.end() - 1;
-
-        while (p1 != i1.begin() && p2 != i2.begin())
-        {
-            if (*p1 != *p2 && *p1 != 1 && *p2 != 1)
-                return false;
-            p1--, p2--;
-        }
-        return true;
-    }
-
-    inline Tensor empty_like(const Tensor &t)
-    {
-        return {t.shape};
-    }
-
-    inline Tensor zeros_like(const Tensor &t)
-    {
-        Tensor zl(t.shape);
-        zl.zero();
-        return zl;
-    }
-
-    inline Tensor ones_like(const Tensor &t)
-    {
-        Tensor zl(t.shape);
-        zl.ones();
-        return zl;
-    }
 
     template <float64 (*fn)(float64)>
     inline Tensor forEach(const Tensor &t)
@@ -2101,23 +466,8 @@ namespace RedFish
         return ret;
     }
 
-    inline Tensor forEach(const Tensor &t, std::function<float64(float64)> fn)
-    {
-        Tensor ret(t.shape);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = fn(t.b[i]);
-        return ret;
-    }
-
     template <float64 (*fn)(float64)>
     inline Tensor &forEachInPlace(Tensor &t)
-    {
-        for (size_t i = 0; i < t.size; i++)
-            t.b[i] = fn(t.b[i]);
-        return t;
-    }
-
-    inline Tensor &forEachInPlace(Tensor &t, std::function<float64(float64)> fn)
     {
         for (size_t i = 0; i < t.size; i++)
             t.b[i] = fn(t.b[i]);
@@ -2194,7 +544,7 @@ namespace RedFish
             for (size_t i = 0; i < t1.size; i++)
                 result.b[i] = fn(t1.b[i], t2.b[i]);
         }
-        else if (broadcastable(t1.shape, t2.shape))
+        else if (t1.broadcastable(t1.shape, t2.shape))
         {
             auto shapeT1 = t1.shape;
             auto shapeT2 = t2.shape;
@@ -2237,7 +587,7 @@ namespace RedFish
             for (size_t i = 0; i < t1.size; i++)
                 t1.b[i] = fn(t1.b[i], t2.b[i]);
         }
-        else if (broadcastable(t1.shape, t2.shape))
+        else if (t1.broadcastable(t1.shape, t2.shape))
         {
             auto shapeT1 = t1.shape;
             auto shapeT2 = t2.shape;
@@ -2292,7 +642,7 @@ namespace RedFish
             for (size_t i = 0; i < t1.size; i++)
                 t1.b[i] = fn(t1.b[i], t2.b[i]);
         }
-        else if (broadcastable(t1.shape, t2.shape))
+        else if (t1.broadcastable(t1.shape, t2.shape))
         {
             auto shapeT1 = t1.shape;
             auto shapeT2 = t2.shape;
@@ -2456,14 +806,11 @@ namespace RedFish
         if (!t.sizeMatch(result.getShape(), t.getShape()))
             return false;
 
-        size_t size = 1;
-        for (size_t i = 0; i < t.getShape().size(); i++)
-            size += t.getShape()[i];
+        size_t size = result.getSize();
 
         for (size_t i = 0; i < size; i++)
             if (std::abs(t.b[i] - result.b[i]) > delta)
                 return false;
-
         return true;
     }
 
@@ -2496,43 +843,4 @@ namespace RedFish
 
 } // namespace RedFish
 
-namespace std
-{
 
-    inline RedFish::Tensor sqrt(const RedFish::Tensor &t)
-    {
-        return RedFish::forEach<std::sqrt>(t);
-    }
-
-    inline RedFish::Tensor exp(const RedFish::Tensor &t)
-    {
-        return RedFish::forEach<std::exp>(t);
-    }
-
-    inline RedFish::Tensor log(const RedFish::Tensor &t)
-    {
-        return RedFish::forEach<std::log>(t);
-    }
-
-    inline RedFish::Tensor pow(const RedFish::Tensor &t, RedFish::float64 power)
-    {
-        RedFish::Tensor ret = RedFish::empty_like(t);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = std::pow(t.b[i], power);
-
-        return ret;
-    }
-
-    inline RedFish::Tensor pow(const RedFish::Tensor &t, const RedFish::Tensor &power)
-    {
-        if (!t.sizeMatch(t.shape, power.shape))
-            throw std::length_error("Tensor sizes not matching in std::pow operation");
-
-        RedFish::Tensor ret = RedFish::empty_like(t);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = std::pow(t.b[i], power.b[i]);
-
-        return ret;
-    }
-
-}

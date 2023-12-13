@@ -95,19 +95,27 @@ namespace RedFish
     inline void OpenCLManager::createSource(const std::string& src)
     {
         sources.push_back({src.c_str(), src.length()});
+        sources.push_back("\n");
     }
 
     inline void OpenCLManager::createSourceFromFile(const std::string& src_path)
     {
         std::string s = loadFile(src_path);
         sources.push_back({s.c_str(), s.length()});
+        sources.push_back("\n");
     }
     
     inline void OpenCLManager::createProgram()
     {
         program = cl::Program(context, sources);
+        try {
         if(program.build({default_device}) != CL_SUCCESS)
             throw std::runtime_error(" Error building: " + program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) + "\n");
+        } catch (const cl::Error& err)
+        {
+            std::cerr << "Error building OpenCL program: " << err.what() << std::endl;
+            std::cerr << "Build log:\n" << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) << std::endl;
+        }
     }
 
     inline size_t OpenCLManager::createKernel(const std::string& name)

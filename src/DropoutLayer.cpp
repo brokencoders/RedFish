@@ -27,7 +27,7 @@ namespace RedFish
     {
         if(output.getShape().size() == 0)
         {
-            output = empty_like(X);
+            output = Tensor::empty_like(X);
 
             batch_size = X.getShape()[0];
             
@@ -55,7 +55,7 @@ namespace RedFish
 
     Tensor DropoutLayer::backward(const Tensor& X, const Tensor& d)
     {
-        Tensor grad = empty_like(X);
+        Tensor grad = Tensor::empty_like(X);
         
         for(size_t i = 0; i < batch_size * skip_size; i++)
         {

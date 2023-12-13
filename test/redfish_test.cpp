@@ -18,22 +18,23 @@ TEST(RedFishTest, RedFishTestFlattenLayer)
     Tensor expected_result_2({2, 4}, {1, 2, 3, 4, 5, 6, 7, 8});
     
     FlattenLayer l;
-    EXPECT_TRUE(l.farward(t1) == expected_result);
+    EXPECT_TRUE(debug(l.farward(t1), expected_result, 1e-4));
     
     FlattenLayer l2;
-    EXPECT_TRUE(l2.farward(t1) == expected_result);
+    EXPECT_TRUE(debug(l2.farward(t1), expected_result, 1e-4));
 }
 
 TEST(RedFishTest, RedFishTestDropOutLayer)
 {
     Tensor t({5, 2, 2});
-    t.rand();
+    t.randUniform();
     DropoutLayer layer(0.5);
 }
 
 
 TEST(RedFishTest, RedFishTestWhatever)
 {
+    
 }
 
 TEST(RedFishTest, ConvLearning)
@@ -56,8 +57,8 @@ TEST(RedFishTest, ConvLearning)
     {
         const Tuple2d size = {20, 50};
         Tensor X2d({batch_size, in_ch, size.h, size.w}), X1d({batch_size, in_ch, size.w});
-        X1d.rand();
-        X2d.rand();
+        X1d.randUniform();
+        X2d.randUniform();
 
         auto gt1d = ground_truth1d.farward(X1d);
         auto gt2d = ground_truth2d.farward(X2d);
@@ -88,8 +89,6 @@ TEST(RedFishTest, ConvLearning)
 TEST(RedFishTest, maxPooling)
 {
     Tensor t({1, 1, 20});
-    t.rand();
+    t.randUniform();
     MaxPool1dLayer layer(2, 1, 0);
-    //cout << t << endl;
-    //cout << layer.farward(t) << endl;
 }

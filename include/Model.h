@@ -23,7 +23,7 @@ namespace RedFish {
 
         uint64_t save(const std::string& file_path, bool release);
 
-    private:
+    // private:
         std::vector<Layer*> layers;
         Optimizer* optimizer;
         Loss* loss;

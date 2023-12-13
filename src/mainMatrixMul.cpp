@@ -50,11 +50,12 @@ void cpp_matrix_mul(const int M, const int N, const int K, const double* A, cons
 
 int main()
 {
-
     OpenCLManager::init();
+    OpenCLManager::createSourceFromFile("../src/kernels/TensorBasic.cl");
     OpenCLManager::createSourceFromFile("../src/kernels/TensorMul.cl");
     OpenCLManager::createProgram();
     Kernel mat_mul = OpenCLManager::createKernel("tensor_tensor_math_mul");
+    Kernel vec_add = OpenCLManager::createKernel("tensor_scalar_add");
 
     std::vector<std::vector<std::pair<double, double>>> benchmarcks;
     std::vector<std::pair<double, double>> benchmarcks_C;
@@ -84,7 +85,7 @@ int main()
         
         OpenCLManager::loadWriteBuffer<double>(bufferA, M * K, A);
         OpenCLManager::loadWriteBuffer<double>(bufferB, K * N, B);
-        OpenCLManager::execute(mat_mul, {(int)M, (int)N, (int)K}, {bufferA, bufferB, bufferC}, {M, N}, {16, 16});
+        OpenCLManager::execute(mat_mul, {M, N}, {16, 16}, (int)M, (int)N, (int)K, bufferA, bufferB, bufferC);
         OpenCLManager::loadReadBuffer<double>(bufferC, M * N, C);
         
         auto stop_opencl = std::chrono::high_resolution_clock::now();
@@ -95,7 +96,7 @@ int main()
         auto start_bose = std::chrono::high_resolution_clock::now();
         
         std::fill(C1, C1 + M * N, 0.);
-        matmul_gotoblas(C1, A, B, M, K, N, N, K, N);
+        // matmul_gotoblas(C1, A, B, M, K, N, N, K, N);
         
         auto stop_bose = std::chrono::high_resolution_clock::now();
         auto duration_bose = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_bose - start_bose);
@@ -119,7 +120,7 @@ int main()
     benchmarcks.push_back(benchmarcks_C_OPENGL);
     benchmarcks.push_back(benchmarcks_BOSE);
 
-    plot_function_data(benchmarcks, {0, 512}, {0, 2000000}, { "OPENCL", "BOSE"});
+    plot_function_data(benchmarcks, { "OPENCL", "BOSE"});
 
     return 0;
 }

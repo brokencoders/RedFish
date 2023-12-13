@@ -38,8 +38,8 @@ namespace RedFish
 
     size_t Adam::allocateParameter(const Tensor& t)
     {
-        mw.emplace_back(zeros_like(t));
-        vw.emplace_back(zeros_like(t));
+        mw.emplace_back(Tensor::zeros_like(t));
+        vw.emplace_back(Tensor::zeros_like(t));
         return mw.size() - 1;
     }
 

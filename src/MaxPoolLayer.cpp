@@ -72,7 +72,7 @@ namespace RedFish {
 
         size_t L_out_size = (L_size + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1;
 
-        Tensor grad = empty_like(X);
+        Tensor grad = Tensor::empty_like(X);
         grad.zero();
 
         for (size_t i = 0; i < N_size; i++)
@@ -189,7 +189,7 @@ namespace RedFish {
         size_t H_out_size = (H_size + 2 * padding.y - dilation.y * (kernel_size.y - 1) - 1) / stride.y + 1;
         size_t W_out_size = (W_size + 2 * padding.x - dilation.x * (kernel_size.x - 1) - 1) / stride.x + 1;
     
-        Tensor grad = empty_like(X);
+        Tensor grad = Tensor::empty_like(X);
         grad.zero();
 
         for (size_t i = 0; i < N_size; i++)

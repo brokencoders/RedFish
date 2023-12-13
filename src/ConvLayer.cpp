@@ -79,7 +79,7 @@ namespace RedFish {
         if (d.getShape().end()[-1] != conv_length)
             throw std::length_error("Invalid size of d in Conv1d backward");
 
-        Tensor kgrad = zeros_like(kernels);
+        Tensor kgrad = Tensor::zeros_like(kernels);
 
         for (size_t i = 0; i < dim; i++)
             for (size_t j = 0; j < kernels.getShape()[0]; j++)
@@ -88,7 +88,7 @@ namespace RedFish {
         
         Tensor bgrad = d.sum(0).sum(2);
 
-        Tensor xgrad = zeros_like(X);
+        Tensor xgrad = Tensor::zeros_like(X);
         Tensor dilated({d.getShape().end()[-3], d.getShape().end()[-2], (d.getShape().back()-1)*stride + 1 + 2*kernels.getShape().back() - 2 - 2*padding});
         int64_t newpad = (int64_t)kernels.getShape().back() - 1 - padding;
 
@@ -250,7 +250,7 @@ namespace RedFish {
         if (d.getShape().end()[-2] != conv_length.y)
             throw std::length_error("Invalid size of d in Conv2d backward");
 
-        Tensor kgrad = zeros_like(kernels);
+        Tensor kgrad = Tensor::zeros_like(kernels);
 
         #pragma omp parallel for
         for (size_t i = 0; i < dim; i++)
@@ -262,7 +262,7 @@ namespace RedFish {
 
         Tensor bgrad = d.sum(0).sum(1).sum(3) /* + bias * lambda */;
 
-        Tensor xgrad = zeros_like(X);
+        Tensor xgrad = Tensor::zeros_like(X);
         Tensor dilated({d.getShape().end()[-4], d.getShape().end()[-3], (d.getShape().end()[-2]-1)*stride.y + 1 + 2*kernels.getShape().end()[-2] - 2 - 2*padding.y, (d.getShape().back()-1)*stride.x + 1 + 2*kernels.getShape().back() - 2 - 2*padding.x});
         int newpady = (int64_t)kernels.getShape().end()[-2] - 1 - padding.y;
         int newpadx = (int64_t)kernels.getShape().back() - 1 - padding.x;

@@ -9,9 +9,10 @@
 #include "swap_endian.h"
 #include <chrono>
 #include <thread>
+#include <sstream>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "../../RedFish/lib/stb_image.h"
 
 using namespace RedFish;
 

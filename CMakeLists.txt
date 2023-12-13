@@ -22,6 +22,12 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/MaxPoolLayer.cpp
                     ${SOURCE_FOLDER}/FlattenLayer.cpp
                     ${SOURCE_FOLDER}/DropoutLayer.cpp
+                    ${SOURCE_FOLDER}/Tensor.cpp
+                    ${SOURCE_FOLDER}/TensorStd.cpp
+                    ${SOURCE_FOLDER}/TensorView.cpp
+                    ${SOURCE_FOLDER}/Tensor/conv.cpp
+                    ${SOURCE_FOLDER}/Tensor/fft.cpp
+                    ${SOURCE_FOLDER}/Tensor/matmul.cpp
 )
 add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
 add_executable(MatrixMain "${SOURCE_FOLDER}/mainMatrixMul.cpp")

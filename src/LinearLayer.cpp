@@ -5,8 +5,8 @@ namespace RedFish {
     LinearLayer::LinearLayer(size_t input_size, size_t neuron_count, Optimizer* optimizer) 
         : weights({input_size, neuron_count}), biases({neuron_count}), optimizer(optimizer)
     {
-        weights.rand(-.5, .5);
-        biases.rand(-.5, .5);
+        weights.randUniform(-.5, .5);
+        biases.randUniform(-.5, .5);
         w_id = optimizer->allocateParameter(weights);
         b_id = optimizer->allocateParameter(biases);
     }
