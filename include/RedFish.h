@@ -4,4 +4,3 @@
 #include "Data.h"
 #include "Tensor.h"
 #include "Plot.h"
-#include "OpenCLManager.h"

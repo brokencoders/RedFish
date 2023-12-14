@@ -8,7 +8,6 @@ set(HEADER_FOLDER "include")
 
 find_package(OpenCL REQUIRED)
 
-
 find_package(Boost REQUIRED COMPONENTS iostreams system filesystem)
 include_directories(${Boost_INCLUDE_DIRS})
 
@@ -22,6 +21,7 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/MaxPoolLayer.cpp
                     ${SOURCE_FOLDER}/FlattenLayer.cpp
                     ${SOURCE_FOLDER}/DropoutLayer.cpp
+                    ${SOURCE_FOLDER}/OpenCLManager.cpp
                     ${SOURCE_FOLDER}/Tensor.cpp
                     ${SOURCE_FOLDER}/TensorStd.cpp
                     ${SOURCE_FOLDER}/TensorView.cpp

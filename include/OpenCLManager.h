@@ -12,13 +12,32 @@
 
 namespace RedFish
 {
-    using Kernel = size_t;
     using Buffer = size_t;
+
+    enum Platform 
+    {
+        CPU = 0,
+        AMD,
+        INTEL,
+        NVIDIA,
+        ARM
+    };
+
+    enum Kernel : size_t
+    {
+        MATMULL = 0,
+        STRASSEN_MAT_MULL,
+        PRINT,
+        ONES
+    };
 
     class OpenCLManager
     {
     public:
-        static void init();
+        static inline bool USEOPENGL = false;
+
+        static void showDevices();
+        static void init(Platform plat = CPU, size_t device = 0);
         static void free();
 
         static void createSource(const std::string& src);
@@ -41,8 +60,14 @@ namespace RedFish
         template<typename... Args>
         static void execute(size_t kernel, std::vector<size_t> size, std::vector<size_t> ts, Args... args);
 
+        template<typename... Args>
+        static void execute(size_t kernel, size_t times, Args... args);
+
+        static void execute(size_t kernel, size_t times);
+
     private:
         OpenCLManager() = delete;
+
         static inline std::vector<cl::Platform> all_platforms;
         static inline std::vector<cl::Device> all_devices;
         static inline cl::Platform default_platform;
@@ -56,78 +81,6 @@ namespace RedFish
         static inline std::vector<cl::Kernel> kernels;
         static inline std::vector<cl::Buffer> buffers;
     };
-    
-    inline void OpenCLManager::init()
-    {
-        if (cl::Platform::get(&all_platforms) !=  CL_SUCCESS)
-            throw std::runtime_error("No OpenCL platforms found. Check OpenCL installation!\n");
-
-        default_platform = all_platforms[0];
-        std::cout << "Using platform : " << default_platform.getInfo<CL_PLATFORM_NAME>() << "\n";
-        std::cout << "Version        : " << default_platform.getInfo<CL_PLATFORM_VERSION>() << "\n";
-        
-        if (default_platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices) != CL_SUCCESS)
-            throw std::runtime_error("No devices found. Check OpenCL installation!\n");
-
-        default_device = all_devices[0];
-        std::cout << "Using device   : " << default_device.getInfo<CL_DEVICE_NAME>() << "\n";
-        std::cout << "Vendor         : " << default_device.getInfo<CL_DEVICE_VENDOR>() << "\n";
-        std::cout << "Device version : " << default_device.getInfo<CL_DEVICE_VERSION>() << "\n";
-        std::cout << "Driver version : " << default_device.getInfo<CL_DRIVER_VERSION>() << "\n";
-        std::cout << "Address bits   : " << default_device.getInfo<CL_DEVICE_ADDRESS_BITS>() << "\n";
-        std::cout << "Broup SIze     : " << default_device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << "\n";
-
-
-        cl_int contextError;
-        context = cl::Context({default_device}, nullptr, nullptr, nullptr, &contextError);
-
-        if (contextError != CL_SUCCESS)
-            throw std::runtime_error("OpenCL context creation failed");
-
-        cl_int queueError;
-        queue = cl::CommandQueue(context,default_device, 0, &queueError);
-        if (queueError != CL_SUCCESS)
-            throw std::runtime_error("OpenCL command queue creation failed");
-    }
-
-    inline void OpenCLManager::free() { }
-
-    inline void OpenCLManager::createSource(const std::string& src)
-    {
-        sources.push_back({src.c_str(), src.length()});
-        sources.push_back("\n");
-    }
-
-    inline void OpenCLManager::createSourceFromFile(const std::string& src_path)
-    {
-        std::string s = loadFile(src_path);
-        sources.push_back({s.c_str(), s.length()});
-        sources.push_back("\n");
-    }
-    
-    inline void OpenCLManager::createProgram()
-    {
-        program = cl::Program(context, sources);
-        try {
-        if(program.build({default_device}) != CL_SUCCESS)
-            throw std::runtime_error(" Error building: " + program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) + "\n");
-        } catch (const cl::Error& err)
-        {
-            std::cerr << "Error building OpenCL program: " << err.what() << std::endl;
-            std::cerr << "Build log:\n" << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) << std::endl;
-        }
-    }
-
-    inline size_t OpenCLManager::createKernel(const std::string& name)
-    {
-        kernels.emplace_back(program, name.c_str());
-        return kernels.size() - 1;
-    }
-
-    inline cl::Buffer& OpenCLManager::getBuffer(Buffer buffer)
-    {
-        return buffers[buffer];
-    }
 
     template <typename T>
     inline Buffer OpenCLManager::createBuffer(size_t size)
@@ -156,8 +109,6 @@ namespace RedFish
             set_args<I + 1>(kernel, args...);
     }
 
-    inline void set_args(cl::Kernel& kernel) {}
-
     template<typename... Args>
     inline void OpenCLManager::execute(size_t kernel, std::vector<size_t> size,  std::vector<size_t> ts, Args... args)
     {
@@ -177,4 +128,28 @@ namespace RedFish
             throw std::runtime_error("Is not a valid kernel!\n");
         }
     }
+
+    template<typename... Args>
+    inline void OpenCLManager::execute(size_t kernel, size_t times, Args... args)
+    {
+        if(kernel >= kernels.size())
+            throw std::runtime_error("Is not a valid kernel!\n");
+        
+        size_t expectedArgs = kernels[kernel].getInfo<CL_KERNEL_NUM_ARGS>();
+        if (sizeof...(Args) != expectedArgs) {
+            throw std::runtime_error("Incorrect number of kernel arguments");
+        }
+
+        set_args(kernels[kernel], args...);
+
+        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(times), cl::NullRange);
+        cl_int status = queue.finish();
+        if (status != CL_SUCCESS) {
+            throw std::runtime_error("Is not a valid kernel!\n");
+        }
+    }
+
+
+    void showDevice();
+    void device(Platform plat = CPU, size_t device = 0);
 } 

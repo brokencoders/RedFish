@@ -32,7 +32,7 @@ namespace std
 
 namespace RedFish
 {
-
+    using Buffer = size_t;
     typedef double float64;
     class DirectTensorView;
 
@@ -240,10 +240,15 @@ namespace RedFish
         static std::random_device &getRandomDevice() { return rd; }
 
     protected:
-        std::unique_ptr<float64[]> b_mem;
         float64 *b;
         size_t size;
         std::vector<size_t> shape;
+
+        // CPU 
+        std::unique_ptr<float64[]> b_mem;
+
+        // GPU 
+        Buffer buffer;
 
         friend class DirectTensorView;
     };

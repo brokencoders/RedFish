@@ -1,5 +1,7 @@
 #include "Tensor.h"
 
+#include "OpenCLManager.h"
+
 namespace RedFish
 {
     void matmul_gotoblas(float64 *dst, const float64 *m1, const float64 *m2, size_t rows, size_t mid, size_t cols, size_t ld0, size_t ld1, size_t ld2);
@@ -27,7 +29,12 @@ namespace RedFish
             size *= shape[i];
 
         if (size)
-            b = (b_mem = std::make_unique<float64[]>(size)).get();
+        {
+            if(!OpenCLManager::USEOPENGL)
+                b = (b_mem = std::make_unique<float64[]>(size)).get();
+            else
+                OpenCLManager::createBuffer<float64>(size);
+        }
     }
 
     /**
@@ -709,8 +716,13 @@ namespace RedFish
      */
     void Tensor::ones()
     {
-        for (size_t i = 0; i < size; i++)
-            b[i] = 1;
+        if(!OpenCLManager::USEOPENGL)
+        {
+            for (size_t i = 0; i < size; i++)
+                b[i] = 1;
+        } else {
+            OpenCLManager::execute(Kernel::ONES, size, OpenCLManager::getBuffer(buffer));
+        }
     }
 
     /**
@@ -1352,15 +1364,20 @@ namespace RedFish
      */
     std::ostream &operator<<(std::ostream &os, const Tensor &t)
     {
-        os << "Tensor" << std::endl
-           << "Shape: (";
-        for (size_t i = 0; i < t.shape.size() - 1; i++)
-            os << t.shape[i] << ", ";
-        os << t.shape.back() << ")\n";
+        if(!OpenCLManager::USEOPENGL)
+        {
+            os << "Tensor" << std::endl
+               << "Shape: (";
+            for (size_t i = 0; i < t.shape.size() - 1; i++)
+                os << t.shape[i] << ", ";
+            os << t.shape.back() << ")\n";
 
-        std::vector<size_t> v;
-        reprint(os, t, t.shape.size(), v);
-        os << '\n';
+            std::vector<size_t> v;
+            reprint(os, t, t.shape.size(), v);
+            os << '\n';
+        } else {
+            // Print tensor in GPU
+        }
         return os;
     }
     

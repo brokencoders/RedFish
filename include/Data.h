@@ -11,7 +11,6 @@
 #include <thread>
 #include <sstream>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include "../../RedFish/lib/stb_image.h"
 
 using namespace RedFish;
@@ -31,7 +30,7 @@ namespace RedFish {
     }
 
     // MINST Dataset http://yann.lecun.com/exdb/mnist/
-    char grayscale[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
+    static char grayscale[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 
     inline std::tuple<Tensor, Tensor> readMINSTDataset(const std::string& path_labels, const std::string& path_img)
     {   
