@@ -61,46 +61,49 @@ namespace RedFish
         auto mbsi = in.getShape();
         auto mbso = out.getShape();
         mbsi[0] = mbso[0] = mini_batch_size;
+        Tensor mini_batch_in(mbsi);
+        Tensor mini_batch_out(mbso);
+        size_t training_samples_count = in.getShape()[0];
         std::cout << "Epoch - - loss: -" << std::endl;
         float64 last_losses[5] = {0,0,0,0,0};
         for (size_t i = 0; i < epochs; i++)
         {
-            auto batch_begin = std::chrono::high_resolution_clock::now();
-            Tensor mini_batch_in(mbsi);
-            Tensor mini_batch_out(mbso);
-            for (size_t j = 0; j < mini_batch_size; j++)
+            for (size_t k = 0; k < training_samples_count / mini_batch_size; k++)
             {
-                size_t n = rand() % in.getShape()[0];
-                mini_batch_in.sliceLastNDims({j}, in.getShape().size() - 1) = in.sliceLastNDims({n}, in.getShape().size() - 1);
-                mini_batch_out.sliceLastNDims({j}, out.getShape().size() - 1) = out.sliceLastNDims({n}, out.getShape().size() - 1);
+                auto batch_begin = std::chrono::high_resolution_clock::now();
+                for (size_t j = 0; j < mini_batch_size; j++)
+                {
+                    mini_batch_in .sliceLastNDims({j}, in.getShape().size() - 1)  =  in.sliceLastNDims({j+k*mini_batch_size},  in.getShape().size() - 1);
+                    mini_batch_out.sliceLastNDims({j}, out.getShape().size() - 1) = out.sliceLastNDims({j+k*mini_batch_size}, out.getShape().size() - 1);
+                }
+                auto train_begin = std::chrono::high_resolution_clock::now();
+
+                std::vector<Tensor> fw_res;
+
+                fw_res.reserve(layers.size());
+
+                fw_res.emplace_back(layers.front()->farward(mini_batch_in));
+                for (size_t j = 1; j < layers.size(); j++)
+                    fw_res.emplace_back(layers[j]->farward(fw_res[j - 1]));
+
+                float64 lossV = loss->farward(fw_res.back(), mini_batch_out);
+                last_losses[i % 5] = lossV;
+                float64 avg_loss = 0;
+                for (size_t k = 0; k <= std::min<size_t>(4, i); k++) avg_loss += last_losses[k] / std::min<float64>(5, i+1);
+
+                std::cout << "\r\033[1F\x1b[2KEpoch " << i << "." << k << " - loss: " << lossV << " - avg. loss (5 samples): " << avg_loss << std::endl;
+
+                Tensor bw_res = layers.back()->backward(fw_res[fw_res.size() - 2], loss->backward(fw_res.back(), mini_batch_out));
+                for (size_t j = layers.size() - 2; j > 0; j--)
+                    bw_res = layers[j]->backward(fw_res[j - 1], bw_res);
+
+                layers.front()->backward(mini_batch_in, bw_res);
+
+                auto train_end = std::chrono::high_resolution_clock::now();
+                train_time += (train_end - train_begin).count();
+                batching_time += (train_begin - batch_begin).count();
             }
-            auto train_begin = std::chrono::high_resolution_clock::now();
-
-            std::vector<Tensor> fw_res;
-
-            fw_res.reserve(layers.size());
-
-            fw_res.emplace_back(layers.front()->farward(mini_batch_in));
-            for (size_t j = 1; j < layers.size(); j++)
-                fw_res.emplace_back(layers[j]->farward(fw_res[j - 1]));
-
-            float64 lossV = loss->farward(fw_res.back(), mini_batch_out);
-            last_losses[i % 5] = lossV;
-            float64 avg_loss = 0;
-            for (size_t i = 0; i < 5; i++) avg_loss += last_losses[i] / 5.;
-
-            std::cout << "\r\033[1F\x1b[2KEpoch " << i << " - loss: " << lossV << " - avg. loss (5 samples): " << avg_loss << std::endl;
-
-            Tensor bw_res = layers.back()->backward(fw_res[fw_res.size() - 2], loss->backward(fw_res.back(), mini_batch_out));
-            for (size_t j = layers.size() - 2; j > 0; j--)
-                bw_res = layers[j]->backward(fw_res[j - 1], bw_res);
-
-            layers.front()->backward(mini_batch_in, bw_res);
-
             optimizer->step();
-            auto train_end = std::chrono::high_resolution_clock::now();
-            train_time += (train_end - train_begin).count();
-            batching_time += (train_begin - batch_begin).count();
         }
         auto end = std::chrono::high_resolution_clock::now();
         size_t tot_time = (end - begin).count();

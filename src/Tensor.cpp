@@ -1028,8 +1028,7 @@ namespace RedFish
         size_t off_r = shape_r.back();
         size_t off_p = shape_t.back() + 2 * padding;
 
-        Tensor result(shape_r);
-        result.zero();
+        Tensor result = zeros_like(shape_r);
 
         std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
         for (size_t i = 0; i < size_batch; i++)
@@ -1095,8 +1094,7 @@ namespace RedFish
         size_t ph = shape_t.end()[-2] + 2 * padding.h, pw = shape_t.back() + 2 * padding.w;
         size_t off_p = ph * pw;
 
-        Tensor result(shape_r);
-        result.zero();
+        Tensor result = zeros_like(shape_r);
 
         std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
         for (size_t i = 0; i < size_batch; i++)
@@ -1171,8 +1169,7 @@ namespace RedFish
         size_t off_r = shape_r.back();
         size_t off_p = shape_t.back() + 2 * padding;
 
-        Tensor result(shape_r);
-        result.zero();
+        Tensor result = zeros_like(shape_r);
 
         std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
         std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
@@ -1242,29 +1239,21 @@ namespace RedFish
         size_t ph = shape_t.end()[-2] + 2 * padding.h, pw = shape_t.back() + 2 * padding.w;
         size_t off_p = ph * pw;
 
-        Tensor result(shape_r);
-        result.zero();
+        Tensor result = zeros_like(shape_r);
 
-        std::unique_ptr<float64[]> padded;
-        if (padding.x || padding.y)
-            padded = std::make_unique<float64[]>(off_p);
-        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
-        for (size_t r = 0; r < kernel.shape.end()[-2]; r++)
-        for (size_t c = 0; c < kernel.shape.back(); c++)
-            f_kern[r*kernel.shape.back() + c] = kernel.b[(kernel.shape.end()[-2] - r)*kernel.shape.back() - c - 1];
-
+        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
+        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(shape_k.end()[-2] * shape_k.back());
+        for (size_t r = 0; r < shape_k.end()[-2]; r++)
+        for (size_t c = 0; c < shape_k.back(); c++)
+            f_kern[r*shape_k.back() + c] = kernel.b[(shape_k.end()[-2] - r)*shape_k.back() - c - 1];
+        
         for (size_t i = 0; i < size_batch; i++)
         {
-            float64 *ptr = b + i * off_t;
-            if (padding.x || padding.y)
-            {
-                copy_2d(b, padded.get(), {shape_t.end()[-2], shape_t.back()}, pw, shape_t.back());
-                ptr = padded.get();
-            }
+            copy_2d(b, padded.get(), {shape_t.end()[-2], shape_t.back()}, pw, shape_t.back());
 
             cross_correlation_2d_impl(
                 result.b + i * off_r,
-                ptr,
+                padded.get(),
                 f_kern.get(),
                 {ph, pw},
                 {shape_k.end()[-2], shape_k.back()},

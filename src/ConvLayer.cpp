@@ -214,8 +214,8 @@ namespace RedFish {
         Tensor conv({dim, kernels.getShape()[0], conv_length.y, conv_length.x});
         conv.zero();
         #pragma omp parallel for
-        for (size_t k = 0; k < kernels.getShape()[1]; k++)
-            for (size_t i = 0; i < dim; i++)
+        for (size_t i = 0; i < dim; i++)
+            for (size_t k = 0; k < kernels.getShape()[1]; k++)
                 for (size_t j = 0; j < kernels.getShape()[0]; j++)
                     conv.getMatrix({i, j}) += X.getMatrix({i, k}).crossCorrelation2d(kernels.getMatrix({j, k}), padding, stride, dilation, pm);
                 
@@ -253,8 +253,8 @@ namespace RedFish {
         Tensor kgrad = Tensor::zeros_like(kernels);
 
         #pragma omp parallel for
-        for (size_t i = 0; i < dim; i++)
-            for (size_t j = 0; j < kernels.getShape()[0]; j++)
+        for (size_t j = 0; j < kernels.getShape()[0]; j++)
+            for (size_t i = 0; i < dim; i++)
                 for (size_t k = 0; k < kernels.getShape()[1]; k++)
                     kgrad.getMatrix({j, k}) += X.getMatrix({i, k}).crossCorrelation2d(d.getMatrix({i, j}), padding, dilation, stride, pm);
         
@@ -263,13 +263,14 @@ namespace RedFish {
         Tensor bgrad = d.sum(0).sum(1).sum(3) /* + bias * lambda */;
 
         Tensor xgrad = Tensor::zeros_like(X);
-        Tensor dilated({d.getShape().end()[-4], d.getShape().end()[-3], (d.getShape().end()[-2]-1)*stride.y + 1 + 2*kernels.getShape().end()[-2] - 2 - 2*padding.y, (d.getShape().back()-1)*stride.x + 1 + 2*kernels.getShape().back() - 2 - 2*padding.x});
         int newpady = (int64_t)kernels.getShape().end()[-2] - 1 - padding.y;
         int newpadx = (int64_t)kernels.getShape().back() - 1 - padding.x;
 
         #pragma omp parallel for
-        for (size_t j = 0; j < kernels.getShape()[0]; j++)
-            for (size_t i = 0; i < dim; i++)
+        for (size_t i = 0; i < dim; i++)
+        {
+            Tensor dilated({(d.getShape().end()[-2]-1)*stride.y + 1 + 2*kernels.getShape().end()[-2] - 2 - 2*padding.y, (d.getShape().back()-1)*stride.x + 1 + 2*kernels.getShape().back() - 2 - 2*padding.x});
+            for (size_t j = 0; j < kernels.getShape()[0]; j++)
                 for (size_t k = 0; k < kernels.getShape()[1]; k++)
                 {
 
@@ -281,7 +282,6 @@ namespace RedFish {
                             if (newpadx + (int64_t)c*stride.x >= 0)
                                 dilated(newpady + r*stride.y, newpadx + c*stride.x) = drow(r, c);
                         }
-                    
 
                     Tensor pregrad = dilated.convolution2d(kernels.getMatrix({j, k}));
 
@@ -289,10 +289,11 @@ namespace RedFish {
                     for (size_t r = 0; r < xgradrow.getShape().end()[-2]; r++)
                     for (size_t c = 0; c < xgradrow.getShape().back(); c++)
                     {
-                        xgradrow(r,c) = pregrad(r,c);
+                        xgradrow(r,c) += pregrad(r,c);
                     }
                     
                 }
+        }
 
         optimizer->updateParameter(k_id, kernels, kgrad);
         optimizer->updateParameter(b_id, bias, bgrad);
