@@ -721,7 +721,7 @@ namespace RedFish
             for (size_t i = 0; i < size; i++)
                 b[i] = 1;
         } else {
-            OpenCLManager::execute(Kernel::ONES, size, OpenCLManager::getBuffer(buffer));
+            OpenCLManager::execute(Kernel::SET, size, OpenCLManager::getBuffer(buffer), 1.0);
         }
     }
 

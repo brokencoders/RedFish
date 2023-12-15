@@ -180,7 +180,7 @@ namespace RedFish
                 throw std::runtime_error("Wrong Kernel index");
             if (OpenCLManager::createKernel("tensor_print") != Kernel::PRINT)
                 throw std::runtime_error("Wrong Kernel index");
-            if (OpenCLManager::createKernel("tensor_ones") != Kernel::ONES)
+            if (OpenCLManager::createKernel("tensor_set") != Kernel::SET)
                 throw std::runtime_error("Wrong Kernel index");
         }
     }

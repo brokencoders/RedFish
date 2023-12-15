@@ -28,7 +28,7 @@ namespace RedFish
         MATMULL = 0,
         STRASSEN_MAT_MULL,
         PRINT,
-        ONES
+        SET
     };
 
     class OpenCLManager
