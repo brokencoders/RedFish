@@ -195,7 +195,17 @@ namespace RedFish
         if (onCPU)
             dealloc(b);
         else
-            /* GPU dealloc */;
+            OpenCLManager::destroyBuffer(buffer);
+    }
+
+    void Tensor::toDevice()
+    {
+        if (!onCPU) return;
+
+        buffer = OpenCLManager::createBuffer<float64>(size);
+        OpenCLManager::loadWriteBuffer<float64>(buffer, size, b);
+
+        dealloc(b);
     }
 
     /* 
@@ -211,6 +221,7 @@ namespace RedFish
     Tensor& Tensor::operator=(const Tensor &t)
     {
         if (onCPU) dealloc(b);
+        else OpenCLManager::destroyBuffer(buffer);
         this->shape  = t.shape;
         this->stride = t.stride;
         this->size   = t.size;
@@ -222,7 +233,10 @@ namespace RedFish
             std::copy(t.b, t.b + size, b);
         }
         else
-            /* GPU copy */;
+        {
+            buffer = OpenCLManager::createBuffer<float64>(size);
+            OpenCLManager::copyBuffer<float64>(t.buffer, this->buffer, size);
+        }
 
         return *this;
     }
@@ -236,6 +250,7 @@ namespace RedFish
     Tensor& Tensor::operator=(Tensor &&t)
     {
         if (onCPU) dealloc(b);
+        else OpenCLManager::destroyBuffer(buffer);
         this->shape  = t.shape;
         this->stride = t.stride;
         this->size   = t.size;

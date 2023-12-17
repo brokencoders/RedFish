@@ -55,6 +55,7 @@ int main()
     RedFish::device(RedFish::Platform::INTEL, 0);
 
     Tensor t1({10, 10});                       // Load tensor in GPU        done!
+    t1.toDevice();
     t1.ones();                                 // Set Tensor Value          done!
     std::cout << t1 << std::endl;              // Print Tensor in GPU       to-do
 

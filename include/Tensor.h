@@ -91,6 +91,8 @@ namespace RedFish
         Tensor(std::ifstream& file);
         ~Tensor();
 
+        void toDevice();
+
         /* Get */
         size_t colSize() const { return this->shape.back(); }
         size_t rowSize() const { return *(this->shape.end() - 2); }

@@ -103,6 +103,11 @@ namespace RedFish
 
     void OpenCLManager::free() { }
 
+    void OpenCLManager::destroyBuffer(Buffer buffer)
+    {
+        buffers.erase(buffer);
+    }
+
     void OpenCLManager::createSource(const std::string& src)
     {
         sources.push_back({src.c_str(), src.length()});
@@ -156,32 +161,25 @@ namespace RedFish
 
     void device(Platform plat, size_t device)
     {
-        if(plat == CPU)
-        {
-            OpenCLManager::USEOPENGL = false;
-            return;
-        }
-        else if(OpenCLManager::USEOPENGL == false) {      // Init Once
-            OpenCLManager::USEOPENGL = true;
-            OpenCLManager::init(plat, device);
-            
-            // All Source Files
-            OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorBasic.cl");
-            OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorMul.cl");
-            OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorStrassenMul.cl");
+        OpenCLManager::init(plat, device);
+        
+        // All Source Files
+        OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorBasic.cl");
+        OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorMul.cl");
+        OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorStrassenMul.cl");
 
-            // Build 
-            OpenCLManager::createProgram();
+        // Build 
+        OpenCLManager::createProgram();
 
-            // Create all Kernels
-            if (OpenCLManager::createKernel("tensor_tensor_math_mul") != Kernel::MATMULL)
-                throw std::runtime_error("Wrong Kernel index");
-            if (OpenCLManager::createKernel("tensor_tensor_strassen_math_mul") != Kernel::STRASSEN_MAT_MULL)
-                throw std::runtime_error("Wrong Kernel index");
-            if (OpenCLManager::createKernel("tensor_print") != Kernel::PRINT)
-                throw std::runtime_error("Wrong Kernel index");
-            if (OpenCLManager::createKernel("tensor_set") != Kernel::SET)
-                throw std::runtime_error("Wrong Kernel index");
-        }
+        // Create all Kernels
+        if (OpenCLManager::createKernel("tensor_tensor_math_mul") != Kernel::MATMULL)
+            throw std::runtime_error("Wrong Kernel index");
+        if (OpenCLManager::createKernel("tensor_tensor_strassen_math_mul") != Kernel::STRASSEN_MAT_MULL)
+            throw std::runtime_error("Wrong Kernel index");
+        if (OpenCLManager::createKernel("tensor_print") != Kernel::PRINT)
+            throw std::runtime_error("Wrong Kernel index");
+        if (OpenCLManager::createKernel("tensor_set") != Kernel::SET)
+            throw std::runtime_error("Wrong Kernel index");
+    
     }
 }

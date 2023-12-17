@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <map>
 
 #define CL_HPP_ENABLE_EXCEPTIONS
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
@@ -34,7 +35,6 @@ namespace RedFish
     class OpenCLManager
     {
     public:
-        static inline bool USEOPENGL = false;
 
         static void showDevices();
         static void init(Platform plat = CPU, size_t device = 0);
@@ -49,6 +49,8 @@ namespace RedFish
         template <typename T>
         static Buffer createBuffer(size_t size);
 
+        static void destroyBuffer(Buffer buffer);
+
         static cl::Buffer& getBuffer(Buffer buffer);
 
         template <typename T>
@@ -56,6 +58,9 @@ namespace RedFish
         
         template <typename T>
         static void loadReadBuffer(Buffer buffer, size_t size, void* data);
+
+        template <typename T>
+        static void copyBuffer(Buffer from, Buffer to, size_t size);
 
         template<typename... Args>
         static void execute(size_t kernel, std::vector<size_t> size, std::vector<size_t> ts, Args... args);
@@ -79,14 +84,15 @@ namespace RedFish
         static inline cl::Program::Sources sources;
  
         static inline std::vector<cl::Kernel> kernels;
-        static inline std::vector<cl::Buffer> buffers;
+        static inline std::map<size_t, cl::Buffer> buffers;
     };
 
     template <typename T>
     inline Buffer OpenCLManager::createBuffer(size_t size)
     {
-        buffers.emplace_back(context, CL_MEM_READ_WRITE, sizeof(T) * size);
-        return buffers.size()-1;
+        size_t last = buffers.rbegin()->first;
+        buffers.emplace(last + 1, cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(T) * size));
+        return last + 1;
     }
 
     template <typename T>
@@ -101,12 +107,10 @@ namespace RedFish
         queue.enqueueReadBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
     }
 
-    template<int I = 0, typename Arg, typename... Args>
-    inline void set_args(cl::Kernel& kernel, Arg arg, Args... args)
+    template <typename T>
+    inline void OpenCLManager::copyBuffer(Buffer from, Buffer to, size_t size)
     {
-        kernel.setArg(I, arg);
-        if constexpr (sizeof...(args) > 0)
-            set_args<I + 1>(kernel, args...);
+        cl::enqueueCopyBuffer(buffers[from], buffers[to], 0, 0, sizeof(T) * size);
     }
 
     template<typename... Args>
@@ -120,7 +124,8 @@ namespace RedFish
             throw std::runtime_error("Incorrect number of kernel arguments");
         }
 
-        set_args(kernels[kernel], args...);
+        size_t i = 0;
+        ([&] { kernels[kernel].setArg(i++, args); } (), ...);
 
         queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(ts[0], ts[1]));
         cl_int status = queue.finish();
@@ -140,7 +145,8 @@ namespace RedFish
             throw std::runtime_error("Incorrect number of kernel arguments");
         }
 
-        set_args(kernels[kernel], args...);
+        size_t i = 0;
+        ([&] { kernels[kernel].setArg(i++, args); } (), ...);
 
         queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(times), cl::NullRange);
         cl_int status = queue.finish();
