@@ -7,9 +7,7 @@ set(SOURCE_FOLDER "src")
 set(HEADER_FOLDER "include")
 
 find_package(OpenCL REQUIRED)
-
-find_package(Boost REQUIRED COMPONENTS iostreams system filesystem)
-include_directories(${Boost_INCLUDE_DIRS})
+find_package(Matplot++ REQUIRED)
 
 add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/LinearLayer.cpp
@@ -44,12 +42,11 @@ endif()
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
-target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
+target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
 target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
+target_link_libraries(RedFish PUBLIC OpenCL::OpenCL Matplot++::matplot)
 target_link_libraries(RedFishMain PUBLIC RedFish)
-target_link_libraries(MatrixMain PUBLIC RedFish PRIVATE Boost::iostreams Boost::system Boost::filesystem  OpenCL::OpenCL)
-
-target_link_libraries(RedFishMain PRIVATE Boost::iostreams Boost::system Boost::filesystem  OpenCL::OpenCL)
+target_link_libraries(MatrixMain PUBLIC RedFish)
 
 add_subdirectory(test)
 

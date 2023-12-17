@@ -39,6 +39,7 @@ namespace RedFish {
 
     class Layer {
     public:
+        virtual ~Layer() {};
         virtual Tensor farward(const Tensor& X) = 0;
         virtual Tensor backward(const Tensor& X, const Tensor& d) = 0;
         virtual uint64_t save(std::ofstream& file) const = 0;

@@ -10,9 +10,5 @@ target_link_libraries(GTest::GTest INTERFACE gtest_main)
 
 add_executable(test tensor_test.cpp redfish_test.cpp)
 
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(test PUBLIC OpenMP::OpenMP_CXX)
-endif()
-
 target_include_directories(test PUBLIC ../include/)
 target_link_libraries(test PRIVATE GTest::GTest RedFish)
