@@ -32,11 +32,11 @@ TEST(TensorTest, StackTest)
 
     Tensor t3({ 3, 6});
     t3.ones();
-    EXPECT_TRUE(debug(t3, stack(t1, t2, 0), 1e-4));
+    EXPECT_TRUE(debug(t3, Tensor::stack(t1, t2, 0), 1e-4));
 
     Tensor t4({ 6, 3});
     t4.ones();
-    EXPECT_TRUE(debug(t4, stack(t1, t2, 1), 1e-4));
+    EXPECT_TRUE(debug(t4, Tensor::stack(t1, t2, 1), 1e-4));
 }
 
 TEST(TensorTest, Matmul)

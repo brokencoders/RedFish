@@ -11,6 +11,30 @@ namespace RedFish
     void cross_correlation_1d_impl(float64 *dst, const float64 *t, const float64 *kernel, size_t t_size, size_t kernel_size, size_t stride, size_t dilation);
     void cross_correlation_2d_impl(float64 *dst, const float64 *t, const float64 *kernel, Tuple2d t_size, Tuple2d kernel_size, Tuple2d stride, Tuple2d dilation);
     void cross_correlation_3d_impl(float64 *dst, const float64 *t, const float64 *kernel, Tuple3d t_size, Tuple3d kernel_size, Tuple3d stride, Tuple3d dilation);
+    static void copy_2d(float64*, float64*, Tuple2d, size_t, size_t);
+    template <auto fn>
+    static void for_(const size_t size[], const size_t ld[], std::vector<size_t>& index, size_t height, float64* b, size_t depth=0, size_t off=0);
+    template <auto fn, typename... Args>
+    static void broadcast_op(float64 *dst, const float64 *src1, const float64 *src2,
+                             const size_t *shape, const size_t *shape1, const size_t *shape2,
+                             size_t depth,
+                             size_t foff, size_t foff1, size_t foff2,
+                             Args... args);
+
+    std::random_device Tensor::rd;
+    std::default_random_engine Tensor::gen(rd());
+
+    static float64* alloc(size_t size)
+    {
+        if (!size) return nullptr;
+        else return new float64[size];
+    }
+    
+    static void dealloc(float64*& buff)
+    {
+        if (buff) delete buff;
+        buff = nullptr;
+    }
 
     /* 
      *      CONSTRUCTORS
@@ -21,20 +45,14 @@ namespace RedFish
      * 
      * @param shape 
      */
-    Tensor::Tensor(const std::vector<size_t> &shape)
-        : shape(shape)
+    Tensor::Tensor(const std::vector<size_t>& shape)
+        : shape(shape), stride(shape), size(1), onCPU(true)
     {
-        size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
 
-        if (size)
-        {
-            if(!OpenCLManager::USEOPENGL)
-                b = (b_mem = std::make_unique<float64[]>(size)).get();
-            else
-                OpenCLManager::createBuffer<float64>(size);
-        }
+        b = alloc(size);
+//                OpenCLManager::createBuffer<float64>(size);
     }
 
     /**
@@ -43,15 +61,13 @@ namespace RedFish
      * @param shape c-like array with tensor shape
      * @param len   shape array length
      */
-    Tensor::Tensor(const size_t *shape, size_t len)
-        : shape(shape, shape + len)
+    Tensor::Tensor(const size_t* shape, size_t len)
+        : shape(shape, shape + len), stride(shape, shape + len), size(1), onCPU(true)
     {
-        size = 1;
         for (size_t i = 0; i < len; i++)
             size *= shape[i];
 
-        if (size)
-            b = (b_mem = std::make_unique<float64[]>(size)).get();
+        b = alloc(size);
     }
 
     /**
@@ -61,25 +77,19 @@ namespace RedFish
      * @param buff 
      * @param copy whether to copy the buffer to a new one or to take buff as the internal memory 
      */
-    Tensor::Tensor(const std::vector<size_t> &shape, float64 *buff, bool copy)
-        : shape(shape)
+    Tensor::Tensor(const std::vector<size_t>& shape, float64 *buff, bool copy)
+        : shape(shape), stride(shape), size(1), onCPU(true), b(nullptr)
     {
-        size = 1;
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
 
         if (copy)
         {
-            if (size)
-            {
-                b_mem = std::make_unique<float64[]>(size);
-                std::copy(buff, buff + size, b_mem.get());
-            }
+            b = alloc(size);
+            std::copy(buff, buff + size, b);
         }
         else
-            b_mem.reset(buff);
-
-        b = b_mem.get();
+            b = buff;
     }
 
     /**
@@ -88,15 +98,16 @@ namespace RedFish
      * @param t 
      */
     Tensor::Tensor(const Tensor &t)
+        : shape(t.shape), stride(t.stride), size(t.size), onCPU(t.onCPU)
     {
-        this->shape = t.shape;
-        this->size = t.size;
-        if (size)
-            this->b_mem = std::make_unique<float64[]>(size);
-        b = b_mem.get();
+        if (onCPU)
+        {
+            this->b = alloc(size);
+            std::copy(t.b, t.b + size, b);
+        }
+        else
+            /* GPU copy */;
 
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = t.b[i];
     }
 
     /**
@@ -105,13 +116,13 @@ namespace RedFish
      * @param t 
      */
     Tensor::Tensor(Tensor &&t)
+        : shape(t.shape), stride(t.stride), size(t.size), onCPU(t.onCPU), b(t.b), buffer(t.buffer)
     {
-        this->shape = t.shape;
-        this->size = t.size;
-        this->b_mem = std::move(t.b_mem);
-        b = b_mem.get();
-        t.shape = {0};
-        t.size = 0;
+        t.shape  = {0};
+        t.stride = {0};
+        t.size   = 0;
+        t.onCPU  = true;
+        t.b      = nullptr;
     }
 
     /**
@@ -120,12 +131,11 @@ namespace RedFish
      * @param shape of the Tensor t be created 
      * @param data as an initializer list 
      */
-    Tensor::Tensor(const std::vector<size_t> &shape, std::initializer_list<float64> data)
-        : shape(shape)
+    Tensor::Tensor(const std::vector<size_t>& shape, std::initializer_list<float64> data)
+        : shape(shape), stride(shape), size(1), onCPU(true)
     {
-        if (shape.size() != 0)
+        if (shape.size() != 0 || data.size() == 1)
         {
-            size = 1;
             for (size_t i = 0; i < shape.size(); i++)
                 size *= shape[i];
         }
@@ -136,13 +146,10 @@ namespace RedFish
         }
 
         if (size != data.size())
-            throw std::length_error("Invalid number of data given to Tensor for this shape");
+            throw std::length_error("Invalid shape for given data in Tensor(const std::vector<size_t>&, std::initializer_list<float64>);");
 
-        if (size)
-            b = (b_mem = std::make_unique<float64[]>(size)).get();
-
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = data.begin()[i];
+        b = alloc(size);
+        std::copy(data.begin(), data.end(), b);
     }
 
     /**
@@ -151,6 +158,7 @@ namespace RedFish
      * @param file std::ifstream& 
      */
     Tensor::Tensor(std::ifstream& file)
+        : size(1)
     {
         const std::string name = "Tensor";
         char rname[sizeof("Tensor")];
@@ -162,7 +170,6 @@ namespace RedFish
         uint64_t size = 0;
         file.read((char*)&size, sizeof(size));
 
-        this->size = 1;
         uint64_t shape_size = 0;
         file.read((char*)&shape_size, sizeof(shape_size));
         shape.reserve(shape_size);
@@ -173,14 +180,23 @@ namespace RedFish
             shape.push_back(shape_size);
             this->size *= shape_size;
         }
+        stride = shape;
 
-        b = (b_mem = std::make_unique<float64[]>(this->size)).get();
+        b = alloc(this->size);
         file.read((char*)b, this->size * sizeof(float64));
     }
     
     /* 
      *      CONSTRUCTORS (end)
      */
+
+    Tensor::~Tensor()
+    {
+        if (onCPU)
+            dealloc(b);
+        else
+            /* GPU dealloc */;
+    }
 
     /* 
      *      ASSIGNMENT OPERATORS
@@ -194,16 +210,19 @@ namespace RedFish
      */
     Tensor& Tensor::operator=(const Tensor &t)
     {
-        this->shape = t.shape;
-        this->size = t.size;
-        if (size)
-            this->b_mem = std::make_unique<float64[]>(size);
-        else
-            this->b_mem = nullptr;
-        b = b_mem.get();
+        if (onCPU) dealloc(b);
+        this->shape  = t.shape;
+        this->stride = t.stride;
+        this->size   = t.size;
+        this->onCPU  = t.onCPU;
 
-        for (size_t i = 0; i < size; i++)
-            this->b[i] = t.b[i];
+        if (onCPU)
+        {
+            this->b = alloc(size);
+            std::copy(t.b, t.b + size, b);
+        }
+        else
+            /* GPU copy */;
 
         return *this;
     }
@@ -216,13 +235,18 @@ namespace RedFish
      */
     Tensor& Tensor::operator=(Tensor &&t)
     {
-        this->shape = t.shape;
-        this->size = t.size;
-        this->b_mem = std::move(t.b_mem);
-        b = b_mem.get();
-        t.shape = {0};
-        t.size = 0;
-        t.b = nullptr;
+        if (onCPU) dealloc(b);
+        this->shape  = t.shape;
+        this->stride = t.stride;
+        this->size   = t.size;
+        this->onCPU  = t.onCPU;
+        this->b      = t.b;
+        this->buffer = t.buffer;
+        t.shape  = {0};
+        t.stride = {0};
+        t.size   =  0;
+        t.onCPU  = true;
+        t.b      = nullptr;
 
         return *this;
     }
@@ -592,8 +616,11 @@ namespace RedFish
         for (size_t i = 0; i < new_shape.size(); i++)
             size *= new_shape[i];
 
-        b_mem = std::make_unique<float64[]>(size);
-        b = b_mem.get();
+        if (onCPU)
+        {
+            dealloc(b);
+            b = alloc(size);
+        }
     }
 
     /**
@@ -716,7 +743,7 @@ namespace RedFish
      */
     void Tensor::ones()
     {
-        if(!OpenCLManager::USEOPENGL)
+        if(onCPU)
         {
             for (size_t i = 0; i < size; i++)
                 b[i] = 1;
@@ -771,7 +798,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &sq_sum, float64 n)
         {  sq_sum += n  *  n; };
-        return op_along_all_axes<fn>(*this, 0.);
+        return full_reduction<fn>(*this, 0.);
     }
 
     /**
@@ -784,7 +811,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &sq_sum, float64 n)
         {  sq_sum += n  *  n; };
-        return op_along_axes<fn>(*this, d, 0.);
+        return axes_reduction<fn>(*this, d, 0.);
     }
 
     /**
@@ -796,7 +823,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &max, float64 n)
         {if (max < n) max = n; };
-        return op_along_all_axes<fn>(*this, -std::numeric_limits<float64>::infinity());
+        return full_reduction<fn>(*this, -std::numeric_limits<float64>::infinity());
     }
 
     /**
@@ -809,7 +836,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &max, float64 n)
         {if (max < n) max = n; };
-        return op_along_axes<fn>(*this, d, -std::numeric_limits<float64>::infinity());
+        return axes_reduction<fn>(*this, d, -std::numeric_limits<float64>::infinity());
     }
 
     /**
@@ -821,7 +848,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &min, float64 n)
         {if (min > n) min = n; };
-        return op_along_all_axes<fn>(*this, std::numeric_limits<float64>::infinity());
+        return full_reduction<fn>(*this, std::numeric_limits<float64>::infinity());
     }
 
     /**
@@ -834,7 +861,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &min, float64 n)
         {if (min > n) min = n; };
-        return op_along_axes<fn>(*this, d, std::numeric_limits<float64>::infinity());
+        return axes_reduction<fn>(*this, d, std::numeric_limits<float64>::infinity());
     }
 
     /**
@@ -846,7 +873,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &sum, float64 n)
         {  sum += n; };
-        return op_along_all_axes<fn>(*this, 0.);
+        return full_reduction<fn>(*this, 0.);
     }
 
     /**
@@ -859,7 +886,7 @@ namespace RedFish
     {
         constexpr auto fn = [](float64 &sum, float64 n)
         {  sum += n; };
-        return op_along_axes<fn>(*this, d, 0.);
+        return axes_reduction<fn>(*this, d, 0.);
     }
 
     /**
@@ -1353,7 +1380,7 @@ namespace RedFish
      */
     std::ostream &operator<<(std::ostream &os, const Tensor &t)
     {
-        if(!OpenCLManager::USEOPENGL)
+        if(t.onCPU)
         {
             os << "Tensor" << std::endl
                << "Shape: (";
@@ -1481,6 +1508,79 @@ namespace RedFish
         return zl;
     }
 
+    
+    RedFish::Tensor Tensor::stack(const RedFish::Tensor &t1, const RedFish::Tensor &t2, size_t dim)
+    {
+        if (t1.shape.size() <= dim)
+            throw std::length_error("Tensor has not that many dimensions");
+
+        std::vector<size_t> t1_shape = t1.shape;
+        std::vector<size_t> t2_shape = t2.shape;
+
+        int t1_1 = 0;
+        for (size_t i = 0; i < (int64_t)t1.shape.size() - dim; i++)
+            if (t1_shape[i] == 1)
+                t1_shape.erase(t1_shape.begin()), t1_1++;
+            else
+                break;
+
+        int t2_1 = 0;
+        for (size_t i = 0; i < (int64_t)t2.shape.size() - dim; i++)
+            if (t2_shape[i] == 1)
+                t2_shape.erase(t2_shape.begin()), t2_1++;
+            else
+                break;
+
+        if (t1_shape.size() != t2_shape.size())
+            throw std::length_error("Tensor has not same dimmensions");
+
+        for (size_t i = 0; i < t1_shape.size(); i++)
+            if (t1_shape[i] != t2_shape[i] && i != t2.shape.size() - dim - 1)
+                throw std::length_error("Tensor has not same dimmensions");
+
+        std::vector<size_t> t3_shape;
+
+        t1_1 = std::max(t1_1, t2_1);
+        t3_shape.reserve(t1_shape.size() + t1_1);
+        for (size_t i = 0; i < t1_1; i++)
+            t3_shape.push_back(1);
+
+        for (size_t i = 0; i < t1_shape.size(); i++)
+            if (i == t1_shape.size() - dim - 1)
+                t3_shape.push_back(t1_shape[i] + t2_shape[i]);
+            else
+                t3_shape.push_back(t1_shape[i]);
+
+        Tensor t3(t3_shape);
+
+        size_t n1 = 1;
+        size_t n2 = 1;
+        for (size_t i = t3_shape.size() - dim - 1; i < t3_shape.size(); i++)
+        {
+            n1 *= t1_shape[i];
+            n2 *= t2_shape[i];
+        }
+        size_t n3 = n1 + n2;
+
+        size_t p = 1;
+        for (size_t i = 0; i < t3_shape.size() - dim - 1; i++)
+            p *= t3_shape[i];
+
+        for (size_t i = 0; i < p; i++)
+        {
+            size_t in1 = i * n1;
+            size_t in2 = i * n2;
+            size_t in3 = i * n3;
+            for (size_t j = 0; j < n1; j++)
+                t3.b[in3 + j] = t1.b[in1 + j];
+            for (size_t k = 0; k < n2; k++)
+                t3.b[in3 + n1 + k] = t2.b[in2 + k];
+        }
+
+        return t3;
+    }
+
+
     /**
      * @brief For each element applay function 
      * 
@@ -1509,5 +1609,268 @@ namespace RedFish
             t.b[i] = fn(t.b[i]);
         return t;
     }
+
+
+
+    /* 
+     *      TEMPLATED OPERATIONS
+     */
+
+
+    template <void (*fn)(float64 &, float64)>
+    Tensor Tensor::axes_reduction(const Tensor &t, size_t d, const float64 init_val)
+    {
+        d = t.shape.size() - d - 1;
+        auto shape = t.shape;
+        shape[d] = std::min((size_t)1, shape[d]);
+        Tensor ret(shape);
+
+        size_t tot = 1, stride = 1;
+        for (size_t i = 0; i <= d; i++)
+            tot *= shape[i];
+        for (size_t i = d + 1; i < shape.size(); i++)
+            stride *= shape[i];
+
+        if (ret.size)
+            for (size_t k = 0; k < tot; k++)
+                for (size_t i = 0; i < stride; i++)
+                {
+                    float64 value = init_val;
+                    for (size_t j = 0; j < t.shape[d]; j++)
+                        fn(value, t.b[j * stride + i + k * stride * t.shape[d]]);
+
+                    ret.b[i + k * stride] = value;
+                }
+
+        return ret;
+    }
+
+    template <void (*fn)(float64 &, float64)>
+    float64 Tensor::full_reduction(const Tensor &t, const float64 init_val)
+    {
+        float64 value = init_val;
+        for (size_t i = 0; i < t.size; i++)
+            fn(value, t.b[i]);
+        return value;
+    }
+
+    template <float64 (*fn)(float64, float64)>
+    void Tensor::broadcast_ew_assign(Tensor &dst, const Tensor &src1, const Tensor &src2,
+                                    const size_t *shape, const size_t *shape1, const size_t *shape2,
+                                    size_t depth,
+                                    size_t off, size_t off1, size_t off2)
+    {
+        if (depth > 1)
+            for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
+                broadcast_ew_assign<fn>(dst, src1, src2, shape + 1, shape1 + 1, shape2 + 1, depth - 1, off * *shape + i, off1 * *shape1 + (i & bdc1), off2 * *shape2 + (i & bdc2));
+        else
+            for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
+                dst.b[off * *shape + i] = fn(src1.b[off1 * *shape1 + (i & bdc1)], src2.b[off2 * *shape2 + (i & bdc2)]);
+    }
+
+    /**
+     * @brief executes fn() on two broadcastable shape tensors element wise
+     *        and the result is returned with a new tensor
+     *
+     * @tparam fn function to be executed
+     * @param t1 source and destination tensor
+     * @param t2 source tensor
+     * @param err_msg error message to display in case of non broadcastable shapes
+     */
+    template <float64 (*fn)(float64, float64)>
+    Tensor Tensor::ew_or_broadcast(const Tensor &t1, const Tensor &t2, const char *err_msg)
+    {
+        Tensor result;
+        if (Tensor::sizeMatch(t1.shape, t2.shape))
+        {
+            result.resize(t1.shape);
+            for (size_t i = 0; i < t1.size; i++)
+                result.b[i] = fn(t1.b[i], t2.b[i]);
+        }
+        else if (t1.broadcastable(t1.shape, t2.shape))
+        {
+            auto shapeT1 = t1.shape;
+            auto shapeT2 = t2.shape;
+
+            if (shapeT1.size() > shapeT2.size())
+                for (size_t i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT2.insert(shapeT2.begin(), 1);
+            else
+                for (size_t i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT1.insert(shapeT1.begin(), 1);
+
+            std::vector<size_t> shapeDst(shapeT1.size());
+            for (size_t i = 0; i < shapeT1.size(); i++)
+                shapeDst[i] = shapeT1[i] == 1 ? shapeT2[i] : shapeT1[i];
+
+            result.resize(shapeDst);
+            if (result.size)
+                broadcast_ew_assign<fn>(result, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
+        }
+        else
+            throw std::length_error(err_msg);
+
+        return result;
+    }
+
+    /**
+     * @brief executes fn() on two broadcastable shape tensors element wise
+     *        and the result is stored on the first tensor
+     *
+     * @tparam fn function to be executed
+     * @param t1 source and destination tensor
+     * @param t2 source tensor
+     * @param err_msg error message to display in case of non broadcastable shapes
+     */
+    template <float64 (*fn)(float64, float64)>
+    void Tensor::ew_or_broadcast_assign(Tensor &t1, const Tensor &t2, const char *err_msg)
+    {
+        if (Tensor::sizeMatch(t1.shape, t2.shape))
+        {
+            for (size_t i = 0; i < t1.size; i++)
+                t1.b[i] = fn(t1.b[i], t2.b[i]);
+        }
+        else if (t1.broadcastable(t1.shape, t2.shape))
+        {
+            auto shapeT1 = t1.shape;
+            auto shapeT2 = t2.shape;
+
+            if (shapeT1.size() > shapeT2.size())
+                for (size_t i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT2.insert(shapeT2.begin(), 1);
+            else
+                for (size_t i = 0; shapeT1.size() != shapeT2.size(); i++)
+                    shapeT1.insert(shapeT1.begin(), 1);
+
+            std::vector<size_t> shapeDst(shapeT1.size());
+            bool self_assign = true;
+            for (size_t i = 0; i < shapeT1.size(); i++)
+            {
+                shapeDst[i] = shapeT1[i] == 1 ? shapeT2[i] : shapeT1[i];
+                if (shapeDst[i] != shapeT1[i])
+                    self_assign = false;
+            }
+
+            if (self_assign)
+            {
+                if (t1.size)
+                    broadcast_ew_assign<fn>(t1, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
+            }
+            else
+            {
+                Tensor result(shapeDst);
+                if (result.size)
+                    broadcast_ew_assign<fn>(result, t1, t2, shapeDst.data(), shapeT1.data(), shapeT2.data(), shapeDst.size());
+                t1 = std::move(result);
+            }
+        }
+        else
+            throw std::length_error(err_msg);
+    }
+
+    template <auto fn, typename... Args>
+    static void broadcast_op_impl(float64 *dst, const float64 *src1, const float64 *src2,
+                                  const size_t *shape, const size_t *shape1, const size_t *shape2,
+                                  size_t depth,
+                                  size_t foff, size_t foff1, size_t foff2,
+                                  size_t off, size_t off1, size_t off2,
+                                  Args... args)
+    {
+        size_t bdc1 = (*shape1 == *shape) * ((size_t)-1);
+        size_t bdc2 = (*shape2 == *shape) * ((size_t)-1);
+        if (depth > 1)
+            for (size_t i = 0; i < *shape; i++)
+                broadcast_op_impl<fn, Args...>(
+                    dst, src1, src2,
+                    shape + 1, shape1 + 1, shape2 + 1,
+                    depth - 1,
+                    foff, foff1, foff2,
+                    off * *shape + i,
+                    off1 * *shape1 + (i & bdc1),
+                    off2 * *shape2 + (i & bdc2),
+                    args...);
+        else
+            for (size_t i = 0; i < *shape; i++)
+                fn(dst + (off * *shape + i) * foff,
+                   src1 + (off1 * *shape1 + (i & bdc1)) * foff1,
+                   src2 + (off2 * *shape2 + (i & bdc2)) * foff2,
+                   args...);
+    }
+
+    /**
+     * @brief executes fn() on two broadcastable shape tensors "element wise"
+     *
+     * @param dst    buffer of the result of the operation
+     * @param src1   buffer of the first tensor
+     * @param src2   buffer of the second tensor
+     * @param shape  shape of the resulting tensor
+     * @param shape1 shape of the first tensor
+     * @param shape2 shape of the first tensor
+     * @param depth  recusion depth (usually the length of the shape)
+     * @param foff   final offset for the destination tensor
+     * @param foff1  final offset for the first tensor
+     * @param foff2  final offset for the second tensor
+     * @param args   additional arguments to pass to fn
+     * @return void
+     */
+    template <auto fn, typename... Args>
+    static void broadcast_op(float64 *dst, const float64 *src1, const float64 *src2,
+                             const size_t *shape, const size_t *shape1, const size_t *shape2,
+                             size_t depth,
+                             size_t foff, size_t foff1, size_t foff2,
+                             Args... args)
+    {
+        broadcast_op_impl<fn, Args...>(dst, src1, src2, shape, shape1, shape2, depth, foff, foff1, foff2, (size_t)0, (size_t)0, (size_t)0, args...);
+    }
+
+    template <auto fn>
+    static void for_(const size_t size[], const size_t ld[], std::vector<size_t>& index, size_t height, float64* b, size_t depth, size_t off)
+    {
+        index[depth] = 0;
+        if (depth + 1 < height)
+        for (size_t i = 0; i < size[depth]; i++, index[depth]++)
+            for_(size, ld, index, height, b, depth + 1, off*(*ld) + i);
+        else
+        for (size_t i = 0; i < size[depth]; i++, index[depth]++)
+        {
+            //fn(b[off*(*ld) + i], index);
+        }
+        
+    }
+
+
+
+    /* 
+     *      TEMPLATED OPERATIONS (end)
+     */
+
+
+    static void copy_2d(float64 *src, float64 *dst, Tuple2d size, size_t stride_out, size_t stride_in)
+    {
+        constexpr size_t block_size = 8;
+        size_t endw = size.w - size.w % block_size;
+        size_t endh = size.h - size.h % block_size;
+
+        for (size_t rb = 0; rb < endh; rb += block_size)
+        {
+            for (size_t cb = 0; cb < endw; cb += block_size)
+                for (size_t r = rb; r < rb + block_size; r++)
+                    for (size_t c = cb; c < cb + block_size; c++)
+                        dst[r * stride_out + c] = src[r * stride_in + c];
+
+            for (size_t r = rb; r < rb + block_size; r++)
+                for (size_t c = endw; c < size.w; c++)
+                    dst[r * stride_out + c] = src[r * stride_in + c];
+        }
+        for (size_t cb = 0; cb < endw; cb += block_size)
+            for (size_t r = endh; r < size.h; r++)
+                for (size_t c = cb; c < cb + block_size; c++)
+                    dst[r * stride_out + c] = src[r * stride_in + c];
+
+        for (size_t r = endh; r < size.h; r++)
+            for (size_t c = endw; c < size.w; c++)
+                dst[r * stride_out + c] = src[r * stride_in + c];
+    }
+
 
 }
