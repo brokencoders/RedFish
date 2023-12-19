@@ -45,15 +45,16 @@ namespace RedFish
             for (size_t i = 0; i < all_devices.size(); i++)
             {                
                 auto device = all_devices[i];
-                std::cout << "-----------------Device " << i << " ------------------\n";
+                std::cout << "-----------------Device " << i << "------------------\n";
                 std::cout << "Device         : " << device.getInfo<CL_DEVICE_NAME>() << "\n";
                 std::cout << "Vendor         : " << device.getInfo<CL_DEVICE_VENDOR>() << "\n";
                 std::cout << "Device version : " << device.getInfo<CL_DEVICE_VERSION>() << "\n";
                 std::cout << "Driver version : " << device.getInfo<CL_DRIVER_VERSION>() << "\n";
                 std::cout << "Address bits   : " << device.getInfo<CL_DEVICE_ADDRESS_BITS>() << "\n";
-                std::cout << "Broup Size     : " << device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << "\n";
+                std::cout << "Group Size     : " << device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << "\n";
             }
-        }   
+            std::cout << "-------------------------------------------\n";
+        }
     }
 
     void OpenCLManager::init(Platform plat, size_t device_index)
@@ -76,13 +77,34 @@ namespace RedFish
             std::transform(vendor_name.begin(), vendor_name.end(), vendor_name.begin(), ::toupper);
             switch(plat)
             {
+                case Platform::AMD:
+                    if(vendor_name.find("AMD") != std::string::npos)
+                    {
+                        default_platform = platform;
+                        default_device = device;
+                        std::cout << "-------------------------------------------\n";
+                        std::cout << "       Using AMD DEVICE number " << device_index << "\n"; 
+                        std::cout << "-------------------------------------------\n";
+                    }
+                    break;
                 case Platform::INTEL:
                     if(vendor_name.find("INTEL") != std::string::npos)
                     {
                         default_platform = platform;
                         default_device = device;
-                        std::cout << "------------------------------------------------\n";
-                        std::cout << "Using INTEL DEVICE number " << device_index << "\n"; 
+                        std::cout << "-------------------------------------------\n";
+                        std::cout << "       Using INTEL DEVICE number " << device_index << "\n"; 
+                        std::cout << "-------------------------------------------\n";
+                    }
+                    break;
+                case Platform::NVIDIA:
+                    if(vendor_name.find("NVIDIA") != std::string::npos)
+                    {
+                        default_platform = platform;
+                        default_device = device;
+                        std::cout << "-------------------------------------------\n";
+                        std::cout << "       Using NVIDIA DEVICE number " << device_index << "\n"; 
+                        std::cout << "-------------------------------------------\n";
                     }
                     break;
                 default:
@@ -103,9 +125,13 @@ namespace RedFish
 
     void OpenCLManager::free() { }
 
-    void OpenCLManager::destroyBuffer(Buffer buffer)
+    void OpenCLManager::destroyBuffer(Buffer& buffer)
     {
-        buffers.erase(buffer);
+        if (buffer)
+        {
+            buffers.erase(buffer);
+            buffer = 0;
+        }
     }
 
     void OpenCLManager::createSource(const std::string& src)
@@ -137,7 +163,7 @@ namespace RedFish
 
     cl::Buffer& OpenCLManager::getBuffer(Buffer buffer)
     {
-        return buffers[buffer];
+        return buffers.at(buffer);
     }
 
     void OpenCLManager::execute(size_t kernel, size_t times)
@@ -164,22 +190,149 @@ namespace RedFish
         OpenCLManager::init(plat, device);
         
         // All Source Files
-        OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorBasic.cl");
-        OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorMul.cl");
-        OpenCLManager::createSourceFromFile("/home/dev/dev/RedFish/src/kernels/TensorStrassenMul.cl");
+        OpenCLManager::createSourceFromFile("../src/kernels/TensorBasic.cl");
+        OpenCLManager::createSourceFromFile("../src/kernels/TensorBasicBroadcast.cl");
+        OpenCLManager::createSourceFromFile("../src/kernels/TensorMul.cl");
+        OpenCLManager::createSourceFromFile("../src/kernels/TensorStrassenMul.cl");
 
         // Build 
         OpenCLManager::createProgram();
 
         // Create all Kernels
-        if (OpenCLManager::createKernel("tensor_tensor_math_mul") != Kernel::MATMULL)
+        if (OpenCLManager::createKernel("tensor_tensor_math_mul")           != Kernel::MATMUL               ||
+            OpenCLManager::createKernel("tensor_tensor_strassen_math_mul")  != Kernel::STRASSEN_MAT_MUL     ||
+            OpenCLManager::createKernel("tensor_print")                     != Kernel::PRINT                ||
+            OpenCLManager::createKernel("tensor_scalar_add")                != Kernel::T_SCALAR_ADD         ||
+            OpenCLManager::createKernel("tensor_tensor_add")                != Kernel::T_TENSOR_ADD         ||
+            OpenCLManager::createKernel("tensor_scalar_sub")                != Kernel::T_SCALAR_SUB         ||
+            OpenCLManager::createKernel("tensor_tensor_sub")                != Kernel::T_TENSOR_SUB         ||
+            OpenCLManager::createKernel("tensor_scalar_mul")                != Kernel::T_SCALAR_MUL         ||
+            OpenCLManager::createKernel("tensor_tensor_mul")                != Kernel::T_TENSOR_MUL         ||
+            OpenCLManager::createKernel("tensor_scalar_div")                != Kernel::T_SCALAR_DIV         ||
+            OpenCLManager::createKernel("tensor_tensor_div")                != Kernel::T_TENSOR_DIV         ||
+            OpenCLManager::createKernel("tensor_minus")                     != Kernel::T_MINUS              ||
+            OpenCLManager::createKernel("scalar_tensor_sub")                != Kernel::T_SCALAR_TENSOR_SUB  ||
+            OpenCLManager::createKernel("scalar_tensor_div")                != Kernel::T_SCALAR_TENSOR_DIV  ||
+            OpenCLManager::createKernel("tensor_tensor_equals")             != Kernel::T_TENSOR_EQUALS      ||
+            OpenCLManager::createKernel("tensor_scalar_equals")             != Kernel::T_SCALAR_EQUALS      ||
+            OpenCLManager::createKernel("tensor_tensor_gt_equals")          != Kernel::T_TENSOR_GT_EQUALS   ||
+            OpenCLManager::createKernel("tensor_scalar_gt_equals")          != Kernel::T_SCALAR_GT_EQUALS   ||
+            OpenCLManager::createKernel("tensor_tensor_lt_equals")          != Kernel::T_TENSOR_LT_EQUALS   ||
+            OpenCLManager::createKernel("tensor_scalar_lt_equals")          != Kernel::T_SCALAR_LT_EQUALS   ||
+            OpenCLManager::createKernel("tensor_tensor_gt")                 != Kernel::T_TENSOR_GT          ||
+            OpenCLManager::createKernel("tensor_scalar_gt")                 != Kernel::T_SCALAR_GT          ||
+            OpenCLManager::createKernel("tensor_tensor_lt")                 != Kernel::T_TENSOR_LT          ||
+            OpenCLManager::createKernel("tensor_scalar_lt")                 != Kernel::T_SCALAR_LT          ||
+            /* Brodcast ops */
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_n0_b1_n0") != Kernel::T_TENSOR_ADD_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_n0_b1_b2") != Kernel::T_TENSOR_ADD_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_n0_b2_n0") != Kernel::T_TENSOR_ADD_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_n0_b2_b1") != Kernel::T_TENSOR_ADD_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b1_n0_b1") != Kernel::T_TENSOR_ADD_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b1_n0_b2") != Kernel::T_TENSOR_ADD_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b1_b2_n0") != Kernel::T_TENSOR_ADD_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b1_b2_b1") != Kernel::T_TENSOR_ADD_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b2_n0_b1") != Kernel::T_TENSOR_ADD_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b2_n0_b2") != Kernel::T_TENSOR_ADD_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b2_b1_n0") != Kernel::T_TENSOR_ADD_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_add_b2_b1_b2") != Kernel::T_TENSOR_ADD_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_n0_b1_n0") != Kernel::T_TENSOR_SUB_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_n0_b1_b2") != Kernel::T_TENSOR_SUB_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_n0_b2_n0") != Kernel::T_TENSOR_SUB_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_n0_b2_b1") != Kernel::T_TENSOR_SUB_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b1_n0_b1") != Kernel::T_TENSOR_SUB_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b1_n0_b2") != Kernel::T_TENSOR_SUB_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b1_b2_n0") != Kernel::T_TENSOR_SUB_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b1_b2_b1") != Kernel::T_TENSOR_SUB_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b2_n0_b1") != Kernel::T_TENSOR_SUB_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b2_n0_b2") != Kernel::T_TENSOR_SUB_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b2_b1_n0") != Kernel::T_TENSOR_SUB_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_sub_b2_b1_b2") != Kernel::T_TENSOR_SUB_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_n0_b1_n0") != Kernel::T_TENSOR_MUL_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_n0_b1_b2") != Kernel::T_TENSOR_MUL_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_n0_b2_n0") != Kernel::T_TENSOR_MUL_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_n0_b2_b1") != Kernel::T_TENSOR_MUL_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b1_n0_b1") != Kernel::T_TENSOR_MUL_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b1_n0_b2") != Kernel::T_TENSOR_MUL_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b1_b2_n0") != Kernel::T_TENSOR_MUL_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b1_b2_b1") != Kernel::T_TENSOR_MUL_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b2_n0_b1") != Kernel::T_TENSOR_MUL_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b2_n0_b2") != Kernel::T_TENSOR_MUL_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b2_b1_n0") != Kernel::T_TENSOR_MUL_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_mul_b2_b1_b2") != Kernel::T_TENSOR_MUL_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_n0_b1_n0") != Kernel::T_TENSOR_DIV_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_n0_b1_b2") != Kernel::T_TENSOR_DIV_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_n0_b2_n0") != Kernel::T_TENSOR_DIV_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_n0_b2_b1") != Kernel::T_TENSOR_DIV_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b1_n0_b1") != Kernel::T_TENSOR_DIV_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b1_n0_b2") != Kernel::T_TENSOR_DIV_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b1_b2_n0") != Kernel::T_TENSOR_DIV_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b1_b2_b1") != Kernel::T_TENSOR_DIV_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b2_n0_b1") != Kernel::T_TENSOR_DIV_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b2_n0_b2") != Kernel::T_TENSOR_DIV_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b2_b1_n0") != Kernel::T_TENSOR_DIV_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_div_b2_b1_b2") != Kernel::T_TENSOR_DIV_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_n0_b1_n0") != Kernel::T_TENSOR_EQUALS_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_n0_b1_b2") != Kernel::T_TENSOR_EQUALS_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_n0_b2_n0") != Kernel::T_TENSOR_EQUALS_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_n0_b2_b1") != Kernel::T_TENSOR_EQUALS_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b1_n0_b1") != Kernel::T_TENSOR_EQUALS_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b1_n0_b2") != Kernel::T_TENSOR_EQUALS_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b1_b2_n0") != Kernel::T_TENSOR_EQUALS_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b1_b2_b1") != Kernel::T_TENSOR_EQUALS_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b2_n0_b1") != Kernel::T_TENSOR_EQUALS_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b2_n0_b2") != Kernel::T_TENSOR_EQUALS_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b2_b1_n0") != Kernel::T_TENSOR_EQUALS_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_equals_b2_b1_b2") != Kernel::T_TENSOR_EQUALS_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_n0_b1_n0") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_n0_b1_b2") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_n0_b2_n0") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_n0_b2_b1") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b1_n0_b1") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b1_n0_b2") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b1_b2_n0") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b1_b2_b1") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b2_n0_b1") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b2_n0_b2") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b2_b1_n0") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_equals_b2_b1_b2") != Kernel::T_TENSOR_GT_EQUALS_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_n0_b1_n0") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_n0_b1_b2") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_n0_b2_n0") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_n0_b2_b1") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b1_n0_b1") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b1_n0_b2") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b1_b2_n0") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b1_b2_b1") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b2_n0_b1") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b2_n0_b2") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b2_b1_n0") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_equals_b2_b1_b2") != Kernel::T_TENSOR_LT_EQUALS_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_n0_b1_n0") != Kernel::T_TENSOR_GT_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_n0_b1_b2") != Kernel::T_TENSOR_GT_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_n0_b2_n0") != Kernel::T_TENSOR_GT_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_n0_b2_b1") != Kernel::T_TENSOR_GT_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b1_n0_b1") != Kernel::T_TENSOR_GT_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b1_n0_b2") != Kernel::T_TENSOR_GT_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b1_b2_n0") != Kernel::T_TENSOR_GT_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b1_b2_b1") != Kernel::T_TENSOR_GT_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b2_n0_b1") != Kernel::T_TENSOR_GT_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b2_n0_b2") != Kernel::T_TENSOR_GT_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b2_b1_n0") != Kernel::T_TENSOR_GT_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_gt_b2_b1_b2") != Kernel::T_TENSOR_GT_BRODCAST_B2B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_n0_b1_n0") != Kernel::T_TENSOR_LT_BRODCAST_N0B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_n0_b1_b2") != Kernel::T_TENSOR_LT_BRODCAST_N0B1B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_n0_b2_n0") != Kernel::T_TENSOR_LT_BRODCAST_N0B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_n0_b2_b1") != Kernel::T_TENSOR_LT_BRODCAST_N0B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b1_n0_b1") != Kernel::T_TENSOR_LT_BRODCAST_B1N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b1_n0_b2") != Kernel::T_TENSOR_LT_BRODCAST_B1N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b1_b2_n0") != Kernel::T_TENSOR_LT_BRODCAST_B1B2N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b1_b2_b1") != Kernel::T_TENSOR_LT_BRODCAST_B1B2B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b2_n0_b1") != Kernel::T_TENSOR_LT_BRODCAST_B2N0B1  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b2_n0_b2") != Kernel::T_TENSOR_LT_BRODCAST_B2N0B2  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b2_b1_n0") != Kernel::T_TENSOR_LT_BRODCAST_B2B1N0  ||
+            OpenCLManager::createKernel("tensor_tensor_broadcast_lt_b2_b1_b2") != Kernel::T_TENSOR_LT_BRODCAST_B2B1B2
+        )
             throw std::runtime_error("Wrong Kernel index");
-        if (OpenCLManager::createKernel("tensor_tensor_strassen_math_mul") != Kernel::STRASSEN_MAT_MULL)
-            throw std::runtime_error("Wrong Kernel index");
-        if (OpenCLManager::createKernel("tensor_print") != Kernel::PRINT)
-            throw std::runtime_error("Wrong Kernel index");
-        if (OpenCLManager::createKernel("tensor_set") != Kernel::SET)
-            throw std::runtime_error("Wrong Kernel index");
-    
     }
 }

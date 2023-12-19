@@ -7,7 +7,7 @@
 
 #define CL_HPP_ENABLE_EXCEPTIONS
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
-#include "CL/cl2.hpp"
+#include "CL/opencl.hpp"
 
 #include "Data.h"
 
@@ -26,10 +26,139 @@ namespace RedFish
 
     enum Kernel : size_t
     {
-        MATMULL = 0,
-        STRASSEN_MAT_MULL,
+        MATMUL = 0,
+        STRASSEN_MAT_MUL,
         PRINT,
-        SET
+        T_SCALAR_ADD,
+        T_TENSOR_ADD,
+        T_SCALAR_SUB,
+        T_TENSOR_SUB,
+        T_SCALAR_MUL,
+        T_TENSOR_MUL,
+        T_SCALAR_DIV,
+        T_TENSOR_DIV,
+        T_MINUS,
+        T_SCALAR_TENSOR_SUB,
+        T_SCALAR_TENSOR_DIV,
+        T_TENSOR_EQUALS,
+        T_SCALAR_EQUALS,
+        T_TENSOR_GT_EQUALS,
+        T_SCALAR_GT_EQUALS,
+        T_TENSOR_LT_EQUALS,
+        T_SCALAR_LT_EQUALS,
+        T_TENSOR_GT,
+        T_SCALAR_GT,
+        T_TENSOR_LT,
+        T_SCALAR_LT,
+        /* Broadcast ops */
+        T_TENSOR_ADD_BRODCAST_N0B1N0,
+        T_TENSOR_ADD_BRODCAST_N0B1B2,
+        T_TENSOR_ADD_BRODCAST_N0B2N0,
+        T_TENSOR_ADD_BRODCAST_N0B2B1,
+        T_TENSOR_ADD_BRODCAST_B1N0B1,
+        T_TENSOR_ADD_BRODCAST_B1N0B2,
+        T_TENSOR_ADD_BRODCAST_B1B2N0,
+        T_TENSOR_ADD_BRODCAST_B1B2B1,
+        T_TENSOR_ADD_BRODCAST_B2N0B1,
+        T_TENSOR_ADD_BRODCAST_B2N0B2,
+        T_TENSOR_ADD_BRODCAST_B2B1N0,
+        T_TENSOR_ADD_BRODCAST_B2B1B2,
+        T_TENSOR_SUB_BRODCAST_N0B1N0,
+        T_TENSOR_SUB_BRODCAST_N0B1B2,
+        T_TENSOR_SUB_BRODCAST_N0B2N0,
+        T_TENSOR_SUB_BRODCAST_N0B2B1,
+        T_TENSOR_SUB_BRODCAST_B1N0B1,
+        T_TENSOR_SUB_BRODCAST_B1N0B2,
+        T_TENSOR_SUB_BRODCAST_B1B2N0,
+        T_TENSOR_SUB_BRODCAST_B1B2B1,
+        T_TENSOR_SUB_BRODCAST_B2N0B1,
+        T_TENSOR_SUB_BRODCAST_B2N0B2,
+        T_TENSOR_SUB_BRODCAST_B2B1N0,
+        T_TENSOR_SUB_BRODCAST_B2B1B2,
+        T_TENSOR_MUL_BRODCAST_N0B1N0,
+        T_TENSOR_MUL_BRODCAST_N0B1B2,
+        T_TENSOR_MUL_BRODCAST_N0B2N0,
+        T_TENSOR_MUL_BRODCAST_N0B2B1,
+        T_TENSOR_MUL_BRODCAST_B1N0B1,
+        T_TENSOR_MUL_BRODCAST_B1N0B2,
+        T_TENSOR_MUL_BRODCAST_B1B2N0,
+        T_TENSOR_MUL_BRODCAST_B1B2B1,
+        T_TENSOR_MUL_BRODCAST_B2N0B1,
+        T_TENSOR_MUL_BRODCAST_B2N0B2,
+        T_TENSOR_MUL_BRODCAST_B2B1N0,
+        T_TENSOR_MUL_BRODCAST_B2B1B2,
+        T_TENSOR_DIV_BRODCAST_N0B1N0,
+        T_TENSOR_DIV_BRODCAST_N0B1B2,
+        T_TENSOR_DIV_BRODCAST_N0B2N0,
+        T_TENSOR_DIV_BRODCAST_N0B2B1,
+        T_TENSOR_DIV_BRODCAST_B1N0B1,
+        T_TENSOR_DIV_BRODCAST_B1N0B2,
+        T_TENSOR_DIV_BRODCAST_B1B2N0,
+        T_TENSOR_DIV_BRODCAST_B1B2B1,
+        T_TENSOR_DIV_BRODCAST_B2N0B1,
+        T_TENSOR_DIV_BRODCAST_B2N0B2,
+        T_TENSOR_DIV_BRODCAST_B2B1N0,
+        T_TENSOR_DIV_BRODCAST_B2B1B2,
+        T_TENSOR_EQUALS_BRODCAST_N0B1N0,
+        T_TENSOR_EQUALS_BRODCAST_N0B1B2,
+        T_TENSOR_EQUALS_BRODCAST_N0B2N0,
+        T_TENSOR_EQUALS_BRODCAST_N0B2B1,
+        T_TENSOR_EQUALS_BRODCAST_B1N0B1,
+        T_TENSOR_EQUALS_BRODCAST_B1N0B2,
+        T_TENSOR_EQUALS_BRODCAST_B1B2N0,
+        T_TENSOR_EQUALS_BRODCAST_B1B2B1,
+        T_TENSOR_EQUALS_BRODCAST_B2N0B1,
+        T_TENSOR_EQUALS_BRODCAST_B2N0B2,
+        T_TENSOR_EQUALS_BRODCAST_B2B1N0,
+        T_TENSOR_EQUALS_BRODCAST_B2B1B2,
+        T_TENSOR_GT_EQUALS_BRODCAST_N0B1N0,
+        T_TENSOR_GT_EQUALS_BRODCAST_N0B1B2,
+        T_TENSOR_GT_EQUALS_BRODCAST_N0B2N0,
+        T_TENSOR_GT_EQUALS_BRODCAST_N0B2B1,
+        T_TENSOR_GT_EQUALS_BRODCAST_B1N0B1,
+        T_TENSOR_GT_EQUALS_BRODCAST_B1N0B2,
+        T_TENSOR_GT_EQUALS_BRODCAST_B1B2N0,
+        T_TENSOR_GT_EQUALS_BRODCAST_B1B2B1,
+        T_TENSOR_GT_EQUALS_BRODCAST_B2N0B1,
+        T_TENSOR_GT_EQUALS_BRODCAST_B2N0B2,
+        T_TENSOR_GT_EQUALS_BRODCAST_B2B1N0,
+        T_TENSOR_GT_EQUALS_BRODCAST_B2B1B2,
+        T_TENSOR_LT_EQUALS_BRODCAST_N0B1N0,
+        T_TENSOR_LT_EQUALS_BRODCAST_N0B1B2,
+        T_TENSOR_LT_EQUALS_BRODCAST_N0B2N0,
+        T_TENSOR_LT_EQUALS_BRODCAST_N0B2B1,
+        T_TENSOR_LT_EQUALS_BRODCAST_B1N0B1,
+        T_TENSOR_LT_EQUALS_BRODCAST_B1N0B2,
+        T_TENSOR_LT_EQUALS_BRODCAST_B1B2N0,
+        T_TENSOR_LT_EQUALS_BRODCAST_B1B2B1,
+        T_TENSOR_LT_EQUALS_BRODCAST_B2N0B1,
+        T_TENSOR_LT_EQUALS_BRODCAST_B2N0B2,
+        T_TENSOR_LT_EQUALS_BRODCAST_B2B1N0,
+        T_TENSOR_LT_EQUALS_BRODCAST_B2B1B2,
+        T_TENSOR_GT_BRODCAST_N0B1N0,
+        T_TENSOR_GT_BRODCAST_N0B1B2,
+        T_TENSOR_GT_BRODCAST_N0B2N0,
+        T_TENSOR_GT_BRODCAST_N0B2B1,
+        T_TENSOR_GT_BRODCAST_B1N0B1,
+        T_TENSOR_GT_BRODCAST_B1N0B2,
+        T_TENSOR_GT_BRODCAST_B1B2N0,
+        T_TENSOR_GT_BRODCAST_B1B2B1,
+        T_TENSOR_GT_BRODCAST_B2N0B1,
+        T_TENSOR_GT_BRODCAST_B2N0B2,
+        T_TENSOR_GT_BRODCAST_B2B1N0,
+        T_TENSOR_GT_BRODCAST_B2B1B2,
+        T_TENSOR_LT_BRODCAST_N0B1N0,
+        T_TENSOR_LT_BRODCAST_N0B1B2,
+        T_TENSOR_LT_BRODCAST_N0B2N0,
+        T_TENSOR_LT_BRODCAST_N0B2B1,
+        T_TENSOR_LT_BRODCAST_B1N0B1,
+        T_TENSOR_LT_BRODCAST_B1N0B2,
+        T_TENSOR_LT_BRODCAST_B1B2N0,
+        T_TENSOR_LT_BRODCAST_B1B2B1,
+        T_TENSOR_LT_BRODCAST_B2N0B1,
+        T_TENSOR_LT_BRODCAST_B2N0B2,
+        T_TENSOR_LT_BRODCAST_B2B1N0,
+        T_TENSOR_LT_BRODCAST_B2B1B2,
     };
 
     class OpenCLManager
@@ -49,9 +178,12 @@ namespace RedFish
         template <typename T>
         static Buffer createBuffer(size_t size);
 
-        static void destroyBuffer(Buffer buffer);
+        static void destroyBuffer(Buffer& buffer);
 
         static cl::Buffer& getBuffer(Buffer buffer);
+
+        template <typename T>
+        static cl::Buffer getSubBuffer(Buffer buffer, size_t offset, size_t size);
 
         template <typename T>
         static void loadWriteBuffer(Buffer buffer, size_t size, void* data);
@@ -61,6 +193,9 @@ namespace RedFish
 
         template <typename T>
         static void copyBuffer(Buffer from, Buffer to, size_t size);
+
+        template <typename T>
+        static void setBuffer(Buffer buffer, size_t size, T value);
 
         template<typename... Args>
         static void execute(size_t kernel, std::vector<size_t> size, std::vector<size_t> ts, Args... args);
@@ -90,27 +225,45 @@ namespace RedFish
     template <typename T>
     inline Buffer OpenCLManager::createBuffer(size_t size)
     {
-        size_t last = buffers.rbegin()->first;
+        if (size == 0) return 0;
+        size_t last = buffers.size() ? buffers.rbegin()->first : 0;
         buffers.emplace(last + 1, cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(T) * size));
         return last + 1;
     }
 
     template <typename T>
+    cl::Buffer OpenCLManager::getSubBuffer(Buffer buffer, size_t offset, size_t size)
+    {
+        cl_buffer_region region = { offset, size * sizeof(T) };
+        return buffers.at(buffer).createSubBuffer(CL_MEM_READ_WRITE, CL_BUFFER_CREATE_TYPE_REGION, &region);
+    }
+
+    template <typename T>
     inline void OpenCLManager::loadWriteBuffer(Buffer buffer, size_t size, void* data)
     {
-        queue.enqueueWriteBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
+        if (buffer)
+            queue.enqueueWriteBuffer(buffers.at(buffer), CL_TRUE, 0, sizeof(T) * size, data);
     }
 
     template <typename T>
     inline void OpenCLManager::loadReadBuffer(Buffer buffer, size_t size, void* data)
     {
-        queue.enqueueReadBuffer(buffers[buffer], CL_TRUE, 0, sizeof(T) * size, data);
+        if (buffer)
+            queue.enqueueReadBuffer(buffers.at(buffer), CL_TRUE, 0, sizeof(T) * size, data);
     }
 
     template <typename T>
     inline void OpenCLManager::copyBuffer(Buffer from, Buffer to, size_t size)
     {
-        cl::enqueueCopyBuffer(buffers[from], buffers[to], 0, 0, sizeof(T) * size);
+        if (from && to)
+            queue.enqueueCopyBuffer(buffers.at(from), buffers.at(to), 0, 0, sizeof(T) * size);
+    }
+
+    template <typename T>
+    inline void OpenCLManager::setBuffer(Buffer buffer, size_t size, T value)
+    {
+        if (buffer)
+            queue.enqueueFillBuffer(buffers.at(buffer), value, 0, sizeof(T) * size);
     }
 
     template<typename... Args>
@@ -127,7 +280,7 @@ namespace RedFish
         size_t i = 0;
         ([&] { kernels[kernel].setArg(i++, args); } (), ...);
 
-        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1]), cl::NDRange(ts[0], ts[1]));
+        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1], size[2]), cl::NDRange(ts[0], ts[1], ts[2]));
         cl_int status = queue.finish();
         if (status != CL_SUCCESS) {
             throw std::runtime_error("Is not a valid kernel!\n");

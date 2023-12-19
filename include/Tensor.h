@@ -82,7 +82,7 @@ namespace RedFish
         static std::default_random_engine gen;
 
     public:
-        Tensor(const std::vector<size_t> &shape = {});
+        Tensor(const std::vector<size_t> &shape = {0}, bool onCPU = true);
         Tensor(const size_t *shape, size_t len);
         Tensor(const std::vector<size_t> &shape, float64 *buff, bool copy = true);
         Tensor(const Tensor &t);  // Copy Constructor
@@ -92,6 +92,7 @@ namespace RedFish
         ~Tensor();
 
         void toDevice();
+        void fromDevice();
 
         /* Get */
         size_t colSize() const { return this->shape.back(); }
@@ -119,11 +120,16 @@ namespace RedFish
         Tensor  operator/(const float64 val) const;
         Tensor& operator/=(const Tensor &t);
         Tensor& operator/=(const float64 val);
-        Tensor  operator==(const Tensor &other) const;
-        Tensor  operator>=(const Tensor &other) const;
-        Tensor  operator<=(const Tensor &other) const;
-        Tensor  operator>(const Tensor &other) const;
-        Tensor  operator<(const Tensor &other) const;
+        Tensor  operator==(const Tensor &t) const;
+        Tensor  operator==(const float64 val) const;
+        Tensor  operator>=(const Tensor &t) const;
+        Tensor  operator>=(const float64 val) const;
+        Tensor  operator<=(const Tensor &t) const;
+        Tensor  operator<=(const float64 val) const;
+        Tensor  operator>(const Tensor &t) const;
+        Tensor  operator>(const float64 val) const;
+        Tensor  operator<(const Tensor &t) const;
+        Tensor  operator<(const float64 val) const;
 
         float64& operator()(const std::vector<size_t> &index);
         float64  operator()(const std::vector<size_t> &index) const;
@@ -152,7 +158,7 @@ namespace RedFish
 
         void zero();
         void ones();
-        void costant(float64 val);
+        void constant(float64 val);
         void randUniform(float64 a = 0.0, float64 b = 1.0);
         void randNormal(float64 mean = 0.0, float64 std = 1.0);
 
@@ -193,15 +199,17 @@ namespace RedFish
         static float64 full_reduction(const Tensor &, const float64);
         
         template <float64 (*fn)(float64, float64)>
-        static void broadcast_ew_assign(Tensor &, const Tensor &, const Tensor &, const size_t *, const size_t *, const size_t *, size_t, size_t=0, size_t=0, size_t=0);
+        static void broadcast_ew_assign(float64*, const float64*, const float64*, const size_t *, const size_t *, const size_t *, size_t, size_t=0, size_t=0, size_t=0);
+
+        static void broadcast_ew_device(const size_t, Buffer, Buffer, Buffer, const size_t *, const size_t *, const size_t *, size_t, size_t=0, size_t=0, size_t=0);
         
-        template <float64 (*fn)(float64, float64)>
+        template <float64 (*fn)(float64, float64), size_t fn_device, size_t fn_device_brdc>
         static Tensor ew_or_broadcast(const Tensor &, const Tensor &, const char *);
         
-        template <float64 (*fn)(float64, float64)>
+        template <float64 (*fn)(float64, float64), size_t fn_device>
         static void ew_or_broadcast_assign(Tensor &, const Tensor &, const char *);
         
-        template <float64 (*fn)(float64, float64)>
+        template <float64 (*fn)(float64, float64), size_t fn_device>
         static void ew_or_left_broadcast_assign(Tensor &, const Tensor &, const char *);
 
         friend Tensor operator-(const float64, const Tensor &);
@@ -233,7 +241,6 @@ namespace RedFish
 
     protected:
         std::vector<size_t> shape;
-        std::vector<size_t> stride;
         size_t size;
         bool onCPU;
 

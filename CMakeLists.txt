@@ -23,9 +23,9 @@ add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/Tensor.cpp
                     ${SOURCE_FOLDER}/TensorStd.cpp
                     ${SOURCE_FOLDER}/TensorView.cpp
+                    ${SOURCE_FOLDER}/Tensor/algebra.cpp
                     ${SOURCE_FOLDER}/Tensor/conv.cpp
                     ${SOURCE_FOLDER}/Tensor/fft.cpp
-                    ${SOURCE_FOLDER}/Tensor/matmul.cpp
 )
 add_executable(RedFishMain "${SOURCE_FOLDER}/main.cpp")
 add_executable(MatrixMain "${SOURCE_FOLDER}/mainMatrixMul.cpp")
@@ -42,11 +42,12 @@ endif()
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
-target_include_directories(RedFish PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
-target_include_directories(RedFishMain PUBLIC include lib/gnuplot/ lib/ lib/OpenCL-CLHPP/include/)
+target_include_directories(RedFish PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
+target_include_directories(RedFishMain PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
+target_include_directories(MatrixMain  PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
 target_link_libraries(RedFish PUBLIC OpenCL::OpenCL Matplot++::matplot)
 target_link_libraries(RedFishMain PUBLIC RedFish)
-target_link_libraries(MatrixMain PUBLIC RedFish)
+target_link_libraries(MatrixMain  PUBLIC RedFish)
 
 add_subdirectory(test)
 
