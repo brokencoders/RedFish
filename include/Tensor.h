@@ -216,7 +216,7 @@ namespace RedFish
         friend Tensor operator/(const float64, const Tensor &);
         
         friend void reprint(std::ostream &, const Tensor &, size_t, std::vector<size_t> &);
-        friend std::ostream &operator<<(std::ostream &, const Tensor &);
+        friend std::ostream &operator<<(std::ostream &, Tensor &);
         
         template <float64 (*fn)(float64)>
         friend Tensor forEach(const Tensor &);

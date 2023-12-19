@@ -104,11 +104,3 @@ void kernel tensor_scalar_lt(constant float64* A, const float64 B, global float6
 {
     C[get_global_id(0)] = A[get_global_id(0)] < B;
 }
-
-void kernel tensor_print(global float64* buffer, global int* shape, int shape_size)
-{
-    printf("Tensor\n");
-
-    
-
-}

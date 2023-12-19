@@ -201,7 +201,6 @@ namespace RedFish
         // Create all Kernels
         if (OpenCLManager::createKernel("tensor_tensor_math_mul")           != Kernel::MATMUL               ||
             OpenCLManager::createKernel("tensor_tensor_strassen_math_mul")  != Kernel::STRASSEN_MAT_MUL     ||
-            OpenCLManager::createKernel("tensor_print")                     != Kernel::PRINT                ||
             OpenCLManager::createKernel("tensor_scalar_add")                != Kernel::T_SCALAR_ADD         ||
             OpenCLManager::createKernel("tensor_tensor_add")                != Kernel::T_TENSOR_ADD         ||
             OpenCLManager::createKernel("tensor_scalar_sub")                != Kernel::T_SCALAR_SUB         ||

@@ -1437,22 +1437,25 @@ namespace RedFish
      * @param t 
      * @return std::ostream& 
      */
-    std::ostream &operator<<(std::ostream &os, const Tensor &t)
+    std::ostream &operator<<(std::ostream &os, Tensor &t)
     {
-        if(t.onCPU)
-        {
-            os << "Tensor" << std::endl
-               << "Shape: (";
-            for (size_t i = 0; i < t.shape.size() - 1; i++)
-                os << t.shape[i] << ", ";
-            os << t.shape.back() << ")\n";
+        Tensor& to_print = t;
 
-            std::vector<size_t> v;
-            reprint(os, t, t.shape.size(), v);
-            os << '\n';
-        } else {
-            // Print tensor in GPU
+        if(!t.onCPU) {
+            Tensor t_GPU(t.shape);
+            OpenCLManager::loadReadBuffer<float64>(t.buffer, t.size, t_GPU.b);
+            to_print = t_GPU;
         }
+
+
+        os << "Tensor" << std::endl << "Shape: (";
+        for (size_t i = 0; i < to_print.shape.size() - 1; i++)
+            os << to_print.shape[i] << ", ";
+        os << to_print.shape.back() << ")\n";
+        std::vector<size_t> v;
+        reprint(os, to_print, to_print.shape.size(), v);
+        os << '\n';
+
         return os;
     }
     
@@ -1983,8 +1986,8 @@ namespace RedFish
         index[depth] = 0;
         if (depth + 1 < height)
         for (size_t i = 0; i < size[depth]; i++, index[depth]++)
-            for_(size, ld, index, height, b, depth + 1, off*(*ld) + i);
-        else
+            // for_(size, ld, index, height, b, depth + 1, off*(*ld) + i);
+        // else
         for (size_t i = 0; i < size[depth]; i++, index[depth]++)
         {
             //fn(b[off*(*ld) + i], index);

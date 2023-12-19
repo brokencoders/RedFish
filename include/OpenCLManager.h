@@ -28,7 +28,6 @@ namespace RedFish
     {
         MATMUL = 0,
         STRASSEN_MAT_MUL,
-        PRINT,
         T_SCALAR_ADD,
         T_TENSOR_ADD,
         T_SCALAR_SUB,
