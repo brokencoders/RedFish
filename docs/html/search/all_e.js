@@ -1,0 +1,8 @@
+var searchData=
+[
+  ['t_0',['t',['../classRedFish_1_1Tensor.html#a6729185f1aa59bab3693e48c66aa1f36',1,'RedFish::Tensor::T() const'],['../classRedFish_1_1Tensor.html#a4a0963b064920e377c6fbc5c8f998502',1,'RedFish::Tensor::T(size_t dimension1, size_t dimension2)']]],
+  ['tanh_1',['TanH',['../classRedFish_1_1Activation_1_1TanH.html',1,'RedFish::Activation']]],
+  ['tensor_2',['tensor',['../classRedFish_1_1Tensor.html',1,'RedFish::Tensor'],['../classRedFish_1_1Tensor.html#a2a985a85be2c38d91d0257ecf7b0d45a',1,'RedFish::Tensor::Tensor(const std::vector&lt; size_t &gt; &amp;shape={0}, bool onCPU=true)'],['../classRedFish_1_1Tensor.html#a27e3f504e6828ef25f2b6b2c2d8ca717',1,'RedFish::Tensor::Tensor(const size_t *shape, size_t len)'],['../classRedFish_1_1Tensor.html#a862410b0aa266250a7b63a652a40669a',1,'RedFish::Tensor::Tensor(const std::vector&lt; size_t &gt; &amp;shape, float64 *buff, bool copy=true)'],['../classRedFish_1_1Tensor.html#ab73eb4d177b94cacff32725bbf5315ff',1,'RedFish::Tensor::Tensor(const Tensor &amp;t)'],['../classRedFish_1_1Tensor.html#a421d40016f46b1e8aaf46d58d31dbef1',1,'RedFish::Tensor::Tensor(Tensor &amp;&amp;t)'],['../classRedFish_1_1Tensor.html#a9244036377acdc9cf0f3356797523407',1,'RedFish::Tensor::Tensor(const std::vector&lt; size_t &gt; &amp;shape, std::initializer_list&lt; float64 &gt; data)'],['../classRedFish_1_1Tensor.html#a733cac7977750d7b0c81955450c9b787',1,'RedFish::Tensor::Tensor(std::ifstream &amp;file)']]],
+  ['tuple2d_3',['Tuple2d',['../structRedFish_1_1Tuple2d.html',1,'RedFish']]],
+  ['tuple3d_4',['Tuple3d',['../structRedFish_1_1Tuple3d.html',1,'RedFish']]]
+];
