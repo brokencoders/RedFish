@@ -1,5 +1,7 @@
 # RedFish
 
+![Logo](logo_mini.png)
+
 Simple framework for deep learning in C++ (no python allowed), it's a simple project made to learn better how deep learning works. Feel free to contribute. It is meant to have a simple way to extend the base layer class and create custom ones and to create models in few lines of code.
 Some GPU acceleration is also provided through OpenCL
 
