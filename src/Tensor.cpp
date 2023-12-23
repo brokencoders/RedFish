@@ -1369,7 +1369,17 @@ namespace RedFish
         if (depth == 0)
         {
             if (t.size)
-                os << t(index);
+                if (t.onCPU)
+                    os << t(index);
+                else
+                {
+                    float64 num = 0.;
+                    size_t n = 0;
+                    for (size_t i = 0; i < t.shape.size() - 1; i++)
+                        n = (n + index[i]) * t.shape[i + 1];
+                    OpenCLManager::loadReadBuffer<float64>(t.buffer, 1, &num, n + index.back());
+                    os << num;
+                }
             return;
         }
 
@@ -1437,23 +1447,14 @@ namespace RedFish
      * @param t 
      * @return std::ostream& 
      */
-    std::ostream &operator<<(std::ostream &os, Tensor &t)
+    std::ostream &operator<<(std::ostream &os, const Tensor &t)
     {
-        Tensor& to_print = t;
-
-        if(!t.onCPU) {
-            Tensor t_GPU(t.shape);
-            OpenCLManager::loadReadBuffer<float64>(t.buffer, t.size, t_GPU.b);
-            to_print = t_GPU;
-        }
-
-
         os << "Tensor" << std::endl << "Shape: (";
-        for (size_t i = 0; i < to_print.shape.size() - 1; i++)
-            os << to_print.shape[i] << ", ";
-        os << to_print.shape.back() << ")\n";
+        for (size_t i = 0; i < t.shape.size() - 1; i++)
+            os << t.shape[i] << ", ";
+        os << t.shape.back() << ")\n";
         std::vector<size_t> v;
-        reprint(os, to_print, to_print.shape.size(), v);
+        reprint(os, t, t.shape.size(), v);
         os << '\n';
 
         return os;

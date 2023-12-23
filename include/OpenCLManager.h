@@ -185,10 +185,10 @@ namespace RedFish
         static cl::Buffer getSubBuffer(Buffer buffer, size_t offset, size_t size);
 
         template <typename T>
-        static void loadWriteBuffer(Buffer buffer, size_t size, void* data);
+        static void loadWriteBuffer(Buffer buffer, size_t size, void* data, size_t offset = 0);
         
         template <typename T>
-        static void loadReadBuffer(Buffer buffer, size_t size, void* data);
+        static void loadReadBuffer(Buffer buffer, size_t size, void* data, size_t offset = 0);
 
         template <typename T>
         static void copyBuffer(Buffer from, Buffer to, size_t size);
@@ -238,17 +238,17 @@ namespace RedFish
     }
 
     template <typename T>
-    inline void OpenCLManager::loadWriteBuffer(Buffer buffer, size_t size, void* data)
+    inline void OpenCLManager::loadWriteBuffer(Buffer buffer, size_t size, void* data, size_t offset)
     {
         if (buffer)
-            queue.enqueueWriteBuffer(buffers.at(buffer), CL_TRUE, 0, sizeof(T) * size, data);
+            queue.enqueueWriteBuffer(buffers.at(buffer), CL_TRUE, sizeof(T) * offset, sizeof(T) * size, data);
     }
 
     template <typename T>
-    inline void OpenCLManager::loadReadBuffer(Buffer buffer, size_t size, void* data)
+    inline void OpenCLManager::loadReadBuffer(Buffer buffer, size_t size, void* data, size_t offset)
     {
         if (buffer)
-            queue.enqueueReadBuffer(buffers.at(buffer), CL_TRUE, 0, sizeof(T) * size, data);
+            queue.enqueueReadBuffer(buffers.at(buffer), CL_TRUE, sizeof(T) * offset, sizeof(T) * size, data);
     }
 
     template <typename T>
