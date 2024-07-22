@@ -29,10 +29,10 @@ namespace RedFish {
         return buffer.str();
     }
 
-    // MINST Dataset http://yann.lecun.com/exdb/mnist/
+    // MNIST Dataset http://yann.lecun.com/exdb/mnist/
     static char grayscale[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 
-    inline std::tuple<Tensor, Tensor> readMINSTDataset(const std::string& path_labels, const std::string& path_img)
+    inline std::tuple<Tensor, Tensor> readMNISTDataset(const std::string& path_labels, const std::string& path_img)
     {   
         std::ifstream file_labels(path_labels, std::ios::binary);
         int32_t magic_number, size, w, h;
@@ -85,7 +85,7 @@ namespace RedFish {
         return {in, out};
     }
 
-    inline void print_MINST_numbers(const Tensor& n, size_t count = 1)
+    inline void print_MNIST_numbers(const Tensor& n, size_t count = 1)
     {
         for (size_t r = 0; r < count; r++)
         {

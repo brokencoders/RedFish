@@ -1,4 +1,6 @@
+#ifndef float64
 #define float64 double
+#endif
 
 void kernel tensor_sqrt(constant float64* A, global float64* C)
 {

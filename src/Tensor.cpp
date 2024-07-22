@@ -1,5 +1,9 @@
 #include "Tensor.h"
 
+#include <chrono>
+#include "mkl.h"
+#include <cuda_runtime.h>
+#include "cublas_v2.h"
 #include "OpenCLManager.h"
 
 namespace RedFish
@@ -28,14 +32,73 @@ namespace RedFish
     static float64* alloc(size_t size)
     {
         if (!size) return nullptr;
-        else return new float64[size];
+        else return (float64 *)mkl_malloc( size*sizeof( float64 ), 64 );
     }
     
     static void dealloc(float64*& buff)
     {
-        if (buff) delete buff;
+        if (buff) mkl_free(buff);
         buff = nullptr;
     }
+
+    struct Index
+    {
+        size_t end[10], idx[10], size1[10], size2[10], baseoff1[10], baseoff2[10];
+        size_t off0, off1, off2, endsize;
+        const size_t len;
+        Index(const std::vector<size_t>& size, const std::vector<int>& bc_mask)
+            : /* end(new size_t[size.size()]), idx(new size_t[size.size()]), size1(new size_t[size.size()]), size2(new size_t[size.size()]),
+              baseoff1(new size_t[size.size()]), baseoff2(new size_t[size.size()]), */
+              off0(0), off1(0), off2(0), endsize(1), len(size.size()-1)
+        {
+            if (size.size() && size.size() == bc_mask.size())
+            {
+                for (size_t i = 0; i <= len; i++)
+                {
+                    end[i] = size[i];
+                    idx[i] = baseoff1[i] = baseoff2[i] = 0;
+                }
+                
+
+                size_t size1a = 1, size2a = 1;
+                for (int64_t i = len; i >= 0; i--)
+                {
+                    size1[i] = size1a;
+                    size2[i] = size2a;
+                    if      (bc_mask[i] == 1) size1[i] = 0, size2a *= size[i];
+                    else if (bc_mask[i] == 2) size2[i] = 0, size1a *= size[i];
+                    else size1a *= size[i], size2a *= size[i];
+                    endsize *= size[i];
+                }
+                
+            }
+        }
+        inline void operator++(int)
+        {
+            off0++;
+            idx[len]++;
+            off1 += size1[len];
+            off2 += size2[len];
+            if (idx[len] >= end[len])
+            {
+                idx[len] = 0;
+                for (int i = len-1; i >= 0; i--)
+                {
+                    if (++idx[i] < end[i])
+                    {
+                        off1 = baseoff1[i] + idx[i]*size1[i];
+                        off2 = baseoff2[i] + idx[i]*size2[i];
+                        for (size_t j = i+1; j <= len; j++)
+                            baseoff1[j] = off1,
+                            baseoff2[j] = off2;
+                        
+                        break;
+                    }
+                    else idx[i] = 0;
+                }
+            }
+        }
+    };
 
     /* 
      *      CONSTRUCTORS
@@ -80,19 +143,14 @@ namespace RedFish
      * @param buff 
      * @param copy whether to copy the buffer to a new one or to take buff as the internal memory 
      */
-    Tensor::Tensor(const std::vector<size_t>& shape, float64 *buff, bool copy)
+    Tensor::Tensor(const std::vector<size_t>& shape, float64 *buff)
         : shape(shape), size(1), onCPU(true), b(nullptr), buffer(0)
     {
         for (size_t i = 0; i < shape.size(); i++)
             size *= shape[i];
 
-        if (copy)
-        {
-            b = alloc(size);
-            std::copy(buff, buff + size, b);
-        }
-        else
-            b = buff;
+        b = alloc(size);
+        std::copy(buff, buff + size, b);
     }
 
     /**
@@ -298,8 +356,11 @@ namespace RedFish
     Tensor Tensor::operator+(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] + val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] + val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_ADD, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -319,8 +380,11 @@ namespace RedFish
 
     Tensor &Tensor::operator+=(const float64 val)
     {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] += val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                this->b[i] += val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_ADD, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(buffer));
 
         return *this;
     }
@@ -335,8 +399,11 @@ namespace RedFish
     Tensor Tensor::operator-(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] - val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] - val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_SUB, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -344,8 +411,11 @@ namespace RedFish
     Tensor Tensor::operator-() const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = -this->b[i];
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = -this->b[i];
+        else
+            OpenCLManager::execute(Kernel::T_MINUS, {size}, OpenCLManager::getBuffer(buffer), OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -353,8 +423,11 @@ namespace RedFish
     Tensor operator-(const float64 val, const Tensor &t)
     {
         Tensor ret = t.empty_like(t);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = val - t.b[i];
+        if (t.onCPU)
+            for (size_t i = 0; i < t.size; i++)
+                ret.b[i] = val - t.b[i];
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_TENSOR_SUB, {t.size}, OpenCLManager::getBuffer(t.buffer), val, OpenCLManager::getBuffer(ret.buffer));
 
         return ret;
     }
@@ -369,8 +442,11 @@ namespace RedFish
 
     Tensor &Tensor::operator-=(const float64 val)
     {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] -= val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                this->b[i] -= val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_SUB, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(buffer));
 
         return *this;
     }
@@ -385,8 +461,11 @@ namespace RedFish
     Tensor Tensor::operator*(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] * val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] * val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_MUL, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -406,8 +485,11 @@ namespace RedFish
 
     Tensor &Tensor::operator*=(const float64 val)
     {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] *= val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                this->b[i] *= val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_MUL, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(buffer));
 
         return *this;
     }
@@ -422,8 +504,11 @@ namespace RedFish
     Tensor Tensor::operator/(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] / val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] / val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_DIV, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -431,8 +516,11 @@ namespace RedFish
     Tensor operator/(const float64 val, const Tensor &t)
     {
         Tensor ret = t.empty_like(t);
-        for (size_t i = 0; i < t.size; i++)
-            ret.b[i] = val / t.b[i];
+        if (t.onCPU)
+            for (size_t i = 0; i < t.size; i++)
+                ret.b[i] = val / t.b[i];
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_TENSOR_DIV, {t.size}, OpenCLManager::getBuffer(t.buffer), val, OpenCLManager::getBuffer(ret.buffer));
 
         return ret;
     }
@@ -447,8 +535,11 @@ namespace RedFish
 
     Tensor &Tensor::operator/=(const float64 val)
     {
-        for (size_t i = 0; i < size; i++)
-            this->b[i] /= val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                this->b[i] /= val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_DIV, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(buffer));
 
         return *this;
     }
@@ -471,8 +562,11 @@ namespace RedFish
     Tensor Tensor::operator==(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] == val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] == val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_EQUALS, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -487,8 +581,11 @@ namespace RedFish
     Tensor Tensor::operator<=(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] <= val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] <= val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_LT_EQUALS, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -503,8 +600,11 @@ namespace RedFish
     Tensor Tensor::operator>=(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] >= val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] >= val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_GT_EQUALS, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -519,8 +619,11 @@ namespace RedFish
     Tensor Tensor::operator<(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] < val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] < val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_LT, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -535,8 +638,11 @@ namespace RedFish
     Tensor Tensor::operator>(const float64 val) const
     {
         Tensor result(this->shape);
-        for (size_t i = 0; i < size; i++)
-            result.b[i] = this->b[i] > val;
+        if (onCPU)
+            for (size_t i = 0; i < size; i++)
+                result.b[i] = this->b[i] > val;
+        else
+            OpenCLManager::execute(Kernel::T_SCALAR_GT, {size}, OpenCLManager::getBuffer(buffer), val, OpenCLManager::getBuffer(result.buffer));
 
         return result;
     }
@@ -678,7 +784,7 @@ namespace RedFish
     }
 
     /**
-     * @brief set new size from a shape wile copping existing values 
+     * @brief set new size from shape
      * 
      * @param new_shape 
      */
@@ -745,8 +851,13 @@ namespace RedFish
                 end *= t.shape[i];
 
             if (onCPU)
+                mkl_domatcopy_batch_strided('R', 'N', rows, cols, 1, this->b, cols, rows*cols, t.b, rows, rows*cols, end);
+                /* for (size_t i = 0, stride = rows * cols; i < end; i++)
+                    transpose(t.b + i * stride, this->b + i * stride, rows, cols, cols, rows); */
+            else
                 for (size_t i = 0, stride = rows * cols; i < end; i++)
-                    transpose(t.b + i * stride, this->b + i * stride, rows, cols, cols, rows);
+                    OpenCLManager::execute(Kernel::T_TRANSPOSE, std::array<size_t, 2>({rows, cols}),
+                                           rows, cols, OpenCLManager::getBuffer(buffer), OpenCLManager::getBuffer(t.buffer));
         }
 
         return t;
@@ -754,7 +865,7 @@ namespace RedFish
 
 
     /**
-     * @brief Transpose matrix dimension d1 and d2
+     * @brief Transpose matrix along dimension d1 and d2 (To-Do)
      * 
      * @param d1 traspose dimension 
      * @param d2 traspose dimension
@@ -948,6 +1059,29 @@ namespace RedFish
         return axes_reduction<fn>(*this, d, 0.);
     }
 
+    static void matmul_bc(const float64* A, const float64* B, const float64* C,
+                          const size_t* Ashape, const size_t* Bshape, const size_t* Cshape,
+                          const size_t Aoff,  const size_t Boff,  const size_t Coff,
+                          size_t depth, const std::function<void(size_t,size_t,size_t)>& mult_op)
+    {
+        size_t bdc1 = (*Ashape == *Cshape) * ((size_t)-1);
+        size_t bdc2 = (*Bshape == *Cshape) * ((size_t)-1);
+        if (depth)
+            for (size_t i = 0; i < *Cshape; i++)
+                matmul_bc(
+                    A, B, C,
+                    Ashape + 1, Bshape + 1, Cshape + 1,
+                    Coff * *Cshape + i,
+                    Aoff * *Ashape + (i & bdc1),
+                    Boff * *Bshape + (i & bdc2),
+                    depth - 1, mult_op);
+        else
+            mult_op(Aoff, Boff, Coff);
+    }
+
+static long long ttime = 0;
+void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"; }
+
     /**
      * @brief Matrix Multipication 
      * 
@@ -957,106 +1091,79 @@ namespace RedFish
      */
     Tensor Tensor::matmul(const Tensor &t, const Transpose trsp) const
     {
+        auto begin = std::chrono::high_resolution_clock::now();
         Tensor result;
-        std::vector<size_t> shapeT1, matShapeT1(shape.begin() + std::max<int64_t>(0, (int64_t)shape.size() - 2), shape.end());
-        std::vector<size_t> shapeT2, matShapeT2(t.shape.begin() + std::max<int64_t>(0, (int64_t)t.shape.size() - 2), t.shape.end());
-        size_t size1 = 1, size2 = 1;
+        auto Ashape = shape, Bshape = t.shape;
+        while (Ashape.size() < 2 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 2 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
 
-        for (size_t i = 0; i < (int64_t)shape.size() - 2; i++)
-            shapeT1.push_back(shape[i]), size1 *= shape[i];
-        for (size_t i = 0; i < (int64_t)t.shape.size() - 2; i++)
-            shapeT2.push_back(t.shape[i]), size2 *= t.shape[i];
-        matShapeT1.insert(matShapeT1.begin(), std::max<int64_t>(0, (int64_t)2 - shape.size()), 1);
-        matShapeT2.insert(matShapeT2.begin(), std::max<int64_t>(0, (int64_t)2 - t.shape.size()), 1);
-        if (t.shape.size() == 1)
-            std::swap(matShapeT2[0], matShapeT2[1]);
-        if (trsp == LEFT)
-            std::swap(matShapeT1[0], matShapeT1[1]);
-        else if (trsp == RIGHT)
-            std::swap(matShapeT2[0], matShapeT2[1]);
+        size_t Acols = Ashape.back(); Ashape.pop_back();
+        size_t Arows = Ashape.back(); Ashape.pop_back();
+        size_t Bcols = Bshape.back(); Bshape.pop_back();
+        size_t Brows = Bshape.back(); Bshape.pop_back();
 
-        if (shapeT1.size() > shapeT2.size())
-            shapeT2.insert(shapeT2.begin(), shapeT1.size() - shapeT2.size(), 1);
-        else if (shapeT1.size() < shapeT2.size())
-            shapeT1.insert(shapeT1.begin(), shapeT2.size() - shapeT1.size(), 1);
+        size_t Crows = trsp == LEFT  ? Acols : Arows;
+        size_t Ccols = trsp == RIGHT ? Brows : Bcols;
+        size_t Msize = trsp == LEFT  ? Arows : Acols;
+        size_t Asize = 1, Bsize = 1;
+        for (auto d : Ashape) Asize *= d;
+        for (auto d : Bshape) Bsize *= d;
 
-        if (matShapeT1[1] != matShapeT2[0])
-            throw std::length_error("Matrix size not matching in Tensor matmul");
-
-        size_t rows = matShapeT1[0];
-        size_t mid = matShapeT1[1];
-        size_t cols = matShapeT2[1];
-        size_t matsize0 = rows * cols;
-        size_t matsize1 = rows * mid;
-        size_t matsize2 = mid * cols;
-
-        if (sizeMatch(shapeT1, shapeT2))
+        if (sizeMatch(Ashape, Bshape))
         {
-            shapeT1.push_back(rows);
-            shapeT1.push_back(cols);
-            result.resize(shapeT1);
-            result.zero();
-            switch (trsp)
-            {
-            case LEFT:
-                for (size_t i = 0; i < size1; i++)
-                    matmul_left_T(result.b + i * matsize0, b + i * matsize1, t.b + i * matsize2, rows, mid, cols, cols, rows, cols);
-                break;
-            case RIGHT:
-            {
-                auto tt = t.T();
-                for (size_t i = 0; i < size1; i++)
-                    matmul_gotoblas(result.b + i * matsize0, b + i * matsize1, tt.b + i * matsize2, rows, mid, cols, cols, mid, mid);
-                break;
-            }
-            case NONE:
-            default:
-                for (size_t i = 0; i < size1; i++)
-                    matmul_gotoblas(result.b + i * matsize0, b + i * matsize1, t.b + i * matsize2, rows, mid, cols, cols, mid, cols);
-                break;
-            }
+            Ashape.push_back(Crows);
+            Ashape.push_back(Ccols);
+            result.resize(Ashape);
+            /* cudaError_t cudaStat;
+            cublasStatus_t stat;
+            cublasHandle_t handle;
+            float64* devPtrA, *devPtrB, *devPtrC;
+            cudaStat = cudaMalloc ((void**)&devPtrC, result.size*sizeof(float64));
+            cudaStat = cudaMalloc ((void**)&devPtrA, size*sizeof(float64));
+            cudaStat = cudaMalloc ((void**)&devPtrB, t.size*sizeof(float64));
+            stat = cublasCreate(&handle);
+            stat = cublasSetMatrix (Acols, Arows, sizeof(float64), b,   Acols, devPtrA, Acols);
+            stat = cublasSetMatrix (Bcols, Brows, sizeof(float64), t.b, Bcols, devPtrB, Bcols); */
+            /* for (size_t i = 0; i < Asize; i++)
+            cblas_dgemm(CblasRowMajor, trsp == LEFT ? CblasTrans : CblasNoTrans, trsp == RIGHT ? CblasTrans : CblasNoTrans,
+                                      Crows, Ccols, Msize, 1, b, Acols + Arows*Acols*i, t.b, Bcols + Brows*Bcols*i, 0, result.b + Crows*Ccols*i, Ccols); */
+            cblas_dgemm_batch_strided(CblasRowMajor, trsp == LEFT ? CblasTrans : CblasNoTrans, trsp == RIGHT ? CblasTrans : CblasNoTrans,
+                                      Crows, Ccols, Msize, 1, b, Acols, Arows*Acols, t.b, Bcols, Brows*Bcols, 0, result.b, Ccols, Crows*Ccols, Asize);
+            /* float64 alpha = 1, beta = 0;
+            cublasDgemmStridedBatched(handle, trsp == RIGHT ? CUBLAS_OP_T : CUBLAS_OP_N, trsp == LEFT ? CUBLAS_OP_T : CUBLAS_OP_N,
+                                      Ccols, Crows, Msize, &alpha, devPtrB, Bcols, Brows*Bcols, devPtrA, Acols, Arows*Acols, &beta, devPtrC, Ccols, Crows*Ccols, Asize);
+            stat = cublasGetMatrix (Ccols, Crows, sizeof(float64), devPtrC, Ccols, result.b, Ccols);
+            cudaFree(devPtrA);
+            cudaFree(devPtrB);
+            cudaFree(devPtrC);
+            cublasDestroy(handle); */
         }
-        else if (broadcastable(shapeT1, shapeT2))
+        else if (broadcastable(Ashape, Bshape))
         {
-            std::vector<size_t> shapeDst(shapeT1.size());
-            for (size_t i = 0; i < shapeT1.size(); i++)
-                shapeDst[i] = shapeT1[i] == 1 ? shapeT2[i] : shapeT1[i];
+            std::vector<size_t> Cshape(Ashape.size());
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            
+            Cshape.push_back(Crows);
+            Cshape.push_back(Ccols);
 
-            shapeDst.push_back(rows);
-            shapeDst.push_back(cols);
+            result.resize(Cshape);
 
-            result.resize(shapeDst);
-            result.zero();
-            if (result.size)
-                switch (trsp)
-                {
-                case LEFT:
-                    broadcast_op<matmul_left_T>(result.b, this->b, t.b,
-                                                shapeDst.data(), shapeT1.data(), shapeT2.data(),
-                                                shapeDst.size() - 2,
-                                                rows * cols, rows * mid, mid * cols,
-                                                rows, mid, cols, cols, rows, cols);
-                    break;
-                case RIGHT:
-                    broadcast_op<matmul_gotoblas>(result.b, this->b, t.T().b,
-                                                  shapeDst.data(), shapeT1.data(), shapeT2.data(),
-                                                  shapeDst.size() - 2,
-                                                  rows * cols, rows * mid, mid * cols,
-                                                  rows, mid, cols, cols, mid, cols);
-                    break;
-                case NONE:
-                default:
-                    broadcast_op<matmul_gotoblas>(result.b, this->b, t.b,
-                                                  shapeDst.data(), shapeT1.data(), shapeT2.data(),
-                                                  shapeDst.size() - 2,
-                                                  rows * cols, rows * mid, mid * cols,
-                                                  rows, mid, cols, cols, mid, cols);
-                    break;
-                }
+            auto mult = [tr1 = trsp == LEFT ? CblasTrans : CblasNoTrans, tr2 = trsp == RIGHT ? CblasTrans : CblasNoTrans,
+                         Arows, Acols, Brows, Bcols, Crows, Ccols, A = b, B = t.b, C = result.b, Amsize=Arows*Acols, Bmsize=Brows*Bcols, Cmsize=Crows*Ccols, Msize]
+                         (size_t Aoff, size_t Boff, size_t Coff) {
+                cblas_dgemm(CblasRowMajor, tr1, tr2, Crows, Ccols, Msize, 1, A + Aoff*Amsize, Acols, B + Boff*Bmsize, Bcols, 0, C + Coff*Cmsize, Ccols);
+            };
+
+            matmul_bc(b, t.b, result.b, Ashape.data(), Bshape.data(), Cshape.data(), 0,0,0, Ashape.size(), mult);
         }
         else
             throw std::length_error("Shapes not matching in Tensor matmul");
 
+        ttime += (std::chrono::high_resolution_clock::now() - begin).count();
         return result;
     }
 
@@ -1085,6 +1192,7 @@ namespace RedFish
      */
     Tensor Tensor::crossCorrelation1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
     {
+        
         std::vector<size_t> shape_t = shape;
         std::vector<size_t> shape_k = kernel.shape;
         size_t size_batch = 1;
@@ -1740,7 +1848,7 @@ namespace RedFish
             for (size_t i = 0, bdc1 = (*shape1 == *shape) * ((size_t)-1), bdc2 = (*shape2 == *shape) * ((size_t)-1); i < *shape; i++)
                 broadcast_ew_device(fn, dst, src1, src2, shape + 1, shape1 + 1, shape2 + 1, depth - 1, off * *shape + i, off1 * *shape1 + (i & bdc1), off2 * *shape2 + (i & bdc2));
         else
-            OpenCLManager::execute(fn, std::vector{shape[0], shape[1], shape[2]}, {1,1,1},
+            OpenCLManager::execute(fn, std::array<size_t, 3>({shape[0], shape[1], shape[2]}),
                                    OpenCLManager::getSubBuffer<float64>(src1, off1, shape1[0]*shape1[1]*shape1[2]),
                                    OpenCLManager::getSubBuffer<float64>(src2, off2, shape2[0]*shape2[1]*shape2[2]),
                                    OpenCLManager::getSubBuffer<float64>(dst,  off,  shape [0]*shape [1]*shape [2]));
@@ -1772,7 +1880,7 @@ namespace RedFish
                 for (size_t i = 0; i < t1.size; i++)
                     result.b[i] = fn(t1.b[i], t2.b[i]);
             else
-                OpenCLManager::execute(fn_device, t1.size, OpenCLManager::getBuffer(t1.buffer), OpenCLManager::getBuffer(t2.buffer), OpenCLManager::getBuffer(result.buffer));
+                OpenCLManager::execute(fn_device, {t1.size}, OpenCLManager::getBuffer(t1.buffer), OpenCLManager::getBuffer(t2.buffer), OpenCLManager::getBuffer(result.buffer));
         }
         else if (t1.broadcastable(t1.shape, t2.shape))
         {

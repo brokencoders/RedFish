@@ -1,4 +1,6 @@
+#ifndef float64
 #define float64 double
+#endif
 
 void kernel tensor_scalar_add(constant float64* A, const float64 B, global float64* C)
 {

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <vector>
 #include <map>
+#include <array>
 
 #define CL_HPP_ENABLE_EXCEPTIONS
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
@@ -27,7 +28,7 @@ namespace RedFish
     enum Kernel : size_t
     {
         MATMUL = 0,
-        STRASSEN_MAT_MUL,
+        T_TRANSPOSE,
         T_SCALAR_ADD,
         T_TENSOR_ADD,
         T_SCALAR_SUB,
@@ -196,11 +197,8 @@ namespace RedFish
         template <typename T>
         static void setBuffer(Buffer buffer, size_t size, T value);
 
-        template<typename... Args>
-        static void execute(size_t kernel, std::vector<size_t> size, std::vector<size_t> ts, Args... args);
-
-        template<typename... Args>
-        static void execute(size_t kernel, size_t times, Args... args);
+        template<typename... Args, size_t alen>
+        static void execute(size_t kernel, std::array<size_t, alen> size, Args... args);
 
         static void execute(size_t kernel, size_t times);
 
@@ -219,6 +217,10 @@ namespace RedFish
  
         static inline std::vector<cl::Kernel> kernels;
         static inline std::map<size_t, cl::Buffer> buffers;
+
+        static inline size_t tile_size_1d;
+        static inline size_t tile_size_2d;
+        static inline size_t tile_size_3d;
     };
 
     template <typename T>
@@ -265,9 +267,11 @@ namespace RedFish
             queue.enqueueFillBuffer(buffers.at(buffer), value, 0, sizeof(T) * size);
     }
 
-    template<typename... Args>
-    inline void OpenCLManager::execute(size_t kernel, std::vector<size_t> size,  std::vector<size_t> ts, Args... args)
+    template<typename... Args, size_t alen = 1>
+    inline void OpenCLManager::execute(size_t kernel, std::array<size_t, alen> size, Args... args)
     {
+        static_assert(alen <= 3 && alen > 0);
+
         if(kernel >= kernels.size())
             throw std::runtime_error("Is not a valid kernel!\n");
         
@@ -279,34 +283,24 @@ namespace RedFish
         size_t i = 0;
         ([&] { kernels[kernel].setArg(i++, args); } (), ...);
 
-        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size[0], size[1], size[2]), cl::NDRange(ts[0], ts[1], ts[2]));
-        cl_int status = queue.finish();
-        if (status != CL_SUCCESS) {
-            throw std::runtime_error("Is not a valid kernel!\n");
-        }
-    }
-
-    template<typename... Args>
-    inline void OpenCLManager::execute(size_t kernel, size_t times, Args... args)
-    {
-        if(kernel >= kernels.size())
-            throw std::runtime_error("Is not a valid kernel!\n");
+        std::array<size_t, alen> ts;
+        if constexpr (alen == 1) ts[0] = tile_size_1d;
+        if constexpr (alen == 2) ts[0] = ts[1] = tile_size_2d;
+        if constexpr (alen == 3) ts[0] = ts[1] = ts[2] = tile_size_3d;
         
-        size_t expectedArgs = kernels[kernel].getInfo<CL_KERNEL_NUM_ARGS>();
-        if (sizeof...(Args) != expectedArgs) {
-            throw std::runtime_error("Incorrect number of kernel arguments");
-        }
+        if constexpr (alen == 1) size[0] = std::ceil((float)size[0] / tile_size_1d);
+        if constexpr (alen == 2) size[0] = std::ceil((float)size[0] / tile_size_2d),
+                                 size[1] = std::ceil((float)size[1] / tile_size_2d);
+        if constexpr (alen == 3) size[0] = std::ceil((float)size[0] / tile_size_3d),
+                                 size[1] = std::ceil((float)size[1] / tile_size_3d),
+                                 size[2] = std::ceil((float)size[2] / tile_size_3d);
 
-        size_t i = 0;
-        ([&] { kernels[kernel].setArg(i++, args); } (), ...);
-
-        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(times), cl::NullRange);
+        queue.enqueueNDRangeKernel(kernels[kernel], cl::NullRange, cl::NDRange(size), cl::NDRange(ts));
         cl_int status = queue.finish();
         if (status != CL_SUCCESS) {
             throw std::runtime_error("Is not a valid kernel!\n");
         }
     }
-
 
     void showDevice();
     void device(Platform plat = CPU, size_t device = 0);

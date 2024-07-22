@@ -121,6 +121,10 @@ namespace RedFish
         queue = cl::CommandQueue(context,default_device, 0, &queueError);
         if (queueError != CL_SUCCESS)
             throw std::runtime_error("OpenCL command queue creation failed");
+
+        tile_size_1d = default_device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+        tile_size_2d = std::sqrt(tile_size_1d);
+        tile_size_3d = std::cbrt(tile_size_1d);
     }
 
     void OpenCLManager::free() { }
@@ -149,8 +153,10 @@ namespace RedFish
     
     void OpenCLManager::createProgram()
     {
+        char opt[128];
+        sprintf(opt, "-Dfloat64=%s -DTS1=%u -DTS2=%u -DTS3=%u", typeid(float64).name(), tile_size_1d, tile_size_2d, tile_size_3d);
         program = cl::Program(context, sources);
-        if(program.build({default_device}) != CL_SUCCESS)
+        if(program.build({default_device}, opt) != CL_SUCCESS)
             throw std::runtime_error(" Error building: " + program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) + "\n");
         std::cout << "Build done!\n";
     }
@@ -193,14 +199,14 @@ namespace RedFish
         OpenCLManager::createSourceFromFile("../src/kernels/TensorBasic.cl");
         OpenCLManager::createSourceFromFile("../src/kernels/TensorBasicBroadcast.cl");
         OpenCLManager::createSourceFromFile("../src/kernels/TensorMul.cl");
-        OpenCLManager::createSourceFromFile("../src/kernels/TensorStrassenMul.cl");
+        OpenCLManager::createSourceFromFile("../src/kernels/TensorTranspose.cl");
 
         // Build 
         OpenCLManager::createProgram();
 
         // Create all Kernels
         if (OpenCLManager::createKernel("tensor_tensor_math_mul")           != Kernel::MATMUL               ||
-            OpenCLManager::createKernel("tensor_tensor_strassen_math_mul")  != Kernel::STRASSEN_MAT_MUL     ||
+            OpenCLManager::createKernel("tensor_transpose")                 != Kernel::T_TRANSPOSE          ||
             OpenCLManager::createKernel("tensor_scalar_add")                != Kernel::T_SCALAR_ADD         ||
             OpenCLManager::createKernel("tensor_tensor_add")                != Kernel::T_TENSOR_ADD         ||
             OpenCLManager::createKernel("tensor_scalar_sub")                != Kernel::T_SCALAR_SUB         ||

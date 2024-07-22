@@ -1,4 +1,6 @@
+#ifndef float64
 #define float64 double
+#endif
 
 #define D0 get_global_id(2)
 #define D1 get_global_id(1)

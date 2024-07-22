@@ -8,6 +8,8 @@ set(HEADER_FOLDER "include")
 
 find_package(OpenCL REQUIRED)
 find_package(Matplot++ REQUIRED)
+find_package(MKL CONFIG REQUIRED)
+find_package(CUDAToolkit REQUIRED)
 
 add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/LinearLayer.cpp
@@ -42,12 +44,14 @@ endif()
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
-target_include_directories(RedFish PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
+target_compile_options(MatrixMain PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
+target_compile_options(RedFish PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
+target_include_directories(RedFish PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS} ${CUDAToolkit_INCLUDE_DIRS} $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(RedFishMain PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
-target_include_directories(MatrixMain  PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS})
-target_link_libraries(RedFish PUBLIC OpenCL::OpenCL Matplot++::matplot)
+target_include_directories(MatrixMain  PUBLIC include lib/ lib/OpenCL-CLHPP/include/ ${OpenCL_INCLUDE_DIRS} ${CUDAToolkit_INCLUDE_DIRS} $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(RedFish PUBLIC OpenCL::OpenCL CUDA::cudart CUDA::cublas $<LINK_ONLY:MKL::MKL>) #Matplot++::matplot)
 target_link_libraries(RedFishMain PUBLIC RedFish)
-target_link_libraries(MatrixMain  PUBLIC RedFish)
+target_link_libraries(MatrixMain  PUBLIC RedFish CUDA::cudart CUDA::cublas $<LINK_ONLY:MKL::MKL>)
 
 add_subdirectory(test)
 

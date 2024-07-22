@@ -1,4 +1,6 @@
+#ifndef float64
 #define float64 double
+#endif
 
 kernel void tensor_tensor_convolution_1d(const int s_size,
                                          const int d_size,
@@ -9,10 +11,9 @@ kernel void tensor_tensor_convolution_1d(const int s_size,
                                          constant float64* src,
                                          constant float64* kern) 
 {
-    #define TS 16
     const int lcol = get_local_id(0);
 
-    const int col = TS * get_group_id(0) + lcol;
+    const int col = TS1 * get_group_id(0) + lcol;
     const int col_stride = col * stride;
 
     float64 acc = 0.;
@@ -33,12 +34,11 @@ kernel void tensor_tensor_convolution_2d(const int s_size_x,   const int s_size_
                                          constant float64* src,
                                          constant float64* kern) 
 {
-    #define TS 16
     const int lrow = get_local_id(0);
     const int lcol = get_local_id(1);
 
-    const int row = TS * get_group_id(0) + lrow;
-    const int col = TS * get_group_id(1) + lcol;
+    const int row = TS2 * get_group_id(0) + lrow;
+    const int col = TS2 * get_group_id(1) + lcol;
     const int row_stride_y = row * stride_y;
     const int col_stride_x = col * stride_x;
     const int off = row_stride_y*s_size_x + col_stride_x;

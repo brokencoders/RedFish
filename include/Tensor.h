@@ -84,7 +84,7 @@ namespace RedFish
     public:
         Tensor(const std::vector<size_t> &shape = {0}, bool onCPU = true);
         Tensor(const size_t *shape, size_t len);
-        Tensor(const std::vector<size_t> &shape, float64 *buff, bool copy = true);
+        Tensor(const std::vector<size_t> &shape, float64 *buff);
         Tensor(const Tensor &t);  // Copy Constructor
         Tensor(Tensor &&t);       // Move Constructor
         Tensor(const std::vector<size_t> &shape, std::initializer_list<float64> data);
