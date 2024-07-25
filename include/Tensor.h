@@ -163,13 +163,15 @@ namespace RedFish
         void randNormal(float64 mean = 0.0, float64 std = 1.0);
 
         float64 squareSum() const;
-        Tensor  squareSum(size_t dimension) const;
+        Tensor  squareSum(size_t dimension, bool keep_shape = false) const;
         float64 max() const;
-        Tensor  max(size_t dimension) const;
+        Tensor  max(size_t dimension, bool keep_shape = false) const;
         float64 min() const;
-        Tensor  min(size_t dimension) const;
+        Tensor  min(size_t dimension, bool keep_shape = false) const;
         float64 sum() const;
-        Tensor  sum(size_t dimension) const;
+        Tensor  sum(size_t dimension, bool keep_shape = false) const;
+        Tensor  shift(size_t dimension, int direction, const float64 fill = 0.) const;
+        Tensor  roundShift(size_t dimension, int direction) const;
         
         Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
         Tensor crossCorrelation1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
@@ -193,7 +195,10 @@ namespace RedFish
         static bool broadcastable(const std::vector<size_t>& s1, const std::vector<size_t>& s2);
 
         template <void (*fn)(float64 &, float64)>
-        static Tensor axes_reduction(const Tensor &, size_t, const float64);
+        static Tensor axes_reduction(const Tensor &, size_t, const float64, const bool = false);
+
+        template <void (*fn)(float64 &, float64)>
+        static Tensor axes_reduction(const Tensor &, const std::vector<size_t>&, const float64);
         
         template <void (*fn)(float64 &, float64)>
         static float64 full_reduction(const Tensor &, const float64);
@@ -260,12 +265,12 @@ namespace RedFish
         ~DirectTensorView();
         DirectTensorView &operator=(const Tensor &t);
         DirectTensorView &operator=(const DirectTensorView &t);
-        Tensor &operator=(Tensor &&t) = delete;
+        DirectTensorView &operator=(Tensor &&t);
         void resize(const std::vector<size_t> &shape) = delete;
-        Tensor &operator+=(const Tensor &t);
-        Tensor &operator-=(const Tensor &t);
-        Tensor &operator*=(const Tensor &t);
-        Tensor &operator/=(const Tensor &t);
+        DirectTensorView &operator+=(const Tensor &t);
+        DirectTensorView &operator-=(const Tensor &t);
+        DirectTensorView &operator*=(const Tensor &t);
+        DirectTensorView &operator/=(const Tensor &t);
     };
 
     template <typename... Args>

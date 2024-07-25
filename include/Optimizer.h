@@ -23,9 +23,26 @@ namespace RedFish
 
     enum OPTIMIZER : uint32_t {
         ADAM_OPT,
+        SGD_OPT,
     };
 
+    class SGD : public Optimizer
+    {
+    public:
+        SGD(float64 weight_decay = 0, float64 momentum = 0, float64 dampening = 0, bool nesterov = false);
+        SGD(std::ifstream& file);
+        size_t allocateParameter(const Tensor& t) override;
+        void updateParameter(size_t i, Tensor& value, const Tensor& grad) override;
+        void step() override;
+        void setLearningRate(float64 lr) override;
+        uint64_t save(std::ofstream& file) const override;
 
+    private:
+        std::vector<Tensor> b;
+        float64 weight_decay, momentum, dampening, learning_rate;
+        bool nesterov;
+        uint32_t t;
+    };
 
     class Adam : public Optimizer
     {

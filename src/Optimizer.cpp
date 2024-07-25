@@ -3,6 +3,102 @@
 
 namespace RedFish
 {
+    
+    SGD::SGD(float64 weight_decay, float64 momentum, float64 dampening, bool nesterov)
+        : b(), weight_decay(weight_decay), momentum(momentum), dampening(dampening), learning_rate(.01), nesterov(nesterov), t(1) {}
+
+    SGD::SGD(std::ifstream &file)
+    {
+        const std::string name = "Optimizer::SGD";
+        char rname[sizeof("Optimizer::SGD")];
+        file.read(rname, sizeof(rname));
+
+        if (name != rname)
+            throw std::runtime_error("Invalid file content in SGD(std::ifstream&)");
+
+        uint64_t size = 0;
+        file.read((char*)&size, sizeof(size));
+
+        file.read((char*)&weight_decay,  sizeof(weight_decay));
+        file.read((char*)&momentum,      sizeof(momentum));
+        file.read((char*)&dampening,     sizeof(dampening));
+        file.read((char*)&learning_rate, sizeof(learning_rate));
+        file.read((char*)&t,             sizeof(t));
+ 
+        uint64_t b_size = b.size();
+        file.read((char*)&b_size, sizeof(b_size));
+
+        b.reserve(b_size);
+
+        for (size_t i = 0; i < b_size; i++)
+            b.emplace_back(file);
+    }
+
+    size_t SGD::allocateParameter(const Tensor& t)
+    {
+        if (momentum) b.emplace_back(Tensor::empty_like(t));
+        return b.size() - 1;
+    }
+
+    void SGD::updateParameter(size_t i, Tensor& value, const Tensor& grad)
+    {
+        if (weight_decay || momentum)
+        {
+            Tensor mgrad(grad);
+            if (weight_decay)
+                mgrad += weight_decay*value;
+            if (momentum)
+            {
+                if (t) b[i] = momentum*b[i] + (1-dampening)*mgrad;
+                else   b[i] = mgrad;
+                if (nesterov) mgrad += momentum*b[i];
+                else mgrad = b[i];
+            }
+            value -= learning_rate*mgrad;
+        }
+        else value -= learning_rate*grad;
+    }
+
+    void SGD::step()
+    {
+        t++;
+    }
+    
+    void SGD::setLearningRate(float64 lr)
+    {
+        learning_rate = lr;
+    }
+
+    uint64_t SGD::save(std::ofstream &file) const
+    {
+        const char name[] = "Optimizer::SGD";
+        file.write(name, sizeof(name));
+        uint64_t size = sizeof(weight_decay) + sizeof(momentum) + sizeof(dampening) + sizeof(learning_rate) + sizeof(t);
+
+        size += sizeof(uint64_t); 
+
+        auto spos = file.tellp();
+        file.write((char*)&size, sizeof(size));
+
+        file.write((char*)&weight_decay,  sizeof(weight_decay));
+        file.write((char*)&momentum,      sizeof(momentum));
+        file.write((char*)&dampening,     sizeof(dampening));
+        file.write((char*)&learning_rate, sizeof(learning_rate));
+        file.write((char*)&t,             sizeof(t));
+ 
+        uint64_t b_size = b.size();
+        file.write((char*)&b_size, sizeof(b_size));
+
+        for (size_t i = 0; i < b.size(); i++)
+            size += b[i].save(file);
+
+        auto cpos = file.tellp();
+        file.seekp(spos);
+        file.write((char*)&size, sizeof(size));
+        file.seekp(cpos);
+        
+        return size + sizeof(uint64_t) + sizeof(name);
+    }
 
     Adam::Adam() : mw(), vw(), im1(1 / (1 - b1)), im2(1 / (1 - b2)), learning_rate(.01), t(1) {}
 
@@ -107,17 +203,18 @@ namespace RedFish
         return size + sizeof(uint64_t) + sizeof(name);
     }
 
-    Optimizer* make_optimizer(uint32_t o)
+    Optimizer* make_optimizer(const uint32_t o)
     {
         switch (o)
         {
-        case ADAM_OPTIMIZER: return new Adam();
+        case OPTIMIZER::ADAM_OPT: return new Adam();
+        case OPTIMIZER::SGD_OPT:  return new SGD();
                 
         default: return nullptr;
         }
     }
 
-    Optimizer *make_optimizer(std::ifstream& file)
+    Optimizer* make_optimizer(std::ifstream &file)
     {
         auto spos = file.tellg();
         char name[128] = "", c = 1;

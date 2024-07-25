@@ -977,11 +977,11 @@ namespace RedFish
      * @param dimension
      * @return Tensor 
      */
-    Tensor Tensor::squareSum(size_t d) const
+    Tensor Tensor::squareSum(size_t d, bool keep_shape) const
     {
         constexpr auto fn = [](float64 &sq_sum, float64 n)
         {  sq_sum += n  *  n; };
-        return axes_reduction<fn>(*this, d, 0.);
+        return axes_reduction<fn>(*this, d, 0., keep_shape);
     }
 
     /**
@@ -1002,11 +1002,11 @@ namespace RedFish
      * @param dimension
      * @return Tensor 
      */
-    Tensor Tensor::max(size_t d) const
+    Tensor Tensor::max(size_t d, bool keep_shape) const
     {
         constexpr auto fn = [](float64 &max, float64 n)
         {if (max < n) max = n; };
-        return axes_reduction<fn>(*this, d, -std::numeric_limits<float64>::infinity());
+        return axes_reduction<fn>(*this, d, -std::numeric_limits<float64>::infinity(), keep_shape);
     }
 
     /**
@@ -1027,11 +1027,11 @@ namespace RedFish
      * @param dimension
      * @return float64 
      */
-    Tensor Tensor::min(size_t d) const
+    Tensor Tensor::min(size_t d, bool keep_shape) const
     {
         constexpr auto fn = [](float64 &min, float64 n)
         {if (min > n) min = n; };
-        return axes_reduction<fn>(*this, d, std::numeric_limits<float64>::infinity());
+        return axes_reduction<fn>(*this, d, std::numeric_limits<float64>::infinity(), keep_shape);
     }
 
     /**
@@ -1052,11 +1052,61 @@ namespace RedFish
      * @param d 
      * @return Tensor 
      */
-    Tensor Tensor::sum(size_t d) const
+    Tensor Tensor::sum(size_t d, bool keep_shape) const
     {
         constexpr auto fn = [](float64 &sum, float64 n)
         {  sum += n; };
-        return axes_reduction<fn>(*this, d, 0.);
+        return axes_reduction<fn>(*this, d, 0., keep_shape);
+    }
+
+    Tensor Tensor::shift(size_t d, int dir, const float64 fill) const
+    {
+        Tensor result = empty_like(*this);
+        
+        if (d < shape.size())
+        {
+            d = shape.size() - d - 1;
+            size_t tot = 1, off = 1;
+            for (size_t i = 0; i < d; i++) tot *= shape[i];
+            for (size_t i = d+1; i < shape.size(); i++) off *= shape[i];
+
+            for (size_t i = 0; i < size; i += off*shape[d])
+                for (int64_t j = 0, l = -dir; j < shape[d]; j++, l++)
+                {
+                    if (l >= 0 && l < shape[d])
+                        for (size_t k = 0; k < off; k++)
+                            result.b[i + j*off + k] = b[i + l*off + k];
+                    else
+                        for (size_t k = 0; k < off; k++)
+                            result.b[i + j*off + k] = fill;
+                }
+        }
+        else for (size_t i = 0; i < size; i++) result.b[i] = b[i];        
+
+        return result;
+    }
+
+    Tensor Tensor::roundShift(size_t d, int dir) const
+    {
+        Tensor result = empty_like(*this);
+        
+        if (d < shape.size())
+        {
+            d = shape.size() - d - 1;
+            size_t tot = 1, off = 1;
+            for (size_t i = 0; i < d; i++) tot *= shape[i];
+            for (size_t i = d+1; i < shape.size(); i++) off *= shape[i];
+
+            dir = -dir;
+            while (dir < 0) dir += shape[d];
+            for (size_t i = 0; i < size; i += off*shape[d])
+                for (size_t j = 0, l = dir % shape[d]; j < shape[d]; j++, l = (l+1) % shape[d])
+                    for (size_t k = 0; k < off; k++)
+                        result.b[i + j*off + k] = b[i + l*off + k];
+        }
+        else for (size_t i = 0; i < size; i++) result.b[i] = b[i];        
+
+        return result;
     }
 
     static void matmul_bc(const float64* A, const float64* B, const float64* C,
@@ -1071,9 +1121,9 @@ namespace RedFish
                 matmul_bc(
                     A, B, C,
                     Ashape + 1, Bshape + 1, Cshape + 1,
-                    Coff * *Cshape + i,
                     Aoff * *Ashape + (i & bdc1),
                     Boff * *Bshape + (i & bdc2),
+                    Coff * *Cshape + i,
                     depth - 1, mult_op);
         else
             mult_op(Aoff, Boff, Coff);
@@ -1153,7 +1203,7 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
             result.resize(Cshape);
 
             auto mult = [tr1 = trsp == LEFT ? CblasTrans : CblasNoTrans, tr2 = trsp == RIGHT ? CblasTrans : CblasNoTrans,
-                         Arows, Acols, Brows, Bcols, Crows, Ccols, A = b, B = t.b, C = result.b, Amsize=Arows*Acols, Bmsize=Brows*Bcols, Cmsize=Crows*Ccols, Msize]
+                         Acols, Bcols, Crows, Ccols, A = b, B = t.b, C = result.b, Amsize=Arows*Acols, Bmsize=Brows*Bcols, Cmsize=Crows*Ccols, Msize]
                          (size_t Aoff, size_t Boff, size_t Coff) {
                 cblas_dgemm(CblasRowMajor, tr1, tr2, Crows, Ccols, Msize, 1, A + Aoff*Amsize, Acols, B + Boff*Bmsize, Bcols, 0, C + Coff*Cmsize, Ccols);
             };
@@ -1789,29 +1839,81 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
 
 
     template <void (*fn)(float64 &, float64)>
-    Tensor Tensor::axes_reduction(const Tensor &t, size_t d, const float64 init_val)
+    Tensor Tensor::axes_reduction(const Tensor &t, size_t d, const float64 init_val, const bool keep_shape)
     {
-        d = t.shape.size() - d - 1;
         auto shape = t.shape;
-        shape[d] = std::min((size_t)1, shape[d]);
+        if (d < t.shape.size())
+        {
+            d = t.shape.size() - d - 1;
+            if (!keep_shape)
+            {
+                shape[d] = std::min((size_t)1, shape[d]);
+                size_t size = 1;
+                for (size_t i = 0; i < d; i++) size *= shape[i];
+                if (size == 1) shape.erase(shape.begin(), shape.begin() + d);
+            }
+        }
         Tensor ret(shape);
 
-        size_t tot = 1, stride = 1;
-        for (size_t i = 0; i <= d; i++)
-            tot *= shape[i];
-        for (size_t i = d + 1; i < shape.size(); i++)
-            stride *= shape[i];
+        if (d < t.shape.size())
+        {
+            size_t tot = 1, stride = 1;
+            for (size_t i = 0; i < d; i++)
+                tot *= shape[i];
+            for (size_t i = d + 1; i < shape.size(); i++)
+                stride *= shape[i];
 
-        if (ret.size)
-            for (size_t k = 0; k < tot; k++)
-                for (size_t i = 0; i < stride; i++)
-                {
-                    float64 value = init_val;
-                    for (size_t j = 0; j < t.shape[d]; j++)
-                        fn(value, t.b[j * stride + i + k * stride * t.shape[d]]);
+            if (ret.size)
+                for (size_t k = 0; k < tot; k++)
+                    for (size_t i = 0; i < stride; i++)
+                    {
+                        float64 value = init_val;
+                        for (size_t j = 0; j < t.shape[d]; j++)
+                            fn(value, t.b[j * stride + i + k * stride * t.shape[d]]);
 
-                    ret.b[i + k * stride] = value;
-                }
+                        if (keep_shape)
+                            for (size_t j = 0; j < t.shape[d]; j++)
+                                ret.b[j * stride + i + k * stride * t.shape[d]] = value;
+                        else ret.b[i + k * stride] = value;
+                    }
+        }
+        else std::copy(t.b, t.b + t.size, ret.b);
+
+        return ret;
+    }
+
+    template <void (*fn)(float64 &, float64)>
+    Tensor Tensor::axes_reduction(const Tensor &t, const std::vector<size_t> &ds, const float64 init_val) //To-Do
+    {
+        auto shape = t.shape;
+        for (auto d : ds)
+            if (d < t.shape.size())
+            {
+                d = t.shape.size() - d - 1;
+                shape[d] = std::min((size_t)1, shape[d]);
+            }
+        Tensor ret(shape);
+
+        //if (d < t.shape.size())
+        {
+            size_t tot = 1, stride = 1;
+            for (size_t i = 0; i <= d; i++)
+                tot *= shape[i];
+            for (size_t i = d + 1; i < shape.size(); i++)
+                stride *= shape[i];
+
+            if (ret.size)
+                for (size_t k = 0; k < tot; k++)
+                    for (size_t i = 0; i < stride; i++)
+                    {
+                        float64 value = init_val;
+                        for (size_t j = 0; j < t.shape[d]; j++)
+                            fn(value, t.b[j * stride + i + k * stride * t.shape[d]]);
+
+                        ret.b[i + k * stride] = value;
+                    }
+        }
+        else std::copy(t.b, t.b + t.size, ret.b);
 
         return ret;
     }

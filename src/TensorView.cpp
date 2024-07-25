@@ -40,7 +40,18 @@ namespace RedFish
         return *this;
     }
 
-    Tensor &DirectTensorView::operator+=(const Tensor &t)
+    DirectTensorView &DirectTensorView::operator=(Tensor &&t)
+    {
+        if (!sizeMatch(this->shape, t.shape))
+            throw std::length_error("Tensor sizes not matching in assignment operation");
+            
+        for (size_t i = 0; i < size; i++)
+            this->b[i] = t.b[i];
+
+        return *this;
+    }
+
+    DirectTensorView &DirectTensorView::operator+=(const Tensor &t)
     {
         constexpr auto fn = [](float64 n1, float64 n2)
         {  return n1  +  n2; };
@@ -48,7 +59,7 @@ namespace RedFish
         return *this;
     }
 
-    Tensor &DirectTensorView::operator-=(const Tensor &t)
+    DirectTensorView &DirectTensorView::operator-=(const Tensor &t)
     {
         constexpr auto fn = [](float64 n1, float64 n2)
         {  return n1  -  n2; };
@@ -56,7 +67,7 @@ namespace RedFish
         return *this;
     }
 
-    Tensor &DirectTensorView::operator*=(const Tensor &t)
+    DirectTensorView &DirectTensorView::operator*=(const Tensor &t)
     {
         constexpr auto fn = [](float64 n1, float64 n2)
         {  return n1  *  n2; };
@@ -64,7 +75,7 @@ namespace RedFish
         return *this;
     }
 
-    Tensor &DirectTensorView::operator/=(const Tensor &t)
+    DirectTensorView &DirectTensorView::operator/=(const Tensor &t)
     {
         constexpr auto fn = [](float64 n1, float64 n2)
         {  return n1  +  n2; };

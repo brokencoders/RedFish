@@ -13,6 +13,7 @@ find_package(CUDAToolkit REQUIRED)
 
 add_library(RedFish ${SOURCE_FOLDER}/ActivationLayer.cpp
                     ${SOURCE_FOLDER}/LinearLayer.cpp
+                    ${SOURCE_FOLDER}/RecurrentLayer.cpp
                     ${SOURCE_FOLDER}/Loss.cpp
                     ${SOURCE_FOLDER}/Optimizer.cpp
                     ${SOURCE_FOLDER}/Layer.cpp
