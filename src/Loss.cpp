@@ -2,7 +2,7 @@
 
 namespace RedFish {
 
-    double SquareLoss::farward(const Tensor& prediction, const Tensor& ground_truth) const
+    double SquareLoss::forward(const Tensor& prediction, const Tensor& ground_truth) const
     {
         return (prediction - ground_truth).squareSum();
     }
@@ -21,7 +21,7 @@ namespace RedFish {
         return sizeof(name) + sizeof(i);
     }
 
-    double CrossEntropyLoss::farward(const Tensor& prediction, const Tensor& ground_truth) const
+    double CrossEntropyLoss::forward(const Tensor& prediction, const Tensor& ground_truth) const
     {
         double ret = 0.;
         for (size_t r = 0; r < prediction.rowSize(); r++)

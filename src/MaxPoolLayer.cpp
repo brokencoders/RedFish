@@ -24,14 +24,14 @@ namespace RedFish {
     }
 
     // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool1d.html
-    Tensor MaxPool1dLayer::farward(const Tensor &X)
+    Tensor MaxPool1dLayer::forward(const Tensor &X)
     {
         if (X.getShape().size() < 3)
             throw std::length_error("Invalid size of X in MaxPool1d backward");
             
         for (size_t i = 0; i + 3 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in MaxPool1d farward");
+                throw std::length_error("Invalid batch size in MaxPool1d forward");
 
         size_t N_size = X.getShape().end()[-3];
         size_t C_size = X.getShape().end()[-2];
@@ -132,7 +132,7 @@ namespace RedFish {
         file.read((char*)&dilation, sizeof(dilation));
     }
 
-    Tensor MaxPool2dLayer::farward(const Tensor &X)
+    Tensor MaxPool2dLayer::forward(const Tensor &X)
     {
         if (X.getShape().size() < 4)
             throw std::length_error("Invalid size of X in MaxPool2d backward");
@@ -140,7 +140,7 @@ namespace RedFish {
 
         for (size_t i = 0; i + 4 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in MaxPool1d farward");
+                throw std::length_error("Invalid batch size in MaxPool1d forward");
 
 
         size_t N_size = X.getShape().end()[-4];
@@ -178,7 +178,7 @@ namespace RedFish {
 
         for (size_t i = 0; i + 4 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in MaxPool1d farward");
+                throw std::length_error("Invalid batch size in MaxPool1d forward");
 
 
         size_t N_size = X.getShape().end()[-4];
@@ -254,7 +254,7 @@ namespace RedFish {
         file.read((char*)&dilation, sizeof(dilation));
     }
 
-    Tensor MaxPool3dLayer::farward(const Tensor &X)
+    Tensor MaxPool3dLayer::forward(const Tensor &X)
     {
         return Tensor();
     }

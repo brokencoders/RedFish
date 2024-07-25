@@ -23,7 +23,7 @@ namespace RedFish
         file.read((char*)&factor, sizeof(factor));
     }
 
-    Tensor DropoutLayer::farward(const Tensor& X)
+    Tensor DropoutLayer::forward(const Tensor& X)
     {
         if(output.getShape().size() == 0)
         {

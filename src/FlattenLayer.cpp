@@ -21,7 +21,7 @@ namespace RedFish {
         file.read((char*)&end_dim, sizeof(end_dim));
     }
 
-    Tensor FlattenLayer::farward(const Tensor& X)
+    Tensor FlattenLayer::forward(const Tensor& X)
     {
         Tensor flatten(X);
         std::vector<size_t> new_dim;

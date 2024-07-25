@@ -21,8 +21,8 @@ namespace RedFish
 
     };
 
-    enum : uint32_t {
-        ADAM_OPTIMIZER
+    enum OPTIMIZER : uint32_t {
+        ADAM_OPT,
     };
 
 
@@ -50,7 +50,15 @@ namespace RedFish
     };
 
 
-    Optimizer* make_optimizer(uint32_t o);
+    template <OPTIMIZER o, typename... Args>
+    Optimizer* make_optimizer(Args... args)
+    {
+        if constexpr (o == OPTIMIZER::ADAM_OPT) return new Adam(args...);
+        if constexpr (o == OPTIMIZER::SGD_OPT)  return new SGD(args...);
+        return nullptr;
+    }
+    
+    Optimizer* make_optimizer(const uint32_t o);
     Optimizer* make_optimizer(std::ifstream& file);
 
 }

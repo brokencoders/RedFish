@@ -35,15 +35,15 @@ namespace RedFish {
         bias    = Tensor(file);
     }
 
-    Tensor Conv1dLayer::farward(const Tensor& X)
+    Tensor Conv1dLayer::forward(const Tensor& X)
     {
         if (X.getShape().size() < 3)
-            throw std::length_error("Invalid size of X in Conv1d farward");
+            throw std::length_error("Invalid size of X in Conv1d forward");
 
         size_t dim = X.getShape().end()[-3];
         for (size_t i = 0; i + 3 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in Conv1d farward");
+                throw std::length_error("Invalid batch size in Conv1d forward");
 
         size_t conv_length = 0;
         if (2*padding + X.getShape().back() + stride >= (kernels.getShape().back()-1)*dilation + 1)
@@ -70,7 +70,7 @@ namespace RedFish {
         size_t dim = X.getShape().end()[-3];
         for (size_t i = 0; i + 3 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in Conv1d farward");
+                throw std::length_error("Invalid batch size in Conv1d forward");
 
         size_t conv_length = 0;
         if (2*padding + X.getShape().back() + stride >= (kernels.getShape().back()-1)*dilation + 1)
@@ -193,15 +193,15 @@ namespace RedFish {
         bias    = Tensor(file);
     }
 
-    Tensor Conv2dLayer::farward(const Tensor& X)
+    Tensor Conv2dLayer::forward(const Tensor& X)
     {
         if (X.getShape().size() < 4)
-            throw std::length_error("Invalid size of X in Conv2d farward");
+            throw std::length_error("Invalid size of X in Conv2d forward");
 
         size_t dim = X.getShape().end()[-4];
         for (size_t i = 0; i + 4 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in Conv2d farward");
+                throw std::length_error("Invalid batch size in Conv2d forward");
 
         Tuple2d conv_length = 0;
         if (2*padding.x + X.getShape().back() + stride.x >= (kernels.getShape().back()-1)*dilation.x + 1) conv_length.x = (2*padding.x + X.getShape().back() - (kernels.getShape().back()-1)*dilation.x + stride.x - 1) / stride.x;
@@ -234,7 +234,7 @@ namespace RedFish {
         size_t dim = X.getShape().end()[-4];
         for (size_t i = 0; i + 4 < X.getShape().size(); i++)
             if (X.getShape()[i] != 1)
-                throw std::length_error("Invalid batch size in Conv2d farward");
+                throw std::length_error("Invalid batch size in Conv2d forward");
 
         Tuple2d conv_length = 0;
         if (2*padding.x + X.getShape().back() + stride.x >= (kernels.getShape().back()-1)*dilation.x + 1) conv_length.x = (2*padding.x + X.getShape().back() - (kernels.getShape().back()-1)*dilation.x + stride.x - 1) / stride.x;
@@ -371,7 +371,7 @@ namespace RedFish {
         bias    = Tensor(file);
     }
 
-    Tensor Conv3dLayer::farward(const Tensor &X)
+    Tensor Conv3dLayer::forward(const Tensor &X)
     {
         return Tensor();
     }

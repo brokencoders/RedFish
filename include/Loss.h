@@ -7,7 +7,7 @@ namespace RedFish {
 
     class Loss {
     public:
-        virtual double farward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
+        virtual double forward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
         virtual Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
         virtual uint64_t save(std::ofstream& file) const = 0;
     };
@@ -21,7 +21,7 @@ namespace RedFish {
     class SquareLoss : public Loss {
     public:
 
-        double farward(const Tensor& prediction, const Tensor& ground_truth) const override;
+        double forward(const Tensor& prediction, const Tensor& ground_truth) const override;
         Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const override;
         uint64_t save(std::ofstream& file) const override;
     };
@@ -31,7 +31,7 @@ namespace RedFish {
     class CrossEntropyLoss : public Loss {
     public:
 
-        double farward(const Tensor& prediction, const Tensor& ground_truth) const override;
+        double forward(const Tensor& prediction, const Tensor& ground_truth) const override;
         Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const override;
         uint64_t save(std::ofstream& file) const override;
     };

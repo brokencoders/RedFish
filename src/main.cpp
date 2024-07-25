@@ -43,17 +43,19 @@ namespace RedFish {void print_ttime();}
 
 int main(int, char**)
 {
+    RecurrentLayer<Activation::ReLU> rnn(10, 10, make_optimizer<ADAM_OPT>());
+
     auto [train_images, train_labels] = readMNISTDataset(dataset_folder + "MNIST/train_labels", dataset_folder + "MNIST/train_images");
     auto [test_images,  test_labels]  = readMNISTDataset(dataset_folder + "MNIST/test_labels",  dataset_folder + "MNIST/test_images");
 
-    Model model({{Layer::Descriptor::LINEAR, {(size_t)784, (size_t)128}},
-                 {Layer::Descriptor::RELU},
-                 {Layer::Descriptor::LINEAR, {(size_t)128, (size_t)10}},
-                 {Layer::Descriptor::SOFTMAX}},
+    Model model({{LAYER::LINEAR, {(size_t)784, (size_t)128}},
+                 {LAYER::RELU},
+                 {LAYER::LINEAR, {(size_t)128, (size_t)10}},
+                 {LAYER::SOFTMAX}},
                  CROSS_ENTROPY_LOSS,
-                 ADAM_OPTIMIZER);
+                 ADAM_OPT);
 
-    model.train(train_images, train_labels, 50, .05, 5000);
+    model.train(train_images, train_labels, 50, .1, 5000);
     auto accuracy = model.test(test_images, test_labels, correctly_classified_MNIST);
     std::cout << "Accuracy: " << accuracy * 100 << " %\n";
 

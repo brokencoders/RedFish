@@ -10,7 +10,7 @@ namespace RedFish {
         Conv1dLayer(size_t in_channels, size_t out_channels, size_t kernel_size, Optimizer* optimizer, size_t stride = 1, size_t padding = 0, size_t dilation = 1, PaddingMode pm = ZERO);
         Conv1dLayer(std::ifstream& file, Optimizer* optimizer);
 
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
 
         uint64_t save(std::ofstream& file) const override;
@@ -34,7 +34,7 @@ namespace RedFish {
         Conv2dLayer(size_t in_channels, size_t out_channels, Tuple2d kernel_size, Optimizer* optimizer, Tuple2d stride = 1, Tuple2d padding = 0, Tuple2d dilation = 1, PaddingMode pm = ZERO);
         Conv2dLayer(std::ifstream& file, Optimizer* optimizer);
 
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
 
         uint64_t save(std::ofstream& file) const override;
@@ -58,7 +58,7 @@ namespace RedFish {
         Conv3dLayer(size_t in_channels, size_t out_channels, Tuple3d kernel_size, Optimizer* optimizer, Tuple3d stride = 1, Tuple3d padding = 0, Tuple3d dilation = 1, PaddingMode pm = ZERO);
         Conv3dLayer(std::ifstream& file, Optimizer* optimizer);
 
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
 
         uint64_t save(std::ofstream& file) const override;

@@ -37,37 +37,39 @@ namespace RedFish {
         float64  _float64;
     };
 
+    enum LAYER : uint32_t {
+        LINEAR,
+        CONV1D,
+        CONV2D,
+        CONV3D,
+        MAXPOOL1D,
+        MAXPOOL2D,
+        MAXPOOL3D,
+        FLATTEN,
+        DROPOUT,
+        IDENTITY,
+        RELU,
+        LEAKY_RELU,
+        PRELU,
+        SIGMOID,
+        TANH,
+        SOFTPLUS,
+        SILU,
+        GAUSSIAN,
+        SOFTMAX
+    };
+
     class Layer {
     public:
         virtual ~Layer() {};
-        virtual Tensor farward(const Tensor& X) = 0;
+        Tensor operator()(const Tensor& X);
+        virtual Tensor forward(const Tensor& X) = 0;
         virtual Tensor backward(const Tensor& X, const Tensor& d) = 0;
         virtual uint64_t save(std::ofstream& file) const = 0;
     
         struct Descriptor
         {
-            enum : uint32_t {
-                LINEAR,
-                CONV1D,
-                CONV2D,
-                CONV3D,
-                MAXPOOL1D,
-                MAXPOOL2D,
-                MAXPOOL3D,
-                FLATTEN,
-                DROPOUT,
-                IDENTITY,
-                RELU,
-                LEAKY_RELU,
-                PRELU,
-                SIGMOID,
-                TANH,
-                SOFTPLUS,
-                SILU,
-                GAUSSIAN,
-                SOFTMAX
-            } type;
-                
+            LAYER type;
             std::vector<Param> param;
         };
 

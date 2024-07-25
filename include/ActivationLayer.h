@@ -12,7 +12,7 @@ namespace RedFish::Activation
     class Identity : public Layer  {
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -23,7 +23,7 @@ namespace RedFish::Activation
         static double relu_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -34,7 +34,7 @@ namespace RedFish::Activation
         static double lrelu_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -50,7 +50,7 @@ namespace RedFish::Activation
         PReLU(float64 initial = .25);
         PReLU(std::ifstream& file, Optimizer* optimizer);
 
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -61,7 +61,7 @@ namespace RedFish::Activation
         static double sigmoid_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -72,7 +72,7 @@ namespace RedFish::Activation
         static double tanh_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -83,7 +83,7 @@ namespace RedFish::Activation
         static double softplus_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -94,7 +94,7 @@ namespace RedFish::Activation
         static double silu_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -105,7 +105,7 @@ namespace RedFish::Activation
         static double gaussian_d(double n);
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
@@ -114,7 +114,7 @@ namespace RedFish::Activation
     class Softmax : public Layer  {
 
     public:
-        Tensor farward(const Tensor& X) override;
+        Tensor forward(const Tensor& X) override;
         Tensor backward(const Tensor& X, const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
