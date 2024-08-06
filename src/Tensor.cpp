@@ -1,7 +1,9 @@
 #include "Tensor.h"
 
 #include <chrono>
+#include <numeric>
 #include "mkl.h"
+#include "mkl_vsl.h"
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
 #include "OpenCLManager.h"
@@ -40,65 +42,6 @@ namespace RedFish
         if (buff) mkl_free(buff);
         buff = nullptr;
     }
-
-    struct Index
-    {
-        size_t end[10], idx[10], size1[10], size2[10], baseoff1[10], baseoff2[10];
-        size_t off0, off1, off2, endsize;
-        const size_t len;
-        Index(const std::vector<size_t>& size, const std::vector<int>& bc_mask)
-            : /* end(new size_t[size.size()]), idx(new size_t[size.size()]), size1(new size_t[size.size()]), size2(new size_t[size.size()]),
-              baseoff1(new size_t[size.size()]), baseoff2(new size_t[size.size()]), */
-              off0(0), off1(0), off2(0), endsize(1), len(size.size()-1)
-        {
-            if (size.size() && size.size() == bc_mask.size())
-            {
-                for (size_t i = 0; i <= len; i++)
-                {
-                    end[i] = size[i];
-                    idx[i] = baseoff1[i] = baseoff2[i] = 0;
-                }
-                
-
-                size_t size1a = 1, size2a = 1;
-                for (int64_t i = len; i >= 0; i--)
-                {
-                    size1[i] = size1a;
-                    size2[i] = size2a;
-                    if      (bc_mask[i] == 1) size1[i] = 0, size2a *= size[i];
-                    else if (bc_mask[i] == 2) size2[i] = 0, size1a *= size[i];
-                    else size1a *= size[i], size2a *= size[i];
-                    endsize *= size[i];
-                }
-                
-            }
-        }
-        inline void operator++(int)
-        {
-            off0++;
-            idx[len]++;
-            off1 += size1[len];
-            off2 += size2[len];
-            if (idx[len] >= end[len])
-            {
-                idx[len] = 0;
-                for (int i = len-1; i >= 0; i--)
-                {
-                    if (++idx[i] < end[i])
-                    {
-                        off1 = baseoff1[i] + idx[i]*size1[i];
-                        off2 = baseoff2[i] + idx[i]*size2[i];
-                        for (size_t j = i+1; j <= len; j++)
-                            baseoff1[j] = off1,
-                            baseoff2[j] = off2;
-                        
-                        break;
-                    }
-                    else idx[i] = 0;
-                }
-            }
-        }
-    };
 
     /* 
      *      CONSTRUCTORS
@@ -222,7 +165,7 @@ namespace RedFish
      * @param file std::ifstream& 
      */
     Tensor::Tensor(std::ifstream& file)
-        : size(1), buffer(0)
+        : size(1), onCPU(true), buffer(0)
     {
         const std::string name = "Tensor";
         char rname[sizeof("Tensor")];
@@ -746,7 +689,7 @@ namespace RedFish
             if (index[i] >= *(shape.end() - index.size() + i - N))
                 throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
         }
-        for (size_t i = 0; i < N - 1; i++)
+        for (size_t i = 0; i + 1 < N; i++)
             off *= *(shape.end() + i - N + 1);
 
         for (size_t i = 0; i < N; i++)
@@ -774,7 +717,7 @@ namespace RedFish
             if (index[i] >= *(shape.end() - index.size() + i - N))
                 throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
         }
-        for (size_t i = 0; i < N - 1; i++)
+        for (size_t i = 0; i + 1 < N; i++)
             off *= *(shape.end() + i - N + 1);
 
         for (size_t i = 0; i < N; i++)
@@ -822,6 +765,48 @@ namespace RedFish
             throw std::length_error("Invalid new shape in Tensor reshape");
 
         this->shape = new_shape;
+    }
+
+    DirectTensorView Tensor::asShape(const std::vector<size_t> &new_shape)
+    {
+        size_t new_size = 1;
+        for (size_t i = 0; i < new_shape.size(); i++)
+            new_size *= new_shape[i];
+
+        if (new_size != size)
+            throw std::length_error("Invalid new shape in Tensor asShape");
+
+        return DirectTensorView(new_shape, b);
+    }
+
+    const DirectTensorView Tensor::asShape(const std::vector<size_t> &new_shape) const
+    {
+        size_t new_size = 1;
+        for (size_t i = 0; i < new_shape.size(); i++)
+            new_size *= new_shape[i];
+
+        if (new_size != size)
+            throw std::length_error("Invalid new shape in Tensor asShape");
+
+        return DirectTensorView(new_shape, b);
+    }
+
+    DirectTensorView Tensor::asShapeOneInsert(size_t where, size_t count)
+    {
+        auto new_shape = this->shape;
+        if (where <= new_shape.size()) new_shape.insert(new_shape.end() - where, 1);
+        else new_shape.insert(new_shape.begin(), where - new_shape.size() + 1, 1);
+
+        return DirectTensorView(new_shape, b);
+    }
+
+    const DirectTensorView Tensor::asShapeOneInsert(size_t where, size_t count) const
+    {
+        auto new_shape = this->shape;
+        if (where <= new_shape.size()) new_shape.insert(new_shape.end() - where, 1);
+        else new_shape.insert(new_shape.begin(), where - new_shape.size() + 1, 1);
+
+        return DirectTensorView(new_shape, b);
     }
 
     /**
@@ -933,6 +918,22 @@ namespace RedFish
             OpenCLManager::setBuffer<float64>(buffer, size, val);
     }
 
+    void Tensor::linspace(float64 start, float64 stop)
+    {
+        if(onCPU)
+        {
+            size_t ssize = shape.size() ? size / shape.back() : 1;
+            size_t last  = shape.size() ? shape.back() : 1;
+            float64 inc  = (stop - start) / (last-1);
+            float64 base = start;
+            for (size_t i = 0; i < ssize; i++, base = start)
+            for (size_t j = 0; j < last; j++, base += inc)
+                b[i*last + j] = base;
+        }
+        else
+            {/* To-Do */}
+    }
+
     /**
      * @brief Set Tensor values to a random uniform value between a and b 
      * 
@@ -977,11 +978,11 @@ namespace RedFish
      * @param dimension
      * @return Tensor 
      */
-    Tensor Tensor::squareSum(size_t d, bool keep_shape) const
+    Tensor Tensor::squareSum(size_t d, bool collapse) const
     {
         constexpr auto fn = [](float64 &sq_sum, float64 n)
         {  sq_sum += n  *  n; };
-        return axes_reduction<fn>(*this, d, 0., keep_shape);
+        return axes_reduction<fn>(*this, d, 0., collapse);
     }
 
     /**
@@ -1002,11 +1003,11 @@ namespace RedFish
      * @param dimension
      * @return Tensor 
      */
-    Tensor Tensor::max(size_t d, bool keep_shape) const
+    Tensor Tensor::max(size_t d, bool collapse) const
     {
         constexpr auto fn = [](float64 &max, float64 n)
         {if (max < n) max = n; };
-        return axes_reduction<fn>(*this, d, -std::numeric_limits<float64>::infinity(), keep_shape);
+        return axes_reduction<fn>(*this, d, -std::numeric_limits<float64>::infinity(), collapse);
     }
 
     /**
@@ -1027,11 +1028,11 @@ namespace RedFish
      * @param dimension
      * @return float64 
      */
-    Tensor Tensor::min(size_t d, bool keep_shape) const
+    Tensor Tensor::min(size_t d, bool collapse) const
     {
         constexpr auto fn = [](float64 &min, float64 n)
         {if (min > n) min = n; };
-        return axes_reduction<fn>(*this, d, std::numeric_limits<float64>::infinity(), keep_shape);
+        return axes_reduction<fn>(*this, d, std::numeric_limits<float64>::infinity(), collapse);
     }
 
     /**
@@ -1052,11 +1053,11 @@ namespace RedFish
      * @param d 
      * @return Tensor 
      */
-    Tensor Tensor::sum(size_t d, bool keep_shape) const
+    Tensor Tensor::sum(size_t d, bool collapse) const
     {
         constexpr auto fn = [](float64 &sum, float64 n)
         {  sum += n; };
-        return axes_reduction<fn>(*this, d, 0., keep_shape);
+        return axes_reduction<fn>(*this, d, 0., collapse);
     }
 
     Tensor Tensor::shift(size_t d, int dir, const float64 fill) const
@@ -1109,24 +1110,58 @@ namespace RedFish
         return result;
     }
 
-    static void matmul_bc(const float64* A, const float64* B, const float64* C,
-                          const size_t* Ashape, const size_t* Bshape, const size_t* Cshape,
-                          const size_t Aoff,  const size_t Boff,  const size_t Coff,
-                          size_t depth, const std::function<void(size_t,size_t,size_t)>& mult_op)
+    static struct BCJobs {
+        static const int poolsize = 1;
+        std::future<void> jobs[poolsize];
+        size_t first_job = 0;
+        BCJobs() { for (size_t i = 0; i < poolsize; i++) jobs[i] = std::async([](){}); }
+        void add_job(const std::function<void(size_t,size_t,size_t,size_t)>& operation, size_t Aoff, size_t Boff, size_t Coff){
+            jobs[first_job].wait();
+            jobs[first_job] = std::async(operation, Aoff, Boff, Coff, first_job);
+            first_job = (first_job + 1) % poolsize;
+        }
+        void wait() { for (size_t i = 0; i < poolsize; i++) jobs[i].wait(); }
+    } broadcast_jobs;
+
+    inline static void broadcast_operation_async(const size_t* Ashape, const size_t* Bshape, const size_t* Cshape,
+                                           size_t depth, const std::function<void(size_t,size_t,size_t,size_t)>& operation,
+                                           size_t Aoff = 0, size_t Boff = 0, size_t Coff = 0)
     {
-        size_t bdc1 = (*Ashape == *Cshape) * ((size_t)-1);
-        size_t bdc2 = (*Bshape == *Cshape) * ((size_t)-1);
         if (depth)
+        {
+            size_t bdc1 = (*Ashape == *Cshape) * ((size_t)-1);
+            size_t bdc2 = (*Bshape == *Cshape) * ((size_t)-1);
             for (size_t i = 0; i < *Cshape; i++)
-                matmul_bc(
-                    A, B, C,
+                broadcast_operation_async(
                     Ashape + 1, Bshape + 1, Cshape + 1,
+                    depth - 1, operation,
                     Aoff * *Ashape + (i & bdc1),
                     Boff * *Bshape + (i & bdc2),
-                    Coff * *Cshape + i,
-                    depth - 1, mult_op);
+                    Coff * *Cshape + i);
+        }
         else
-            mult_op(Aoff, Boff, Coff);
+            broadcast_jobs.add_job(operation, Aoff, Boff, Coff);
+            /* operation(Aoff, Boff, Coff); */
+    }
+
+    inline static void broadcast_operation(const size_t* Ashape, const size_t* Bshape, const size_t* Cshape,
+                                           size_t depth, const std::function<void(size_t,size_t,size_t)>& operation,
+                                           size_t Aoff = 0, size_t Boff = 0, size_t Coff = 0)
+    {
+        if (depth)
+        {
+            size_t bdc1 = (*Ashape == *Cshape) * ((size_t)-1);
+            size_t bdc2 = (*Bshape == *Cshape) * ((size_t)-1);
+            for (size_t i = 0; i < *Cshape; i++)
+                broadcast_operation(
+                    Ashape + 1, Bshape + 1, Cshape + 1,
+                    depth - 1, operation,
+                    Aoff * *Ashape + (i & bdc1),
+                    Boff * *Bshape + (i & bdc2),
+                    Coff * *Cshape + i);
+        }
+        else
+            operation(Aoff, Boff, Coff);
     }
 
 static long long ttime = 0;
@@ -1164,29 +1199,8 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
             Ashape.push_back(Crows);
             Ashape.push_back(Ccols);
             result.resize(Ashape);
-            /* cudaError_t cudaStat;
-            cublasStatus_t stat;
-            cublasHandle_t handle;
-            float64* devPtrA, *devPtrB, *devPtrC;
-            cudaStat = cudaMalloc ((void**)&devPtrC, result.size*sizeof(float64));
-            cudaStat = cudaMalloc ((void**)&devPtrA, size*sizeof(float64));
-            cudaStat = cudaMalloc ((void**)&devPtrB, t.size*sizeof(float64));
-            stat = cublasCreate(&handle);
-            stat = cublasSetMatrix (Acols, Arows, sizeof(float64), b,   Acols, devPtrA, Acols);
-            stat = cublasSetMatrix (Bcols, Brows, sizeof(float64), t.b, Bcols, devPtrB, Bcols); */
-            /* for (size_t i = 0; i < Asize; i++)
-            cblas_dgemm(CblasRowMajor, trsp == LEFT ? CblasTrans : CblasNoTrans, trsp == RIGHT ? CblasTrans : CblasNoTrans,
-                                      Crows, Ccols, Msize, 1, b, Acols + Arows*Acols*i, t.b, Bcols + Brows*Bcols*i, 0, result.b + Crows*Ccols*i, Ccols); */
             cblas_dgemm_batch_strided(CblasRowMajor, trsp == LEFT ? CblasTrans : CblasNoTrans, trsp == RIGHT ? CblasTrans : CblasNoTrans,
                                       Crows, Ccols, Msize, 1, b, Acols, Arows*Acols, t.b, Bcols, Brows*Bcols, 0, result.b, Ccols, Crows*Ccols, Asize);
-            /* float64 alpha = 1, beta = 0;
-            cublasDgemmStridedBatched(handle, trsp == RIGHT ? CUBLAS_OP_T : CUBLAS_OP_N, trsp == LEFT ? CUBLAS_OP_T : CUBLAS_OP_N,
-                                      Ccols, Crows, Msize, &alpha, devPtrB, Bcols, Brows*Bcols, devPtrA, Acols, Arows*Acols, &beta, devPtrC, Ccols, Crows*Ccols, Asize);
-            stat = cublasGetMatrix (Ccols, Crows, sizeof(float64), devPtrC, Ccols, result.b, Ccols);
-            cudaFree(devPtrA);
-            cudaFree(devPtrB);
-            cudaFree(devPtrC);
-            cublasDestroy(handle); */
         }
         else if (broadcastable(Ashape, Bshape))
         {
@@ -1208,7 +1222,7 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
                 cblas_dgemm(CblasRowMajor, tr1, tr2, Crows, Ccols, Msize, 1, A + Aoff*Amsize, Acols, B + Boff*Bmsize, Bcols, 0, C + Coff*Cmsize, Ccols);
             };
 
-            matmul_bc(b, t.b, result.b, Ashape.data(), Bshape.data(), Cshape.data(), 0,0,0, Ashape.size(), mult);
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), mult);
         }
         else
             throw std::length_error("Shapes not matching in Tensor matmul");
@@ -1229,6 +1243,9 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
     {
         return t1.matmul(t2, transpose);
     }
+    
+static long long ctime = 0;
+void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n"; }
 
     /**
      * @brief Cross Correlation 1d
@@ -1240,54 +1257,71 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
      * @param pm Padding Mode 
      * @return Tensor 
      */
-    Tensor Tensor::crossCorrelation1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
+    Tensor Tensor::correlation1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
     {
-        
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
+        Tensor result({0});
+        auto Ashape = shape, Bshape = kernel.shape;
+        while (Ashape.size() < 1 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 1 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
 
-        while (shape_k.size() < 1)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 1)
-            shape_t.insert(shape_t.begin(), 1);
+        size_t len  = Ashape.back(); Ashape.pop_back();
+        size_t klen = Bshape.back(); Bshape.pop_back();
+        size_t olen = len + 1 + 2*padding - klen;
+        size_t olen_clamped = len+ 1 + 2*std::min(padding, klen-1) - klen;
+        size_t pad_offset = padding > klen - 1 ? padding + 1 - klen : 0;
 
-        for (size_t i = 0; i + 1 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in crossCorrelation1d");
-        if (shape_k.back() == 0)
-            throw std::length_error("Invalid kernel shape in crossCorrelation1d");
-        if (stride == 0)
-            throw std::length_error("Invalid stride in crossCorrelation1d");
+        size_t Asize = 1, Bsize = 1;
+        for (size_t i = 0; i < Ashape.size(); i++) Asize *= Ashape[i];
 
-        for (size_t i = 0; i + 1 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
+        long long start = -std::min(padding, klen-1);
+        VSLCorrTaskPtr task;
+        vsldCorrNewTask1D(&task, VSL_CORR_MODE_AUTO, klen, len, olen_clamped);
+        vslCorrSetStart(task, &start);
 
-        auto shape_r = shape_t;
-        if (2 * padding + shape_t.back() + stride >= (shape_k.back() - 1) * dilation + 1)
-            shape_r.back() = (2 * padding + shape_t.back() - (shape_k.back() - 1) * dilation - 1) / stride + 1;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        size_t off_t = shape_t.back();
-        size_t off_r = shape_r.back();
-        size_t off_p = shape_t.back() + 2 * padding;
-
-        Tensor result = zeros_like(shape_r);
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        for (size_t i = 0; i < size_batch; i++)
+        if (sizeMatch(Ashape, Bshape))
         {
-            for (size_t c = 0; c < shape_t.back(); c++)
-                padded[c + padding] = b[c + i * off_t];
+            Ashape.push_back(olen);
+            result.resize(Ashape);
 
-            cross_correlation_1d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                kernel.b,
-                shape_t.back() + 2 * padding,
-                shape_k.back(),
-                stride, dilation);
+            auto begin = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < Asize; i++)
+            {
+                for (size_t j = 0; j < pad_offset; j++)
+                    result.b[i*olen + j] = result.b[i*olen + j + olen_clamped + pad_offset] = 0;
+
+                vsldCorrExec1D(task, kernel.b + i*klen, 1, b + i*len, 1, result.b + i*olen + pad_offset, 1);
+            }
+            ctime += (std::chrono::high_resolution_clock::now() - begin).count();
         }
+        else if (broadcastable(Ashape, Bshape))
+        {
+            std::vector<size_t> Cshape(Ashape.size() + 1);
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            Cshape.back() = olen;
+
+            result.resize(Cshape);
+
+            auto in = b;
+            auto corr = [task, kernel = kernel.b, in, result = result.b, len, klen, olen, olen_clamped, pad_offset]
+                        (size_t Aoff, size_t Boff, size_t Coff)
+            {
+                for (size_t j = 0; j < pad_offset; j++)
+                    result[Coff*olen + j] = result[Coff*olen + j + olen_clamped + pad_offset] = 0;
+
+                vsldCorrExec1D(task, kernel + Boff*klen, 1, in + Aoff*len, 1, result + Coff*olen + pad_offset, 1);
+            };
+
+            auto begin = std::chrono::high_resolution_clock::now();
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), corr);
+            /* broadcast_jobs.wait(); */
+            ctime += (std::chrono::high_resolution_clock::now() - begin).count();
+        }
+
+        vslCorrDeleteTask(&task);
 
         return result;
     }
@@ -1302,57 +1336,89 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
      * @param pm Padding Mode
      * @return Tensor 
      */
-    Tensor Tensor::crossCorrelation2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
+    Tensor Tensor::correlation2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
     {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
+        Tensor result({0});
+        auto Ashape = shape, Bshape = kernel.shape;
+        while (Ashape.size() < 2 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 2 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
 
-        while (shape_k.size() < 2)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 2)
-            shape_t.insert(shape_t.begin(), 1);
+        long long ilen[3], klen[3], olen[3], olen_clamped[2];
+        ilen[1] = Ashape.back(); Ashape.pop_back();
+        ilen[0] = Ashape.back(); Ashape.pop_back();
+        klen[1] = Bshape.back(); Bshape.pop_back();
+        klen[0] = Bshape.back(); Bshape.pop_back();
+        olen[1] = ilen[1] + 1 + 2*padding.x - klen[1];
+        olen[0] = ilen[0] + 1 + 2*padding.y - klen[0];
+        olen_clamped[1] = ilen[1] + 1 + 2*std::min<long long>(padding.x, klen[1]-1) - klen[1];
+        olen_clamped[0] = ilen[0] + 1 + 2*std::min<long long>(padding.y, klen[0]-1) - klen[0];
+        size_t pad_offset[2] = {padding.y > klen[0] - 1 ? padding.y + 1 - klen[0] : 0,
+                                padding.x > klen[1] - 1 ? padding.x + 1 - klen[1] : 0};
+        size_t isize = ilen[0]*ilen[1];
+        size_t ksize = klen[0]*klen[1];
+        size_t osize = olen[0]*olen[1];
+        ilen[2] = klen[2] = olen[2] = 1;
 
-        for (size_t i = 0; i + 2 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in crossCorrelation2d");
-        if (shape_k.back() == 0 || shape_k.end()[-2] == 0)
-            throw std::length_error("Invalid kernel shape in crossCorrelation2d");
-        if (stride.x == 0 || stride.y == 0)
-            throw std::length_error("Invalid stride in crossCorrelation2d");
+        size_t Asize = 1, Bsize = 1;
+        for (size_t i = 0; i < Ashape.size(); i++) Asize *= Ashape[i];
 
-        for (size_t i = 0; i + 2 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
+        long long start[2] = {-std::min<long long>(padding.y, klen[0]-1),
+                              -std::min<long long>(padding.x, klen[1]-1)};
+        VSLCorrTaskPtr task;
+        vsldCorrNewTask(&task, VSL_CORR_MODE_DIRECT, 2, klen, ilen, olen_clamped);
+        vslCorrSetStart(task, start);
 
-        auto shape_r = shape_t;
-        if (2 * padding.x + shape_t.back() + stride.x >= (shape_k.back() - 1) * dilation.x + 1)
-            shape_r.back() = (2 * padding.x + shape_t.back() - (shape_k.back() - 1) * dilation.x + stride.x - 1) / stride.x;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        if (2 * padding.y + shape_t.end()[-2] + stride.y >= (shape_k.end()[-2] - 1) * dilation.y + 1)
-            shape_r.end()[-2] = (2 * padding.y + shape_t.end()[-2] - (shape_k.end()[-2] - 1) * dilation.y + stride.y - 1) / stride.y;
-        else
-            shape_r.end()[-2] = 0, size_batch = 0;
-        size_t off_t = shape_t.end()[-2] * shape_t.back();
-        size_t off_r = shape_r.end()[-2] * shape_r.back();
-        size_t ph = shape_t.end()[-2] + 2 * padding.h, pw = shape_t.back() + 2 * padding.w;
-        size_t off_p = ph * pw;
-
-        Tensor result = zeros_like(shape_r);
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        for (size_t i = 0; i < size_batch; i++)
+        if (sizeMatch(Ashape, Bshape))
         {
-            copy_2d(b, padded.get(), {shape_t.end()[-2], shape_t.back()}, pw, shape_t.back());
+            Ashape.insert(Ashape.end(), olen, olen + 2);
+            result.resize(Ashape);
+            
+            for (size_t i = 0; i < Asize; i++)
+            {
+                for (size_t k = 0; k < pad_offset[0]; k++)
+                for (size_t j = 0; j < olen[1]; j++)
+                    result.b[i*osize + k*olen[1] + j] = result.b[i*osize + (k + olen_clamped[0] + pad_offset[0])*olen[1] + j] = 0;
 
-            cross_correlation_2d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                kernel.b,
-                {ph, pw},
-                {shape_k.end()[-2], shape_k.back()},
-                stride, dilation);
+                for (size_t k = pad_offset[0]; k < olen[0] - pad_offset[0]; k++)
+                for (size_t j = 0; j < pad_offset[1]; j++)
+                    result.b[i*osize + k*olen[1] + j] = result.b[i*osize + k*olen[1] + j + olen_clamped[1] + pad_offset[1]] = 0;
+
+                vsldCorrExec(task, kernel.b + i*ksize, klen+1, b + i*isize, ilen+1, result.b + i*osize, olen+1);
+            }
         }
+        else if (broadcastable(Ashape, Bshape))
+        {
+            std::vector<size_t> Cshape(Ashape.size() + 2);
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            Cshape.end()[-2] = olen[0];
+            Cshape.back()    = olen[1];
+
+            result.resize(Cshape);
+
+            auto in = b;
+            auto corr = [task, kernel = kernel.b, in, result = result.b, isize, ksize, osize, ilen, klen, olen, olen_clamped, pad_offset]
+                        (size_t Aoff, size_t Boff, size_t Coff)
+            {
+                for (size_t k = 0; k < pad_offset[0]; k++)
+                for (size_t j = 0; j < olen[1]; j++)
+                    result[Coff*osize + k*olen[1] + j] = result[Coff*osize + (k + olen_clamped[0] + pad_offset[0])*olen[1] + j] = 0;
+
+                for (size_t k = pad_offset[0]; k < olen[0] - pad_offset[0]; k++)
+                for (size_t j = 0; j < pad_offset[1]; j++)
+                    result[Coff*osize + k*olen[1] + j] = result[Coff*osize + k*olen[1] + j + olen_clamped[1] + pad_offset[1]] = 0;
+
+                vsldCorrExec(task, kernel + Boff*ksize, klen+1, in + Aoff*isize, ilen+1, result + Coff*osize, olen+1);
+            };
+
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), corr);
+            
+        }
+
+        vslCorrDeleteTask(&task);
 
         return result;
     }
@@ -1367,9 +1433,119 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
      * @param pm 
      * @return Tensor 
      */
-    Tensor Tensor::crossCorrelation3d(const Tensor &kernel, Tuple3d padding, Tuple3d stride, Tuple3d dilation, PaddingMode pm) const
+    Tensor Tensor::correlation3d(const Tensor &kernel, Tuple3d padding, Tuple3d stride, Tuple3d dilation, PaddingMode pm) const
     {
-        return Tensor();
+        Tensor result({0});
+        auto Ashape = shape, Bshape = kernel.shape;
+        while (Ashape.size() < 3 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 3 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
+
+        long long ilen[4], klen[4], olen[4], olen_clamped[3];
+        ilen[2] = Ashape.back(); Ashape.pop_back();
+        ilen[1] = Ashape.back(); Ashape.pop_back();
+        ilen[0] = Ashape.back(); Ashape.pop_back();
+        klen[2] = Bshape.back(); Bshape.pop_back();
+        klen[1] = Bshape.back(); Bshape.pop_back();
+        klen[0] = Bshape.back(); Bshape.pop_back();
+        olen[2] = ilen[2] + 1 + 2*padding.x - klen[2];
+        olen[1] = ilen[1] + 1 + 2*padding.y - klen[1];
+        olen[0] = ilen[0] + 1 + 2*padding.z - klen[0];
+        olen_clamped[2] = ilen[2] + 1 + 2*std::min<long long>(padding.x, klen[2]-1) - klen[2];
+        olen_clamped[1] = ilen[1] + 1 + 2*std::min<long long>(padding.y, klen[1]-1) - klen[1];
+        olen_clamped[0] = ilen[0] + 1 + 2*std::min<long long>(padding.z, klen[0]-1) - klen[0];
+        size_t pad_offset[3] = {padding.z > klen[0] - 1 ? padding.z + 1 - klen[0] : 0,
+                                padding.y > klen[1] - 1 ? padding.y + 1 - klen[1] : 0,
+                                padding.x > klen[2] - 1 ? padding.x + 1 - klen[2] : 0};
+        size_t isize = ilen[0]*ilen[1]*ilen[2];
+        size_t ksize = klen[0]*klen[1]*klen[2];
+        size_t osize = olen[0]*olen[1]*olen[2];
+        ilen[3] = klen[3] = olen[3] = 1;
+
+        size_t Asize = 1, Bsize = 1;
+        for (size_t i = 0; i < Ashape.size(); i++) Asize *= Ashape[i];
+
+        long long start[3] = {-std::min<long long>(padding.z, klen[0]-1),
+                              -std::min<long long>(padding.y, klen[1]-1),
+                              -std::min<long long>(padding.x, klen[2]-1)};
+        VSLCorrTaskPtr task;
+        vsldCorrNewTask(&task, VSL_CORR_MODE_AUTO, 3, klen, ilen, olen_clamped);
+        vslCorrSetStart(task, start);
+        
+        ilen[1] *= ilen[2];
+        klen[1] *= klen[2];
+
+        if (sizeMatch(Ashape, Bshape))
+        {
+            Ashape.insert(Ashape.end(), olen, olen + 3);
+            result.resize(Ashape);
+            olen[1] *= olen[2];
+            
+            for (size_t i = 0; i < Asize; i++)
+            {
+                for (size_t l = 0; l < pad_offset[0]; l++)
+                    for (size_t k = 0; k < olen[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result.b[i*osize + (l*olen[1] + k)*olen[2] + j] = result.b[i*osize + ((l + olen_clamped[0] + pad_offset[0])*olen[1] + k)*olen[2] + j] = 0;
+
+                for (size_t l = pad_offset[0]; l < olen[0] - pad_offset[0]; l++)
+                {
+                    for (size_t k = 0; k < pad_offset[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result.b[i*osize + (l*olen[1] + k)*olen[2] + j] = result.b[i*osize + (l*olen[1] + k + olen_clamped[1] + pad_offset[1])*olen[2] + j] = 0;
+
+                    for (size_t k = pad_offset[1]; k < olen[1] - pad_offset[1]; k++)
+                    for (size_t j = 0; j < pad_offset[2]; j++)
+                        result.b[i*osize + (l*olen[1] + k)*olen[2] + j] = result.b[i*osize + (l*olen[1] + k)*olen[2] + j + olen_clamped[2] + pad_offset[2]] = 0;
+                }
+
+                vsldCorrExec(task, kernel.b + i*ksize, klen+1, b + i*isize, ilen+1, result.b + i*osize, olen+1);
+            }
+        }
+        else if (broadcastable(Ashape, Bshape))
+        {
+            std::vector<size_t> Cshape(Ashape.size() + 3);
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            Cshape.end()[-3] = olen[0];
+            Cshape.end()[-2] = olen[1];
+            Cshape.back()    = olen[2];
+
+            result.resize(Cshape);
+            olen[1] *= olen[2];
+
+            auto in = b;
+            auto corr = [task, kernel = kernel.b, in, result = result.b, isize, ksize, osize, ilen, klen, olen, olen_clamped, pad_offset]
+                        (size_t Aoff, size_t Boff, size_t Coff)
+            {
+                for (size_t l = 0; l < pad_offset[0]; l++)
+                    for (size_t k = 0; k < olen[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result[Coff*osize + (l*olen[1] + k)*olen[2] + j] = result[Coff*osize + ((l + olen_clamped[0] + pad_offset[0])*olen[1] + k)*olen[2] + j] = 0;
+
+                for (size_t l = pad_offset[0]; l < olen[0] - pad_offset[0]; l++)
+                {
+                    for (size_t k = 0; k < pad_offset[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result[Coff*osize + (l*olen[1] + k)*olen[2] + j] = result[Coff*osize + (l*olen[1] + k + olen_clamped[1] + pad_offset[1])*olen[2] + j] = 0;
+
+                    for (size_t k = pad_offset[1]; k < olen[1] - pad_offset[1]; k++)
+                    for (size_t j = 0; j < pad_offset[2]; j++)
+                        result[Coff*osize + (l*olen[1] + k)*olen[2] + j] = result[Coff*osize + (l*olen[1] + k)*olen[2] + j + olen_clamped[2] + pad_offset[2]] = 0;
+                }
+
+                vsldCorrExec(task, kernel + Boff*ksize, klen+1, in + Aoff*isize, ilen+1, result + Coff*osize, olen+1);
+            };
+
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), corr);
+            
+        }
+
+        vslCorrDeleteTask(&task);
+
+        return result;
     }
 
     /**
@@ -1384,55 +1560,69 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
      */
     Tensor Tensor::convolution1d(const Tensor &kernel, size_t padding, size_t stride, size_t dilation, PaddingMode pm) const
     {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
+        Tensor result({0});
+        auto Ashape = shape, Bshape = kernel.shape;
+        while (Ashape.size() < 1 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 1 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
 
-        while (shape_k.size() < 1)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 1)
-            shape_t.insert(shape_t.begin(), 1);
+        size_t len  = Ashape.back(); Ashape.pop_back();
+        size_t klen = Bshape.back(); Bshape.pop_back();
+        size_t olen = len + 1 + 2*padding - klen;
+        size_t olen_clamped = len + 1 + 2*std::min(padding, klen-1) - klen;
+        size_t pad_offset = padding > klen - 1 ? padding + 1 - klen : 0;
 
-        for (size_t i = 0; i + 1 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in convolution1d");
-        if (shape_k.back() == 0)
-            throw std::length_error("Invalid kernel shape in convolution1d");
-        if (stride == 0)
-            throw std::length_error("Invalid stride in convolution1d");
+        size_t Asize = 1, Bsize = 1;
+        for (size_t i = 0; i < Ashape.size(); i++) Asize *= Ashape[i];
 
-        for (size_t i = 0; i + 1 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
+        long long start = (long long)klen - 1 - std::min(padding, klen-1);
+        VSLConvTaskPtr task;
+        vsldConvNewTask1D(&task, VSL_CONV_MODE_AUTO, klen, len, olen_clamped);
+        vslConvSetStart(task, &start);
 
-        auto shape_r = shape_t;
-        if (2 * padding + shape_t.back() + stride >= (shape_k.back() - 1) * dilation + 1)
-            shape_r.back() = (2 * padding + shape_t.back() - (shape_k.back() - 1) * dilation - 1) / stride + 1;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        size_t off_t = shape_t.back();
-        size_t off_r = shape_r.back();
-        size_t off_p = shape_t.back() + 2 * padding;
-
-        Tensor result = zeros_like(shape_r);
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(kernel.size);
-        for (size_t r = 0; r < kernel.shape.back(); r++)
-            f_kern[r] = kernel.b[kernel.shape.back() - r - 1];
-        
-        for (size_t i = 0; i < size_batch; i++)
+        if (sizeMatch(Ashape, Bshape))
         {
-            for (size_t c = 0; c < shape_t.back(); c++)
-                padded[c + padding] = b[c];
+            Ashape.push_back(olen);
+            result.resize(Ashape);
 
-            cross_correlation_1d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                f_kern.get(),
-                shape_t.back() + 2 * padding,
-                shape_k.back(),
-                stride, dilation);
+            auto begin = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < Asize; i++)
+            {
+                for (size_t j = 0; j < pad_offset; j++)
+                    result.b[i*olen + j] = result.b[i*olen + j + olen_clamped + pad_offset] = 0;
+                
+                vsldConvExec1D(task, kernel.b + i*klen, 1, b + i*len, 1, result.b + i*olen + pad_offset, 1);
+            }
+            ctime += (std::chrono::high_resolution_clock::now() - begin).count();
         }
+        else if (broadcastable(Ashape, Bshape))
+        {
+            std::vector<size_t> Cshape(Ashape.size() + 1);
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            Cshape.back() = olen;
+
+            result.resize(Cshape);
+
+            auto in = b;
+            auto conv = [task, kernel = kernel.b, in, result = result.b, len, klen, olen, olen_clamped, pad_offset]
+                        (size_t Aoff, size_t Boff, size_t Coff)
+            {
+                for (size_t j = 0; j < pad_offset; j++)
+                    result[Coff*olen + j] = result[Coff*olen + j + olen_clamped + pad_offset] = 0;
+
+                vsldConvExec1D(task, kernel + Boff*klen, 1, in + Aoff*len, 1, result + Coff*olen + pad_offset, 1);
+            };
+
+            auto begin = std::chrono::high_resolution_clock::now();
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), conv);
+            /* broadcast_jobs.wait(); */
+            ctime += (std::chrono::high_resolution_clock::now() - begin).count();
+        }
+
+        vslConvDeleteTask(&task);
 
         return result;
     }
@@ -1449,60 +1639,87 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
      */
     Tensor Tensor::convolution2d(const Tensor &kernel, Tuple2d padding, Tuple2d stride, Tuple2d dilation, PaddingMode pm) const
     {
-        std::vector<size_t> shape_t = shape;
-        std::vector<size_t> shape_k = kernel.shape;
-        size_t size_batch = 1;
+        Tensor result({0});
+        auto Ashape = shape, Bshape = kernel.shape;
+        while (Ashape.size() < 2 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 2 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
 
-        while (shape_k.size() < 2)
-            shape_k.insert(shape_k.begin(), 1);
-        while (shape_t.size() < 2)
-            shape_t.insert(shape_t.begin(), 1);
+        long long ilen[3], klen[3], olen[3], olen_clamped[2];
+        ilen[1] = Ashape.back(); Ashape.pop_back();
+        ilen[0] = Ashape.back(); Ashape.pop_back();
+        klen[1] = Bshape.back(); Bshape.pop_back();
+        klen[0] = Bshape.back(); Bshape.pop_back();
+        olen[1] = ilen[1] + 1 + 2*padding.x - klen[1];
+        olen[0] = ilen[0] + 1 + 2*padding.y - klen[0];
+        olen_clamped[1] = ilen[1] + 1 + 2*std::min<long long>(padding.x, klen[1]-1) - klen[1];
+        olen_clamped[0] = ilen[0] + 1 + 2*std::min<long long>(padding.y, klen[0]-1) - klen[0];
+        size_t pad_offset[2] = {padding.y > klen[0] - 1 ? padding.y + 1 - klen[0] : 0,
+                                padding.x > klen[1] - 1 ? padding.x + 1 - klen[1] : 0};
+        size_t isize = ilen[0]*ilen[1];
+        size_t ksize = klen[0]*klen[1];
+        size_t osize = olen[0]*olen[1];
+        ilen[2] = klen[2] = olen[2] = 1;
 
-        for (size_t i = 0; i + 2 < shape_k.size(); i++)
-            if (shape_k[i] != 1)
-                throw std::length_error("Invalid kernel shape in convolution2d");
-        if (shape_k.back() == 0 || shape_k.end()[-2] == 0)
-            throw std::length_error("Invalid kernel shape in convolution2d");
-        if (stride.x == 0 || stride.y == 0)
-            throw std::length_error("Invalid stride in convolution2d");
+        size_t Asize = 1, Bsize = 1;
+        for (size_t i = 0; i < Ashape.size(); i++) Asize *= Ashape[i];
 
-        for (size_t i = 0; i + 2 < shape_t.size(); i++)
-            size_batch *= shape_t[i];
+        long long start[2] = {klen[0] - 1 - std::min<long long>(padding.y, klen[0]-1),
+                              klen[1] - 1 - std::min<long long>(padding.x, klen[1]-1)};
+        VSLConvTaskPtr task;
+        vsldConvNewTask(&task, VSL_CONV_MODE_AUTO, 2, klen, ilen, olen_clamped);
+        vslConvSetStart(task, start);
 
-        auto shape_r = shape_t;
-        if (2 * padding.x + shape_t.back() + stride.x >= (shape_k.back() - 1) * dilation.x + 1)
-            shape_r.back() = (2 * padding.x + shape_t.back() - (shape_k.back() - 1) * dilation.x + stride.x - 1) / stride.x;
-        else
-            shape_r.back() = 0, size_batch = 0;
-        if (2 * padding.y + shape_t.end()[-2] + stride.y >= (shape_k.end()[-2] - 1) * dilation.y + 1)
-            shape_r.end()[-2] = (2 * padding.y + shape_t.end()[-2] - (shape_k.end()[-2] - 1) * dilation.y + stride.y - 1) / stride.y;
-        else
-            shape_r.end()[-2] = 0, size_batch = 0;
-        size_t off_t = shape_t.end()[-2] * shape_t.back();
-        size_t off_r = shape_r.end()[-2] * shape_r.back();
-        size_t ph = shape_t.end()[-2] + 2 * padding.h, pw = shape_t.back() + 2 * padding.w;
-        size_t off_p = ph * pw;
-
-        Tensor result = zeros_like(shape_r);
-
-        std::unique_ptr<float64[]> padded = std::make_unique<float64[]>(off_p);
-        std::unique_ptr<float64[]> f_kern = std::make_unique<float64[]>(shape_k.end()[-2] * shape_k.back());
-        for (size_t r = 0; r < shape_k.end()[-2]; r++)
-        for (size_t c = 0; c < shape_k.back(); c++)
-            f_kern[r*shape_k.back() + c] = kernel.b[(shape_k.end()[-2] - r)*shape_k.back() - c - 1];
-        
-        for (size_t i = 0; i < size_batch; i++)
+        if (sizeMatch(Ashape, Bshape))
         {
-            copy_2d(b, padded.get(), {shape_t.end()[-2], shape_t.back()}, pw, shape_t.back());
+            Ashape.insert(Ashape.end(), olen, olen + 2);
+            result.resize(Ashape);
+            
+            for (size_t i = 0; i < Asize; i++)
+            {
+                for (size_t k = 0; k < pad_offset[0]; k++)
+                for (size_t j = 0; j < olen[1]; j++)
+                    result.b[i*osize + k*olen[1] + j] = result.b[i*osize + (k + olen_clamped[0] + pad_offset[0])*olen[1] + j] = 0;
 
-            cross_correlation_2d_impl(
-                result.b + i * off_r,
-                padded.get(),
-                f_kern.get(),
-                {ph, pw},
-                {shape_k.end()[-2], shape_k.back()},
-                stride, dilation);
+                for (size_t k = pad_offset[0]; k < olen[0] - pad_offset[0]; k++)
+                for (size_t j = 0; j < pad_offset[1]; j++)
+                    result.b[i*osize + k*olen[1] + j] = result.b[i*osize + k*olen[1] + j + olen_clamped[1] + pad_offset[1]] = 0;
+
+                vsldConvExec(task, kernel.b + i*ksize, klen+1, b + i*isize, ilen+1, result.b + i*osize, olen+1);
+            }
         }
+        else if (broadcastable(Ashape, Bshape))
+        {
+            std::vector<size_t> Cshape(Ashape.size() + 2);
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            Cshape.end()[-2] = olen[0];
+            Cshape.back()    = olen[1];
+
+            result.resize(Cshape);
+
+            auto in = b;
+            auto conv = [task, kernel = kernel.b, in, result = result.b, isize, ksize, osize, ilen, klen, olen, olen_clamped, pad_offset]
+                        (size_t Aoff, size_t Boff, size_t Coff)
+            {
+                for (size_t k = 0; k < pad_offset[0]; k++)
+                for (size_t j = 0; j < olen[1]; j++)
+                    result[Coff*osize + k*olen[1] + j] = result[Coff*osize + (k + olen_clamped[0] + pad_offset[0])*olen[1] + j] = 0;
+
+                for (size_t k = pad_offset[0]; k < olen[0] - pad_offset[0]; k++)
+                for (size_t j = 0; j < pad_offset[1]; j++)
+                    result[Coff*osize + k*olen[1] + j] = result[Coff*osize + k*olen[1] + j + olen_clamped[1] + pad_offset[1]] = 0;
+
+                vsldConvExec(task, kernel + Boff*ksize, klen+1, in + Aoff*isize, ilen+1, result + Coff*osize, olen+1);
+            };
+
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), conv);
+            
+        }
+
+        vslConvDeleteTask(&task);
 
         return result;
     }
@@ -1519,7 +1736,117 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
      */
     Tensor Tensor::convolution3d(const Tensor &kernel, Tuple3d padding, Tuple3d stride, Tuple2d dilation, PaddingMode pm) const
     {
-        return Tensor();
+        Tensor result({0});
+        auto Ashape = shape, Bshape = kernel.shape;
+        while (Ashape.size() < 2 || Ashape.size() < Bshape.size()) Ashape.insert(Ashape.begin(), 1);
+        while (Bshape.size() < 2 || Bshape.size() < Ashape.size()) Bshape.insert(Bshape.begin(), 1);
+
+        long long ilen[4], klen[4], olen[4], olen_clamped[3];
+        ilen[2] = Ashape.back(); Ashape.pop_back();
+        ilen[1] = Ashape.back(); Ashape.pop_back();
+        ilen[0] = Ashape.back(); Ashape.pop_back();
+        klen[2] = Bshape.back(); Bshape.pop_back();
+        klen[1] = Bshape.back(); Bshape.pop_back();
+        klen[0] = Bshape.back(); Bshape.pop_back();
+        olen[2] = ilen[2] + 1 + 2*padding.x - klen[2];
+        olen[1] = ilen[1] + 1 + 2*padding.y - klen[1];
+        olen[0] = ilen[0] + 1 + 2*padding.z - klen[0];
+        olen_clamped[2] = ilen[2] + 1 + 2*std::min<long long>(padding.x, klen[2]-1) - klen[2];
+        olen_clamped[1] = ilen[1] + 1 + 2*std::min<long long>(padding.y, klen[1]-1) - klen[1];
+        olen_clamped[0] = ilen[0] + 1 + 2*std::min<long long>(padding.z, klen[0]-1) - klen[0];
+        size_t pad_offset[3] = {padding.z > klen[0] - 1 ? padding.z + 1 - klen[0] : 0,
+                                padding.y > klen[1] - 1 ? padding.y + 1 - klen[1] : 0,
+                                padding.x > klen[2] - 1 ? padding.x + 1 - klen[2] : 0};
+        size_t isize = ilen[0]*ilen[1]*ilen[2];
+        size_t ksize = klen[0]*klen[1]*klen[2];
+        size_t osize = olen[0]*olen[1]*olen[2];
+        ilen[3] = klen[3] = olen[3] = 1;
+
+        size_t Asize = 1, Bsize = 1;
+        for (size_t i = 0; i < Ashape.size(); i++) Asize *= Ashape[i];
+
+        long long start[3] = {klen[0] - 1 - std::min<long long>(padding.z, klen[0]-1),
+                              klen[1] - 1 - std::min<long long>(padding.y, klen[1]-1),
+                              klen[2] - 1 - std::min<long long>(padding.x, klen[2]-1)};
+        VSLConvTaskPtr task;
+        vsldConvNewTask(&task, VSL_CONV_MODE_AUTO, 3, klen, ilen, olen_clamped);
+        vslConvSetStart(task, start);
+
+        ilen[1] *= ilen[2];
+        klen[1] *= klen[2];
+
+        if (sizeMatch(Ashape, Bshape))
+        {
+            Ashape.insert(Ashape.end(), olen, olen + 3);
+            result.resize(Ashape);
+            olen[1] *= olen[2];
+            
+            for (size_t i = 0; i < Asize; i++)
+            {
+                for (size_t l = 0; l < pad_offset[0]; l++)
+                    for (size_t k = 0; k < olen[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result.b[i*osize + (l*olen[1] + k)*olen[2] + j] = result.b[i*osize + ((l + olen_clamped[0] + pad_offset[0])*olen[1] + k)*olen[2] + j] = 0;
+
+                for (size_t l = pad_offset[0]; l < olen[0] - pad_offset[0]; l++)
+                {
+                    for (size_t k = 0; k < pad_offset[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result.b[i*osize + (l*olen[1] + k)*olen[2] + j] = result.b[i*osize + (l*olen[1] + k + olen_clamped[1] + pad_offset[1])*olen[2] + j] = 0;
+
+                    for (size_t k = pad_offset[1]; k < olen[1] - pad_offset[1]; k++)
+                    for (size_t j = 0; j < pad_offset[2]; j++)
+                        result.b[i*osize + (l*olen[1] + k)*olen[2] + j] = result.b[i*osize + (l*olen[1] + k)*olen[2] + j + olen_clamped[2] + pad_offset[2]] = 0;
+                }
+
+                vsldConvExec(task, kernel.b + i*ksize, klen+1, b + i*isize, ilen+1, result.b + i*osize, olen+1);
+            }
+        }
+        else if (broadcastable(Ashape, Bshape))
+        {
+            std::vector<size_t> Cshape(Ashape.size() + 3);
+            size_t Csize = 1;
+            for (size_t i = 0; i < Ashape.size(); i++)
+                Cshape[i] = Ashape[i] == 1 ? Bshape[i] : Ashape[i],
+                Csize *= Cshape[i];
+            
+            Cshape.end()[-3] = olen[0];
+            Cshape.end()[-2] = olen[1];
+            Cshape.back()    = olen[2];
+
+            result.resize(Cshape);
+            olen[1] *= olen[2];
+
+            auto in = b;
+            auto conv = [task, kernel = kernel.b, in, result = result.b, isize, ksize, osize, ilen, klen, olen, olen_clamped, pad_offset]
+                        (size_t Aoff, size_t Boff, size_t Coff)
+            {
+                for (size_t l = 0; l < pad_offset[0]; l++)
+                    for (size_t k = 0; k < olen[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result[Coff*osize + (l*olen[1] + k)*olen[2] + j] = result[Coff*osize + ((l + olen_clamped[0] + pad_offset[0])*olen[1] + k)*olen[2] + j] = 0;
+
+                for (size_t l = pad_offset[0]; l < olen[0] - pad_offset[0]; l++)
+                {
+                    for (size_t k = 0; k < pad_offset[1]; k++)
+                    for (size_t j = 0; j < olen[2]; j++)
+                        result[Coff*osize + (l*olen[1] + k)*olen[2] + j] = result[Coff*osize + (l*olen[1] + k + olen_clamped[1] + pad_offset[1])*olen[2] + j] = 0;
+
+                    for (size_t k = pad_offset[1]; k < olen[1] - pad_offset[1]; k++)
+                    for (size_t j = 0; j < pad_offset[2]; j++)
+                        result[Coff*osize + (l*olen[1] + k)*olen[2] + j] = result[Coff*osize + (l*olen[1] + k)*olen[2] + j + olen_clamped[2] + pad_offset[2]] = 0;
+                }
+
+                vsldConvExec(task, kernel + Boff*ksize, klen+1, in + Aoff*isize, ilen+1, result + Coff*osize, olen+1);
+            };
+
+            broadcast_operation(Ashape.data(), Bshape.data(), Cshape.data(), Ashape.size(), conv);
+            
+        }
+
+        vslConvDeleteTask(&task);
+
+        return result;
     }
 
     void reprint(std::ostream &os, const Tensor &t, size_t depth, std::vector<size_t> &index)
@@ -1732,45 +2059,16 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
     
     RedFish::Tensor Tensor::stack(const RedFish::Tensor &t1, const RedFish::Tensor &t2, size_t dim)
     {
-        if (t1.shape.size() <= dim)
-            throw std::length_error("Tensor has not that many dimensions");
-
-        std::vector<size_t> t1_shape = t1.shape;
-        std::vector<size_t> t2_shape = t2.shape;
-
-        int t1_1 = 0;
-        for (size_t i = 0; i < (int64_t)t1.shape.size() - dim; i++)
-            if (t1_shape[i] == 1)
-                t1_shape.erase(t1_shape.begin()), t1_1++;
-            else
-                break;
-
-        int t2_1 = 0;
-        for (size_t i = 0; i < (int64_t)t2.shape.size() - dim; i++)
-            if (t2_shape[i] == 1)
-                t2_shape.erase(t2_shape.begin()), t2_1++;
-            else
-                break;
-
-        if (t1_shape.size() != t2_shape.size())
-            throw std::length_error("Tensor has not same dimmensions");
+        auto t1_shape = t1.shape, t2_shape = t2.shape;
+        while (t1_shape.size() < dim+1 || t1_shape.size() < t2_shape.size()) t1_shape.insert(t1_shape.begin(), 1);
+        while (t2_shape.size() < dim+1 || t2_shape.size() < t1_shape.size()) t2_shape.insert(t2_shape.begin(), 1);
 
         for (size_t i = 0; i < t1_shape.size(); i++)
-            if (t1_shape[i] != t2_shape[i] && i != t2.shape.size() - dim - 1)
-                throw std::length_error("Tensor has not same dimmensions");
+            if (i != t1_shape.size() - 1 - dim && t1_shape[i] != t2_shape[i])
+                throw std::length_error("Tensor shapes not matching in Tensor::stack");
 
-        std::vector<size_t> t3_shape;
-
-        t1_1 = std::max(t1_1, t2_1);
-        t3_shape.reserve(t1_shape.size() + t1_1);
-        for (size_t i = 0; i < t1_1; i++)
-            t3_shape.push_back(1);
-
-        for (size_t i = 0; i < t1_shape.size(); i++)
-            if (i == t1_shape.size() - dim - 1)
-                t3_shape.push_back(t1_shape[i] + t2_shape[i]);
-            else
-                t3_shape.push_back(t1_shape[i]);
+        std::vector<size_t> t3_shape = t1_shape;
+        t3_shape[t3_shape.size() - 1 - dim] += t2_shape[t3_shape.size() - 1 - dim];
 
         Tensor t3(t3_shape);
 
@@ -1801,6 +2099,61 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
         return t3;
     }
 
+    Tensor Tensor::stack(const std::vector<Tensor> &tensors, size_t dim)
+    {
+        std::vector<std::vector<size_t>> t_shapes;
+        t_shapes.reserve(tensors.size());
+        size_t largest_shape_size = 0;
+        for (auto& t : tensors)
+        {
+            t_shapes.emplace_back(t.shape);
+            if (largest_shape_size < t.shape.size()) largest_shape_size = t.shape.size();
+        }
+        if (largest_shape_size < dim+1) largest_shape_size = dim+1;
+        for (auto& t_shape : t_shapes)
+            if (t_shape.size() < largest_shape_size)
+                t_shape.insert(t_shape.begin(), largest_shape_size-t_shape.size(), 1);
+
+        std::vector<size_t> out_shape(largest_shape_size, 0);
+        if (t_shapes.size()) out_shape = t_shapes.front();
+        out_shape[out_shape.size() - 1 - dim] = 0;
+        for (auto& t_shape : t_shapes)
+            for (size_t i = 0; i < t_shape.size(); i++)
+            {
+                if (i == t_shape.size() - 1 - dim)
+                    out_shape[i] += t_shape[i];
+                else if (t_shape[i] != out_shape[i])
+                    throw std::length_error("Tensor shapes not matching in Tensor::stack");
+            }
+
+        Tensor result(out_shape);
+
+        std::vector<size_t> n(tensors.size(), 1);
+        for (size_t i = out_shape.size() - dim - 1; i < out_shape.size(); i++)
+        {
+            for (size_t k = 0; k < n.size(); k++)
+                n[k] *= t_shapes[k][i];
+        }
+        size_t nout = std::accumulate(n.begin(), n.end(), (size_t)0);
+
+        size_t p = 1;
+        for (size_t i = 0; i < out_shape.size() - dim - 1; i++)
+            p *= out_shape[i];
+
+        for (size_t i = 0; i < p; i++)
+        {
+            size_t in3 = i * nout;
+            for (size_t j = 0, l = 0; j < tensors.size(); j++)
+            {
+                size_t inj = i * n[j];
+                for (size_t k = 0; k < n[j]; k++)
+                    result.b[in3 + l + k] = tensors[j].b[inj + k];
+                l += n[j];
+            }
+        }
+
+        return result;
+    }
 
     /**
      * @brief For each element applay function 
@@ -1839,19 +2192,16 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
 
 
     template <void (*fn)(float64 &, float64)>
-    Tensor Tensor::axes_reduction(const Tensor &t, size_t d, const float64 init_val, const bool keep_shape)
+    Tensor Tensor::axes_reduction(const Tensor &t, size_t d, const float64 init_val, const bool collapse)
     {
         auto shape = t.shape;
         if (d < t.shape.size())
         {
-            d = t.shape.size() - d - 1;
-            if (!keep_shape)
-            {
-                shape[d] = std::min((size_t)1, shape[d]);
-                size_t size = 1;
-                for (size_t i = 0; i < d; i++) size *= shape[i];
-                if (size == 1) shape.erase(shape.begin(), shape.begin() + d);
-            }
+            d = t.shape.size() - d - 1;        
+            shape[d] = 1;
+            size_t size = 1;
+            for (size_t i = 0; i < d; i++) size *= shape[i];
+            if (size == 1) shape.erase(shape.begin(), shape.begin() + d);
         }
         Tensor ret(shape);
 
@@ -1870,14 +2220,12 @@ void print_ttime() { std::cout << "dgemm time: " << (float)ttime * 1e-9 << "s\n"
                         float64 value = init_val;
                         for (size_t j = 0; j < t.shape[d]; j++)
                             fn(value, t.b[j * stride + i + k * stride * t.shape[d]]);
-
-                        if (keep_shape)
-                            for (size_t j = 0; j < t.shape[d]; j++)
-                                ret.b[j * stride + i + k * stride * t.shape[d]] = value;
-                        else ret.b[i + k * stride] = value;
+                        ret.b[i + k * stride] = value;
                     }
+            if (collapse) ret.shape.erase(ret.shape.begin() + d);
         }
         else std::copy(t.b, t.b + t.size, ret.b);
+
 
         return ret;
     }

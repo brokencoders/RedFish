@@ -24,23 +24,17 @@ namespace RedFish {
     Tensor FlattenLayer::forward(const Tensor& X)
     {
         Tensor flatten(X);
-        std::vector<size_t> new_dim;
+        auto new_shape = X.getShape();
+        size_t start = start_dim >= new_shape.size() ? 0 : new_shape.size() - start_dim - 1;
+        size_t end   =   end_dim >= new_shape.size() ? 0 : new_shape.size() -   end_dim - 1;
+        if (end_dim == (size_t)-1) end = new_shape.size() - 1;
         
-        size_t dim = 1;
-        for (size_t i = 0; i < X.getShape().size(); i++)
-        {
-            if (i >= start_dim && i <= end_dim )
-            {
-                dim *= X.getShape()[i];
-                if(i == end_dim || i == X.getShape().size() - 1)
-                    new_dim.push_back(dim);
-            }
-            else 
-                new_dim.push_back(X.getShape()[i]);
-        }
-        
+        for (size_t i = start; i < end; i++)
+            new_shape[end] *= new_shape[i];
 
-        flatten.reshape(new_dim);
+        new_shape.erase(new_shape.begin() + start, new_shape.begin() + end);
+
+        flatten.reshape(new_shape);
         return flatten;
     }
 

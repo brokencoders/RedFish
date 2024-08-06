@@ -2,7 +2,10 @@
 
 #include "LinearLayer.h"
 #include "RecurrentLayer.h"
+#include "ConvLayer.h"
 #include "ActivationLayer.h"
+#include "FlattenLayer.h"
+#include "MaxPoolLayer.h"
 #include "Optimizer.h"
 #include "Loss.h"
 #include <iostream>

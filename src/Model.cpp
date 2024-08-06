@@ -62,7 +62,7 @@ namespace RedFish
         float64 last_losses10[10] = {0,0,0,0,0,0,0,0,0,0};
         std::vector<double> loss1, loss5, loss10, iter;
 
-        auto begin = std::chrono::high_resolution_clock::now();
+        long long ttime = 0, btime = 0;
 
         optimizer->setLearningRate(learning_rate);
 
@@ -82,16 +82,21 @@ namespace RedFish
         {
             for (size_t k = 0; k < batch_count; k++)
             {
+                auto begin = std::chrono::high_resolution_clock::now();
                 for (size_t j = 0; j < mini_batch_size; j++)
                 {
                     fw_res[0]     .sliceLastNDims({j},  in.getShape().size() - 1) =  in.sliceLastNDims({j+k*mini_batch_size},  in.getShape().size() - 1);
                     mini_batch_out.sliceLastNDims({j}, out.getShape().size() - 1) = out.sliceLastNDims({j+k*mini_batch_size}, out.getShape().size() - 1);
                 }
+                auto end = std::chrono::high_resolution_clock::now();
+                btime += (end - begin).count();
+
+                begin = std::chrono::high_resolution_clock::now();
 
                 for (size_t j = 0; j < layers.size(); j++)
-                    fw_res[j + 1] = layers[j]->farward(fw_res[j]);
+                    fw_res[j + 1] = layers[j]->forward(fw_res[j]);
 
-                float64 lossV = loss->farward(fw_res.back(), mini_batch_out);
+                float64 lossV = loss->forward(fw_res.back(), mini_batch_out);
 
                 Tensor grad = loss->backward(fw_res.back(), mini_batch_out);
                 for (size_t j = 0; j < layers.size(); j++)
@@ -99,6 +104,8 @@ namespace RedFish
 
                 optimizer->step();
 
+                end = std::chrono::high_resolution_clock::now();
+                ttime += (end - begin).count();
 
                 last_losses5[(i*batch_count + k) % 5] = lossV;
                 last_losses10[(i*batch_count + k) % 10] = lossV;
@@ -119,9 +126,9 @@ namespace RedFish
             }
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
 
-        std::cout << "Trainig time: " << (end - begin).count() * 1e-9 << "s\n";
+        std::cout << "Trainig time: " << ttime * 1e-9 << "s\n";
+        std::cout << "Mini-batch generation time: " << btime * 1e-9 << "s\n";
     }
 
     double Model::test(const Tensor &in, const Tensor &out, std::function<double(const Tensor &, const Tensor &)> accuracy)
@@ -138,9 +145,9 @@ namespace RedFish
 
     Tensor Model::estimate(const Tensor &in)
     {
-        Tensor fw_res = layers.front()->farward(in);
+        Tensor fw_res = layers.front()->forward(in);
         for (size_t j = 1; j < layers.size(); j++)
-            fw_res = layers[j]->farward(fw_res);
+            fw_res = layers[j]->forward(fw_res);
 
         return fw_res;
     }

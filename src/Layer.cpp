@@ -1,5 +1,6 @@
 #include "Layer.h"
 #include "LinearLayer.h"
+#include "RecurrentLayer.h"
 #include "ActivationLayer.h"
 #include "ConvLayer.h"
 #include "MaxPoolLayer.h"
@@ -20,6 +21,12 @@ namespace RedFish {
         case LAYER::LINEAR:
             if (dsc.param.size() < 2) throw std::length_error("Not enouth parameters for LinearLayer construction");
             return new LinearLayer(dsc.param[0]._size_t, dsc.param[1]._size_t, opt);
+        case LAYER::RECURRENT_RELU:
+            if (dsc.param.size() < 2) throw std::length_error("Not enouth parameters for RecurrentReLULayer construction");
+            return new RecurrentLayer<Activation::ReLU>(dsc.param[0]._size_t, dsc.param[1]._size_t, opt);
+        case LAYER::RECURRENT_TANH:
+            if (dsc.param.size() < 2) throw std::length_error("Not enouth parameters for RecurrentTanHLayer construction");
+            return new RecurrentLayer<Activation::TanH>(dsc.param[0]._size_t, dsc.param[1]._size_t, opt);
 
         case LAYER::CONV1D:
             if (dsc.param.size() < 6) throw std::length_error("Not enouth parameters for Conv1dLayer construction");

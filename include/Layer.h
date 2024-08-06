@@ -39,6 +39,8 @@ namespace RedFish {
 
     enum LAYER : uint32_t {
         LINEAR,
+        RECURRENT_RELU,
+        RECURRENT_TANH,
         CONV1D,
         CONV2D,
         CONV3D,

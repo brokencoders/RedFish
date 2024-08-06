@@ -39,7 +39,58 @@ bool correctly_classified_MNIST(const Tensor& pred, const Tensor& gt)
     return result_index == max_index;
 }
 
-namespace RedFish {void print_ttime();}
+std::string characters = "0123456789+-*/";
+
+void test_grad()
+{
+    Adam opt;
+    SquareLoss sl;
+    MaxPool2dLayer layer(3, 2, 0, 3);
+
+    Tensor a({3, 10, 9,18});
+    a.randNormal();
+    Tensor out = layer.forward(a);
+    Tensor gt  = Tensor::empty_like(out);
+    gt.randNormal();
+    Tensor& param = a;
+    Tensor grad = layer.backward(a, sl.backward(out, gt));
+    Tensor grad_es = Tensor::empty_like(param);
+    double loss = sl.forward(out, gt);
+    double delta = 1e-6;
+
+    for (size_t i = 0; i < grad_es.getSize(); i++)
+    {
+        param(i) += delta;
+        grad_es(i) = (sl.forward(layer.forward(a), gt) - loss) / delta;
+        param(i) -= delta;
+    }
+
+    std::cout << grad << grad_es << (grad - grad_es).squareSum() / grad.getSize();
+}
+
+void test_learning()
+{
+    Adam opt;
+    opt.setLearningRate(.1);
+    SquareLoss sl;
+    Conv3dLayer cl(3, 10, {7,5,3}, &opt);
+    Conv3dLayer cl_learner(3, 10, {7,5,3}, &opt);
+
+    for (size_t i = 0; i < 200; i++)
+    {
+        Tensor X({10, 3, 64, 64, 6});
+        X.randNormal();
+        Tensor gt = cl.forward(X);
+        Tensor pred = cl_learner.forward(X);
+        auto loss = sl.forward(pred, gt);
+        cl_learner.backward(X, sl.backward(pred, gt));
+
+        std::cout << "loss: " << loss << "\t"
+                  << "diff: " << (cl.kernels - cl_learner.kernels).squareSum() + (cl.bias - cl_learner.bias).squareSum() << std::endl;
+    }
+}
+
+namespace RedFish {void print_ttime();void print_ctime();}
 
 int main(int, char**)
 {

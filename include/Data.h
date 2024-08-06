@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 #include <sstream>
+#include <filesystem>
 
 #include "../../RedFish/lib/stb_image.h"
 
@@ -34,6 +35,7 @@ namespace RedFish {
 
     inline std::tuple<Tensor, Tensor> readMNISTDataset(const std::string& path_labels, const std::string& path_img)
     {   
+        std::tuple<Tensor, Tensor> dataset;
         std::ifstream file_labels(path_labels, std::ios::binary);
         int32_t magic_number, size, w, h;
 
@@ -52,12 +54,11 @@ namespace RedFish {
 
         file_labels.close();
 
-        Tensor out({(size_t)size});
+        std::get<1>(dataset).resize({(size_t)size, 1});
+        Tensor& out = std::get<1>(dataset);
 
         for (size_t i = 0, sz = size; i < sz; i++)
             out(i) = labels[i];
-
-        out.reshape({(size_t)size,(size_t)1});
 
         /* Images */
 
@@ -77,12 +78,13 @@ namespace RedFish {
 
         std::cout << magic_number << " " << size << " " << w << " " << h << "\n";
         
-        Tensor in({(size_t)size, (size_t)w*h});
+        std::get<0>(dataset).resize({(size_t)size, (size_t)w*h});
+        Tensor& in = std::get<0>(dataset);
         for (size_t i = 0, sz = size; i < sz; i++)
             for (size_t j = 0; j < w*h; j++)
                 in(i,j) = imgs[i*w*h + j] / 255.;
 
-        return {in, out};
+        return dataset;
     }
 
     inline void print_MNIST_numbers(const Tensor& n, size_t count = 1)
@@ -91,7 +93,7 @@ namespace RedFish {
         {
             for (size_t c = 0; c < n.colSize(); c++)
             {
-                std::cout << grayscale[(size_t)(std::round(n(r,c) * 69))] << grayscale[(size_t)(std::round(n(r,c) * 69))];
+                std::cout << grayscale[(size_t)(std::round(n(r*n.colSize()+c) * 69))] << grayscale[(size_t)(std::round(n(r*n.colSize()+c) * 69))];
                 if (c % (size_t)std::sqrt(n.colSize()) == std::sqrt(n.colSize())-1)
                     std::cout << "\n";
             }
@@ -121,7 +123,7 @@ namespace RedFish {
         size_t height = 32;
 
         Tensor images({images_n, chanels, height, width});
-        Tensor labels({images_n});
+        Tensor labels({images_n,1});
 
         for (size_t i = 0; i < images_n; i++)
         {

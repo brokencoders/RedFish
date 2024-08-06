@@ -55,6 +55,8 @@ namespace RedFish
         Tuple2d(size_t y, size_t x) : y(y), x(x) {}
         Tuple2d(size_t n) : y(n), x(n) {}
         Tuple2d() : y(0), x(0) {}
+        Tuple2d operator+(size_t n) { return {y+n, x+n}; }
+        Tuple2d operator-(size_t n) { return {y-n, x-n}; }
         union { size_t y, h; };
         union { size_t x, w; };
     };
@@ -64,6 +66,8 @@ namespace RedFish
         Tuple3d(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
         Tuple3d(size_t n) : z(n), y(n), x(n) {}
         Tuple3d() : y(0), x(0) {}
+        Tuple3d operator+(size_t n) { return {z+n, y+n, x+n}; }
+        Tuple3d operator-(size_t n) { return {z-n, y-n, x-n}; }
         union { size_t z, d; };
         union { size_t y, h; };
         union { size_t x, w; };
@@ -152,6 +156,10 @@ namespace RedFish
 
         void resize(const std::vector<size_t> &new_shape);
         void reshape(const std::vector<size_t> &new_shape);
+        DirectTensorView asShape(const std::vector<size_t> &new_shape);
+        const DirectTensorView asShape(const std::vector<size_t> &new_shape) const;
+        DirectTensorView asShapeOneInsert(size_t where, size_t count = 1);
+        const DirectTensorView asShapeOneInsert(size_t where, size_t count = 1) const;
 
         Tensor T() const;
         Tensor T(size_t dimension1, size_t dimension2);
@@ -159,24 +167,25 @@ namespace RedFish
         void zero();
         void ones();
         void constant(float64 val);
+        void linspace(float64 start, float64 stop);
         void randUniform(float64 a = 0.0, float64 b = 1.0);
         void randNormal(float64 mean = 0.0, float64 std = 1.0);
 
         float64 squareSum() const;
-        Tensor  squareSum(size_t dimension, bool keep_shape = false) const;
+        Tensor  squareSum(size_t dimension, bool collapse_dimension = false) const;
         float64 max() const;
-        Tensor  max(size_t dimension, bool keep_shape = false) const;
+        Tensor  max(size_t dimension, bool collapse_dimension = false) const;
         float64 min() const;
-        Tensor  min(size_t dimension, bool keep_shape = false) const;
+        Tensor  min(size_t dimension, bool collapse_dimension = false) const;
         float64 sum() const;
-        Tensor  sum(size_t dimension, bool keep_shape = false) const;
+        Tensor  sum(size_t dimension, bool collapse_dimension = false) const;
         Tensor  shift(size_t dimension, int direction, const float64 fill = 0.) const;
         Tensor  roundShift(size_t dimension, int direction) const;
         
         Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
-        Tensor crossCorrelation1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor crossCorrelation2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor crossCorrelation3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
         Tensor convolution1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
         Tensor convolution2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
         Tensor convolution3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
@@ -189,13 +198,14 @@ namespace RedFish
         static Tensor ones_like(const Tensor& t);
         
         static Tensor stack(const Tensor &t1, const Tensor &t2, size_t dim);
+        static Tensor stack(const std::vector<Tensor> &tensors, size_t dim);
         
     private:
         static bool sizeMatch(const std::vector<size_t> &s1, const std::vector<size_t> &s2);
         static bool broadcastable(const std::vector<size_t>& s1, const std::vector<size_t>& s2);
 
         template <void (*fn)(float64 &, float64)>
-        static Tensor axes_reduction(const Tensor &, size_t, const float64, const bool = false);
+        static Tensor axes_reduction(const Tensor &, size_t, const float64, const bool);
 
         template <void (*fn)(float64 &, float64)>
         static Tensor axes_reduction(const Tensor &, const std::vector<size_t>&, const float64);
@@ -276,7 +286,7 @@ namespace RedFish
     template <typename... Args>
     inline float64 &Tensor::operator()(Args... indices)
     {
-        const size_t idx[] = {indices...};
+        const size_t idx[] = {(size_t)indices...};
         constexpr size_t isize = sizeof...(indices);
         size_t nsize = isize;
 #ifdef CHECK_BOUNDS
@@ -341,7 +351,7 @@ namespace RedFish
     template <typename... Args>
     inline float64 Tensor::operator()(Args... indices) const
     {
-        const size_t idx[] = {indices...};
+        const size_t idx[] = {(size_t)indices...};
         constexpr size_t isize = sizeof...(indices);
         size_t nsize = isize;
 #ifdef CHECK_BOUNDS
@@ -413,21 +423,21 @@ namespace RedFish
     inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index)
     {
         static_assert(N > 0);
-        if (index.size() + N > shape.size())
-            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+        auto tshape = shape;
+        while (tshape.size() < index.size() + N) tshape.insert(tshape.begin(), 1);
 
         size_t new_shape[N], off = 0;
         for (size_t i = 0; i < index.size(); i++)
         {
-            off = (off + index[i]) * *(shape.end() - index.size() + i - N + 1);
-            if (index[i] >= *(shape.end() - index.size() + i - N))
+            off = (off + index[i]) * *(tshape.end() - index.size() + i - N + 1);
+            if (index[i] >= *(tshape.end() - index.size() + i - N))
                 throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
         }
         for (size_t i = 0; i < N - 1; i++)
-            off *= *(shape.end() + i - N + 1);
+            off *= *(tshape.end() + i - N + 1);
 
         for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(shape.end() - N + i);
+            new_shape[i] = *(tshape.end() - N + i);
 
         return DirectTensorView({new_shape, new_shape + N}, b + off);
     }
@@ -443,21 +453,21 @@ namespace RedFish
     inline const DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index) const
     {
         static_assert(N > 0);
-        if (index.size() + N > shape.size())
-            throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
+        auto tshape = shape;
+        while (tshape.size() < index.size() + N) tshape.insert(tshape.begin(), 1);
 
         size_t new_shape[N], off = 0;
         for (size_t i = 0; i < index.size(); i++)
         {
-            off = (off + index[i]) * *(shape.end() - index.size() + i - N + 1);
-            if (index[i] >= *(shape.end() - index.size() + i - N))
+            off = (off + index[i]) * *(tshape.end() - index.size() + i - N + 1);
+            if (index[i] >= *(tshape.end() - index.size() + i - N))
                 throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
         }
         for (size_t i = 0; i < N - 1; i++)
-            off *= *(shape.end() + i - N + 1);
+            off *= *(tshape.end() + i - N + 1);
 
         for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(shape.end() - N + i);
+            new_shape[i] = *(tshape.end() - N + i);
 
         return DirectTensorView({new_shape, new_shape + N}, b + off);
     }
