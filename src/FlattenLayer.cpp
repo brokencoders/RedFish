@@ -23,6 +23,7 @@ namespace RedFish {
 
     Tensor FlattenLayer::forward(const Tensor& X)
     {
+        if (training) this->X = X;
         Tensor flatten(X);
         auto new_shape = X.getShape();
         size_t start = start_dim >= new_shape.size() ? 0 : new_shape.size() - start_dim - 1;
@@ -38,7 +39,7 @@ namespace RedFish {
         return flatten;
     }
 
-    Tensor FlattenLayer::backward(const Tensor& X, const Tensor& d)
+    Tensor FlattenLayer::backward(const Tensor& d)
     {
         Tensor grad(d);
         grad.reshape(X.getShape());

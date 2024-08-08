@@ -3,22 +3,20 @@
 namespace RedFish {
     
     template<typename Act>
-    RecurrentLayer<Act>::RecurrentLayer(size_t input_size, size_t output_size, Optimizer* optimizer)
-        : Wi({input_size, output_size}), Wh({output_size, output_size}), b({output_size}), Y({1, output_size}), h({1, output_size}), optimizer(optimizer)
+    RecurrentLayer<Act>::RecurrentLayer(size_t input_size, size_t output_size)
+        : Wi({input_size, output_size}), Wh({output_size, output_size}), b({output_size}), Y({1, output_size}), h({1, output_size})
     {
-        Wi.randUniform(-.5, .5);
-        Wh.randUniform(-.5, .5);
-        b.randUniform(-.5, .5);
+        float64 stdv1 = 1. / std::sqrt(input_size);
+        float64 stdv2 = 1. / std::sqrt(output_size);
+        Wi.randUniform(-stdv1, stdv1);
+        Wh.randUniform(-stdv2, stdv2);
+        b.zero();
         Y.zero();
         h.zero();
-        Wi_id = optimizer->allocateParameter(Wi);
-        Wh_id = optimizer->allocateParameter(Wh);
-        b_id = optimizer->allocateParameter(b);
     }
 
     template<typename Act>
-    RecurrentLayer<Act>::RecurrentLayer(std::ifstream &file, Optimizer* optimizer)
-        : optimizer(optimizer)
+    RecurrentLayer<Act>::RecurrentLayer(std::ifstream &file)
     {
         const std::string name = "Layer::Recurrent";
         char rname[sizeof("Layer::Recurrent")];
@@ -41,9 +39,25 @@ namespace RedFish {
         std::cout << Wi << Wh << b;
     }
 
-    template<typename Act>
+    template <typename Act>
+    void RecurrentLayer<Act>::useOptimizer(Optimizer &optimizer)
+    {
+        if (this->optimizer)
+        {
+            this->optimizer->deleteParameters(Wi_id);
+            this->optimizer->deleteParameters(Wh_id);
+            this->optimizer->deleteParameters(b_id);
+        }
+        Wi_id = optimizer.allocateParameters(Wi);
+        Wh_id = optimizer.allocateParameters(Wh);
+        b_id  = optimizer.allocateParameters(b);
+        this->optimizer = &optimizer;
+    }
+
+    template <typename Act>
     Tensor RecurrentLayer<Act>::forward(const Tensor &X)
     {
+        if (training) this->X = X;
         Y = X.matmul(Wi) + b;
         h = Tensor::empty_like(Y);
         h.getMatrix({0}) = f.forward(Y.getMatrix({0}));
@@ -58,10 +72,10 @@ namespace RedFish {
     }
 
     template<typename Act>
-    Tensor RecurrentLayer<Act>::backward(const Tensor &X, const Tensor &D)
+    Tensor RecurrentLayer<Act>::backward(const Tensor &D)
     {
         h = h.shift(2,1);
-        Tensor d = f.backward(Y, D);
+        Tensor d = f.backward(D);
         Tensor grad_X  = d.matmul(Wi, Transpose::RIGHT);
         Tensor grad_Wi = X.matmul(d,  Transpose::LEFT).sum(2);
         Tensor grad_Wh = h.matmul(d,  Transpose::LEFT).sum(2);
@@ -71,16 +85,16 @@ namespace RedFish {
 
         for (size_t t = 1; t < backward_steps; t++)
         {
-            d = f.backward(Y, d.matmul(Wh, Transpose::RIGHT).shift(2, -1));
+            d = f.backward(d.matmul(Wh, Transpose::RIGHT).shift(2, -1));
             grad_X  += d.matmul(Wi, Transpose::RIGHT);
             grad_Wi += X.matmul(d,  Transpose::LEFT).sum(2);
             grad_Wh += h.matmul(d,  Transpose::LEFT).sum(2);
             grad_b  += d.sum(1).sum(2);
         }
 
-        optimizer->updateParameter(Wi_id, Wi, grad_Wi);
-        optimizer->updateParameter(Wh_id, Wh, grad_Wh);
-        optimizer->updateParameter(b_id,  b,  grad_b);
+        optimizer->grad(Wi_id) += grad_Wi;
+        optimizer->grad(Wh_id) += grad_Wh;
+        optimizer->grad(b_id)  += grad_b;
 
         return grad_X;
     }
@@ -117,19 +131,19 @@ namespace RedFish {
         std::cout << "Wi = \n" << Wi << "Wh = \n" << Wh << "b = " << b << "\n";
     }
 
-    void dummy()
+    void dummy_function_to_have_all_the_templates_in_the_library()
     {
         using namespace RedFish;
         using namespace Activation;
-        RecurrentLayer<Identity>  r0(0,0,0);
-        RecurrentLayer<ReLU>      r1(0,0,0);
-        RecurrentLayer<LeakyReLU> r2(0,0,0);
-        RecurrentLayer<Sigmoid>   r3(0,0,0);
-        RecurrentLayer<TanH>      r4(0,0,0);
-        RecurrentLayer<Softplus>  r5(0,0,0);
-        RecurrentLayer<SiLU>      r6(0,0,0);
-        RecurrentLayer<Gaussian>  r7(0,0,0);
-        RecurrentLayer<Softmax>   r8(0,0,0);
+        RecurrentLayer<Identity>  r0(0,0);
+        RecurrentLayer<ReLU>      r1(0,0);
+        RecurrentLayer<LeakyReLU> r2(0,0);
+        RecurrentLayer<Sigmoid>   r3(0,0);
+        RecurrentLayer<TanH>      r4(0,0);
+        RecurrentLayer<Softplus>  r5(0,0);
+        RecurrentLayer<SiLU>      r6(0,0);
+        RecurrentLayer<Gaussian>  r7(0,0);
+        RecurrentLayer<Softmax>   r8(0,0);
     }
 }
 

@@ -10,7 +10,7 @@ namespace RedFish {
         MaxPool1dLayer(size_t kernel_size, size_t stride = 0, size_t padding = 0, size_t dilation = 1);
         MaxPool1dLayer(std::ifstream& file);
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
         
     private:
@@ -23,31 +23,31 @@ namespace RedFish {
 
     class MaxPool2dLayer : public Layer {
     public:
-        MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride = 0, Tuple2d padding = 0, Tuple2d dilation = 1);
+        MaxPool2dLayer(TupleNd<2> kernel_size, TupleNd<2> stride = 0, TupleNd<2> padding = 0, TupleNd<2> dilation = 1);
         MaxPool2dLayer(std::ifstream& file);
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     private:
-        Tuple2d kernel_size;
-        Tuple2d stride;
-        Tuple2d padding;
-        Tuple2d dilation;
+        TupleNd<2> kernel_size;
+        TupleNd<2> stride;
+        TupleNd<2> padding;
+        TupleNd<2> dilation;
     };
 
     class MaxPool3dLayer : public Layer {
     public:
-        MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride = 0, Tuple3d padding = 0, Tuple3d dilation = 1);
+        MaxPool3dLayer(TupleNd<3> kernel_size, TupleNd<3> stride = 0, TupleNd<3> padding = 0, TupleNd<3> dilation = 1);
         MaxPool3dLayer(std::ifstream& file);
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     private:
-        Tuple3d kernel_size;
-        Tuple3d stride;
-        Tuple3d padding;
-        Tuple3d dilation;
+        TupleNd<3> kernel_size;
+        TupleNd<3> stride;
+        TupleNd<3> padding;
+        TupleNd<3> dilation;
     };
 }

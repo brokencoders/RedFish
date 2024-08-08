@@ -4,17 +4,15 @@ namespace RedFish {
 
     /* 1D */
 
-    Conv1dLayer::Conv1dLayer(size_t in_channels, size_t out_channels, size_t kernel_size, Optimizer* optimizer, size_t stride, size_t padding, size_t dilation, PaddingMode pm)
-        : kernels({out_channels,in_channels,kernel_size}), bias({out_channels, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm), optimizer(optimizer)
+    Conv1dLayer::Conv1dLayer(size_t in_channels, size_t out_channels, size_t kernel_size, size_t stride, size_t padding, size_t dilation, PaddingMode pm)
+        : kernels({out_channels,in_channels,kernel_size}), bias({out_channels, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm)
     {
-        kernels.randUniform(-.5, .5);
-        bias.randUniform(-.5, .5);
-        k_id = optimizer->allocateParameter(kernels);
-        b_id = optimizer->allocateParameter(bias);
+        float64 stdv = 1. / std::sqrt(in_channels*kernel_size);
+        kernels.randUniform(-stdv, stdv);
+        bias.zero();
     }
 
-    Conv1dLayer::Conv1dLayer(std::ifstream &file, Optimizer* optimizer)
-        : optimizer(optimizer)
+    Conv1dLayer::Conv1dLayer(std::ifstream &file)
     {
         const std::string name = "Layer::Conv1d";
         char rname[sizeof("Layer::Conv1d")];
@@ -40,15 +38,28 @@ namespace RedFish {
         bias    = Tensor(file);
     }
 
+    void Conv1dLayer::useOptimizer(Optimizer &optimizer)
+    {
+        if (this->optimizer)
+        {
+            this->optimizer->deleteParameters(k_id);
+            this->optimizer->deleteParameters(b_id);
+        }
+        k_id = optimizer.allocateParameters(kernels);
+        b_id = optimizer.allocateParameters(bias);
+        this->optimizer = &optimizer;
+    }
+
     Tensor Conv1dLayer::forward(const Tensor& X)
     {
+        if (training) this->X = X;
         Tensor result = X.asShapeOneInsert(2).correlation1d(kernels).sum(1, true);
         result += bias;
 
         return result;
     }
 
-    Tensor Conv1dLayer::backward(const Tensor& X, const Tensor& d) 
+    Tensor Conv1dLayer::backward(const Tensor& d) 
     {
         auto dd = d.asShapeOneInsert(1), XX = X.asShapeOneInsert(2);
 
@@ -56,8 +67,8 @@ namespace RedFish {
         Tensor grad_k = XX.correlation1d(dd).sum(3, true);
         Tensor grad_b = d.sum(0).sum(2, true);
 
-        optimizer->updateParameter(k_id, kernels, grad_k);
-        optimizer->updateParameter(b_id, bias, grad_b);
+        optimizer->grad(k_id) += grad_k;
+        optimizer->grad(b_id) += grad_b;
         
         return grad_X;
     }
@@ -98,17 +109,15 @@ namespace RedFish {
 
     /* 2D */
 
-    Conv2dLayer::Conv2dLayer(size_t in_channels, size_t out_channels, Tuple2d kernel_size, Optimizer* optimizer, Tuple2d stride, Tuple2d padding, Tuple2d dilation, PaddingMode pm)
-        : kernels({out_channels,in_channels,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm), optimizer(optimizer)
+    Conv2dLayer::Conv2dLayer(size_t in_channels, size_t out_channels, TupleNd<2> kernel_size, TupleNd<2> stride, TupleNd<2> padding, TupleNd<2> dilation, PaddingMode pm)
+        : kernels({out_channels,in_channels,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm)
     {
-        kernels.randUniform(-.5, .5);
-        bias.randUniform(-.5, .5);
-        k_id = optimizer->allocateParameter(kernels);
-        b_id = optimizer->allocateParameter(bias);
+        float64 stdv = 1. / std::sqrt(in_channels*kernel_size.x*kernel_size.y);
+        kernels.randUniform(-stdv, stdv);
+        bias.zero();
     }
 
-    Conv2dLayer::Conv2dLayer(std::ifstream &file, Optimizer* optimizer)
-        : optimizer(optimizer)
+    Conv2dLayer::Conv2dLayer(std::ifstream &file)
     {
         const std::string name = "Layer::Conv2d";
         char rname[sizeof("Layer::Conv2d")];
@@ -138,15 +147,28 @@ namespace RedFish {
         bias    = Tensor(file);
     }
 
+    void Conv2dLayer::useOptimizer(Optimizer &optimizer)
+    {
+        if (this->optimizer)
+        {
+            this->optimizer->deleteParameters(k_id);
+            this->optimizer->deleteParameters(b_id);
+        }
+        k_id = optimizer.allocateParameters(kernels);
+        b_id = optimizer.allocateParameters(bias);
+        this->optimizer = &optimizer;
+    }
+
     Tensor Conv2dLayer::forward(const Tensor& X)
     {
+        if (training) this->X = X;
         Tensor result = X.asShapeOneInsert(3).correlation2d(kernels).sum(2, true);
         result += bias;
 
         return result;
     }
 
-    Tensor Conv2dLayer::backward(const Tensor& X, const Tensor& d) 
+    Tensor Conv2dLayer::backward(const Tensor& d) 
     {
         auto dd = d.asShapeOneInsert(2), XX = X.asShapeOneInsert(3);
 
@@ -154,8 +176,8 @@ namespace RedFish {
         Tensor grad_k = XX.correlation2d(dd).sum(4, true);
         Tensor grad_b = d.sum(0).sum(1).sum(3, true);
 
-        optimizer->updateParameter(k_id, kernels, grad_k);
-        optimizer->updateParameter(b_id, bias, grad_b);
+        optimizer->grad(k_id) += grad_k;
+        optimizer->grad(b_id) += grad_b;
         
         return grad_X;
     }
@@ -202,17 +224,15 @@ namespace RedFish {
 
     /* 3D */
 
-    Conv3dLayer::Conv3dLayer(size_t in_channels, size_t out_channels, Tuple3d kernel_size, Optimizer *optimizer, Tuple3d stride, Tuple3d padding, Tuple3d dilation, PaddingMode pm)
-        : kernels({out_channels,in_channels,kernel_size.d,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm), optimizer(optimizer)
+    Conv3dLayer::Conv3dLayer(size_t in_channels, size_t out_channels, TupleNd<3> kernel_size, TupleNd<3> stride, TupleNd<3> padding, TupleNd<3> dilation, PaddingMode pm)
+        : kernels({out_channels,in_channels,kernel_size.d,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm)
     {
-        kernels.randUniform(-.5, .5);
-        bias.randUniform(-.5, .5);
-        k_id = optimizer->allocateParameter(kernels);
-        b_id = optimizer->allocateParameter(bias);
+        float64 stdv = 1. / std::sqrt(in_channels*kernel_size.x*kernel_size.y*kernel_size.z);
+        kernels.randUniform(-stdv, stdv);
+        bias.zero();
     }
 
-    Conv3dLayer::Conv3dLayer(std::ifstream &file, Optimizer* optimizer)
-        : optimizer(optimizer)
+    Conv3dLayer::Conv3dLayer(std::ifstream &file)
     {
         const std::string name = "Layer::Conv3d";
         char rname[sizeof("Layer::Conv3d")];
@@ -246,15 +266,28 @@ namespace RedFish {
         bias    = Tensor(file);
     }
 
+    void Conv3dLayer::useOptimizer(Optimizer &optimizer)
+    {
+        if (this->optimizer)
+        {
+            this->optimizer->deleteParameters(k_id);
+            this->optimizer->deleteParameters(b_id);
+        }
+        k_id = optimizer.allocateParameters(kernels);
+        b_id = optimizer.allocateParameters(bias);
+        this->optimizer = &optimizer;
+    }
+
     Tensor Conv3dLayer::forward(const Tensor &X)
     {
+        if (training) this->X = X;
         Tensor result = X.asShapeOneInsert(4).correlation3d(kernels).sum(3, true);
         result += bias;
 
         return result;
     }
     
-    Tensor Conv3dLayer::backward(const Tensor &X, const Tensor &d)
+    Tensor Conv3dLayer::backward(const Tensor &d)
     {
         auto dd = d.asShapeOneInsert(3), XX = X.asShapeOneInsert(4);
 
@@ -262,8 +295,8 @@ namespace RedFish {
         Tensor grad_k = XX.correlation3d(dd).sum(5, true);
         Tensor grad_b = d.sum(0).sum(1).sum(2).sum(4, true);
 
-        optimizer->updateParameter(k_id, kernels, grad_k);
-        optimizer->updateParameter(b_id, bias, grad_b);
+        optimizer->grad(k_id) += grad_k;
+        optimizer->grad(b_id) += grad_b;
         
         return grad_X;
     }

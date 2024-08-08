@@ -2,17 +2,15 @@
 
 namespace RedFish {
     
-    LinearLayer::LinearLayer(size_t input_size, size_t output_size, Optimizer* optimizer) 
-        : W({input_size, output_size}), b({output_size}), optimizer(optimizer)
+    LinearLayer::LinearLayer(size_t input_size, size_t output_size) 
+        : W({input_size, output_size}), b({output_size})
     {
-        W.randUniform(-.5, .5);
-        b.randUniform(-.5, .5);
-        W_id = optimizer->allocateParameter(W);
-        b_id = optimizer->allocateParameter(b);
+        float64 stdv = 1. / std::sqrt(input_size);
+        W.randUniform(-stdv, stdv);
+        b.zero();
     }
 
-    LinearLayer::LinearLayer(std::ifstream &file, Optimizer* optimizer)
-        : optimizer(optimizer)
+    LinearLayer::LinearLayer(std::ifstream &file)
     {
         const std::string name = "Layer::Linear";
         char rname[sizeof("Layer::Linear")];
@@ -31,19 +29,31 @@ namespace RedFish {
         b = Tensor(file);
     }
 
+    void LinearLayer::useOptimizer(Optimizer &optimizer)
+    {
+        if (this->optimizer)
+        {
+            this->optimizer->deleteParameters(W_id);
+            this->optimizer->deleteParameters(b_id);
+        }
+        W_id = optimizer.allocateParameters(W);
+        b_id = optimizer.allocateParameters(b);
+        this->optimizer = &optimizer;
+    }
+
     Tensor LinearLayer::forward(const Tensor &X)
     {
+        if (training) this->X = X;
         return X.matmul(W) + b;
     }
 
-    Tensor LinearLayer::backward(const Tensor &X, const Tensor &d)
+    Tensor LinearLayer::backward(const Tensor &d)
     {
         Tensor grad_X = d.matmul(W, Transpose::RIGHT);
         Tensor grad_W = X.matmul(d, Transpose::LEFT);
         Tensor grad_b = d.sum(1);
-
-        optimizer->updateParameter(W_id, W, grad_W);
-        optimizer->updateParameter(b_id, b, grad_b);
+        optimizer->grad(W_id) += grad_W;
+        optimizer->grad(b_id) += grad_b;
 
         return grad_X;
     }
@@ -69,11 +79,6 @@ namespace RedFish {
         file.seekp(cpos);
         
         return size + sizeof(uint64_t) + sizeof(name);
-    }
-
-    void LinearLayer::print()
-    {
-        std::cout << "W = \n" << W << "b = " << b << "\n";
     }
 
 }

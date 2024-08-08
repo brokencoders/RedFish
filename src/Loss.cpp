@@ -4,12 +4,12 @@ namespace RedFish {
 
     double SquareLoss::forward(const Tensor& prediction, const Tensor& ground_truth) const
     {
-        return (prediction - ground_truth).squareSum();
+        return (prediction - ground_truth).squareSum() / prediction.rowSize();
     }
 
     Tensor SquareLoss::backward(const Tensor& prediction, const Tensor& ground_truth) const
     {
-        return 2 * (prediction - ground_truth);
+        return 2 * (prediction - ground_truth) / prediction.rowSize();
     }
 
     uint64_t SquareLoss::save(std::ofstream &file) const

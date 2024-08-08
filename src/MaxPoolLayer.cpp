@@ -26,6 +26,7 @@ namespace RedFish {
 
     Tensor MaxPool1dLayer::forward(const Tensor &X)
     {
+        if (training) this->X = X;
         auto shape = X.getShape();
         if (shape.size() == 0) shape.push_back(1);
 
@@ -51,7 +52,7 @@ namespace RedFish {
         return max_pool;
     }
 
-    Tensor MaxPool1dLayer::backward(const Tensor &X, const Tensor &d)
+    Tensor MaxPool1dLayer::backward(const Tensor &d)
     {
         auto shape = X.getShape();
         if (shape.size() == 0) shape.push_back(1);
@@ -97,7 +98,7 @@ namespace RedFish {
         return size + sizeof(uint64_t) + sizeof(name);
     }
 
-    MaxPool2dLayer::MaxPool2dLayer(Tuple2d kernel_size, Tuple2d stride, Tuple2d padding, Tuple2d dilation) 
+    MaxPool2dLayer::MaxPool2dLayer(TupleNd<2> kernel_size, TupleNd<2> stride, TupleNd<2> padding, TupleNd<2> dilation) 
         :kernel_size(kernel_size), stride({stride.y ? stride.y : kernel_size.y, stride.x ? stride.x : kernel_size.x}), padding(padding), dilation(dilation) {  }
 
     MaxPool2dLayer::MaxPool2dLayer(std::ifstream &file)
@@ -120,6 +121,7 @@ namespace RedFish {
 
     Tensor MaxPool2dLayer::forward(const Tensor &X)
     {
+        if (training) this->X = X;
         auto shape = X.getShape();
         if (shape.size() < 2) shape.insert(shape.begin(), 2 - shape.size(), 1);
 
@@ -152,7 +154,7 @@ namespace RedFish {
         return max_pool;
     }
 
-    Tensor MaxPool2dLayer::backward(const Tensor &X, const Tensor &d)
+    Tensor MaxPool2dLayer::backward(const Tensor &d)
     {
         auto shape = X.getShape();
         if (shape.size() < 2) shape.insert(shape.begin(), 2 - shape.size(), 1);
@@ -206,7 +208,7 @@ namespace RedFish {
         return size + sizeof(uint64_t) + sizeof(name);
     }
 
-    MaxPool3dLayer::MaxPool3dLayer(Tuple3d kernel_size, Tuple3d stride, Tuple3d padding, Tuple3d dilation)
+    MaxPool3dLayer::MaxPool3dLayer(TupleNd<3> kernel_size, TupleNd<3> stride, TupleNd<3> padding, TupleNd<3> dilation)
         :kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation)
     {
     }
@@ -231,10 +233,11 @@ namespace RedFish {
 
     Tensor MaxPool3dLayer::forward(const Tensor &X)
     {
+        if (training) this->X = X;
         return Tensor();
     }
     
-    Tensor MaxPool3dLayer::backward(const Tensor &X, const Tensor &d)
+    Tensor MaxPool3dLayer::backward(const Tensor &d)
     {
         return Tensor();
     }

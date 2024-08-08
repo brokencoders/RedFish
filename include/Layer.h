@@ -10,8 +10,8 @@ namespace RedFish {
 
     union Param
     {
-        Param(Tuple2d n)  {_tuple2d = n;}
-        Param(Tuple3d n)  {_tuple3d = n;}
+        Param(TupleNd<2> n)  {_Tuple2d = n;}
+        Param(TupleNd<3> n)  {_Tuple3d = n;}
         Param(size_t n)   {_size_t = n;}
         Param(uint32_t n) {_uint32 = n;}
         Param(uint16_t n) {_uint16 = n;}
@@ -22,8 +22,8 @@ namespace RedFish {
         Param(int8_t n)   {_integer8 = n;}
         Param(float n)    {_float = n;}
         Param(double n)   {_double = n;}
-        Tuple2d  _tuple2d;
-        Tuple3d  _tuple3d;
+        TupleNd<2>  _Tuple2d;
+        TupleNd<3>  _Tuple3d;
         size_t   _size_t;
         uint32_t _uint32;
         uint16_t _uint16;
@@ -64,9 +64,10 @@ namespace RedFish {
     class Layer {
     public:
         virtual ~Layer() {};
+        virtual void useOptimizer(Optimizer& optimizer);
         Tensor operator()(const Tensor& X);
         virtual Tensor forward(const Tensor& X) = 0;
-        virtual Tensor backward(const Tensor& X, const Tensor& d) = 0;
+        virtual Tensor backward(const Tensor& d) = 0;
         virtual uint64_t save(std::ofstream& file) const = 0;
     
         struct Descriptor
@@ -75,10 +76,16 @@ namespace RedFish {
             std::vector<Param> param;
         };
 
+    protected:
+        Tensor X;
+        Optimizer* optimizer = nullptr;
+    
+    public:
+        static bool training;
 
     };
 
-    Layer* make_layer(const Layer::Descriptor& dsc, Optimizer* opt);
-    Layer* make_layer(std::ifstream& file, Optimizer* opt);
+    Layer* make_layer(const Layer::Descriptor& dsc);
+    Layer* make_layer(std::ifstream& file);
 
 }

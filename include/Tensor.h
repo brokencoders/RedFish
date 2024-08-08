@@ -50,27 +50,62 @@ namespace RedFish
         CIRCULAR
     };
 
-    struct Tuple2d
+    template<size_t N>
+    struct TupleNd
     {
-        Tuple2d(size_t y, size_t x) : y(y), x(x) {}
-        Tuple2d(size_t n) : y(n), x(n) {}
-        Tuple2d() : y(0), x(0) {}
-        Tuple2d operator+(size_t n) { return {y+n, x+n}; }
-        Tuple2d operator-(size_t n) { return {y-n, x-n}; }
-        union { size_t y, h; };
-        union { size_t x, w; };
+        TupleNd(size_t n) : { for (size_t i = 0; i < N; i++) c[i] = n; }
+        TupleNd() : { for (size_t i = 0; i < N; i++) c[i] = 0; }
+        TupleNd operator+(size_t n) { TuplaNd<N> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] + n;}
+        TupleNd operator-(size_t n) { TuplaNd<N> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] - n;}
+        size_t c[N];
     };
 
-    struct Tuple3d
+    template<>
+    struct TupleNd<1>
     {
-        Tuple3d(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
-        Tuple3d(size_t n) : z(n), y(n), x(n) {}
-        Tuple3d() : y(0), x(0) {}
-        Tuple3d operator+(size_t n) { return {z+n, y+n, x+n}; }
-        Tuple3d operator-(size_t n) { return {z-n, y-n, x-n}; }
-        union { size_t z, d; };
-        union { size_t y, h; };
-        union { size_t x, w; };
+        TupleNd(size_t n) : x(n) {}
+        TupleNd() : x(0) {}
+        TupleNd operator+(size_t n) { return {x+n}; }
+        TupleNd operator-(size_t n) { return {x-n}; }
+        union {
+            size_t c[1];
+            union { size_t x, w; };
+        };
+    };
+
+    template<>
+    struct TupleNd<2>
+    {
+        TupleNd(size_t y, size_t x) : y(y), x(x) {}
+        TupleNd(size_t n) : y(n), x(n) {}
+        TupleNd() : y(0), x(0) {}
+        TupleNd operator+(size_t n) { return {y+n, x+n}; }
+        TupleNd operator-(size_t n) { return {y-n, x-n}; }
+        union {
+            size_t c[2];
+            struct {
+                union { size_t y, h; };
+                union { size_t x, w; };
+            };
+        };
+    };
+
+    template<>
+    struct TupleNd<3>
+    {
+        TupleNd(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
+        TupleNd(size_t n) : z(n), y(n), x(n) {}
+        TupleNd() : y(0), x(0) {}
+        TupleNd operator+(size_t n) { return {z+n, y+n, x+n}; }
+        TupleNd operator-(size_t n) { return {z-n, y-n, x-n}; }
+        union {
+            size_t c[3];
+            struct {
+                union { size_t z, d; };
+                union { size_t y, h; };
+                union { size_t x, w; };
+            };
+        };
     };
 
     Tensor operator+(const float64 val, const Tensor &t);
@@ -149,10 +184,6 @@ namespace RedFish
         const DirectTensorView getRow(const std::vector<size_t> &index) const;
         const DirectTensorView getMatrix(const std::vector<size_t> &index) const;
         const DirectTensorView sliceLastNDims(const std::vector<size_t> &index, size_t N) const;
-        template <size_t N>
-        DirectTensorView sliceLastNDims(const std::vector<size_t> &index);
-        template <size_t N>
-        const DirectTensorView sliceLastNDims(const std::vector<size_t> &index) const;
 
         void resize(const std::vector<size_t> &new_shape);
         void reshape(const std::vector<size_t> &new_shape);
@@ -168,6 +199,7 @@ namespace RedFish
         void ones();
         void constant(float64 val);
         void linspace(float64 start, float64 stop);
+        void randBernulli(float64 p = 0.5);
         void randUniform(float64 a = 0.0, float64 b = 1.0);
         void randNormal(float64 mean = 0.0, float64 std = 1.0);
 
@@ -183,12 +215,12 @@ namespace RedFish
         Tensor  roundShift(size_t dimension, int direction) const;
         
         Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
-        Tensor correlation1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor correlation2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor correlation3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple3d dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution1d(const Tensor &kernel, size_t  padding = 0, size_t  stride = 1, size_t  dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution2d(const Tensor &kernel, Tuple2d padding = 0, Tuple2d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution3d(const Tensor &kernel, Tuple3d padding = 0, Tuple3d stride = 1, Tuple2d dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor convolution3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO) const;
 
         
         uint64_t save(std::ofstream &file) const;
@@ -212,6 +244,9 @@ namespace RedFish
         
         template <void (*fn)(float64 &, float64)>
         static float64 full_reduction(const Tensor &, const float64);
+
+        static std::vector<size_t> broadcast_shape(std::vector<size_t>&, std::vector<size_t>&);
+        static void broadcast_operation(const std::vector<size_t>&, const std::vector<size_t>&, const std::vector<size_t>&, const std::function<void(size_t,size_t,size_t)>&, size_t=0, size_t=0, size_t=0, size_t=0);
         
         template <float64 (*fn)(float64, float64)>
         static void broadcast_ew_assign(float64*, const float64*, const float64*, const size_t *, const size_t *, const size_t *, size_t, size_t=0, size_t=0, size_t=0);
@@ -410,66 +445,6 @@ namespace RedFish
 
             return this->b[n + idx[this->shape.size() - 1]];
         }
-    }
-
-    /**
-     * @brief Returns a View of this tensor on index
-     * 
-     * @tparam N
-     * @param index shape: (x,...,x,d1,..,dN) -> index: (x,...,x)
-     * @return DirectTensorView shape: (d1,..,dN)
-     */
-    template <size_t N>
-    inline DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index)
-    {
-        static_assert(N > 0);
-        auto tshape = shape;
-        while (tshape.size() < index.size() + N) tshape.insert(tshape.begin(), 1);
-
-        size_t new_shape[N], off = 0;
-        for (size_t i = 0; i < index.size(); i++)
-        {
-            off = (off + index[i]) * *(tshape.end() - index.size() + i - N + 1);
-            if (index[i] >= *(tshape.end() - index.size() + i - N))
-                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
-        }
-        for (size_t i = 0; i < N - 1; i++)
-            off *= *(tshape.end() + i - N + 1);
-
-        for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(tshape.end() - N + i);
-
-        return DirectTensorView({new_shape, new_shape + N}, b + off);
-    }
-
-    /**
-     * @brief Returns a View of this tensor on index
-     * 
-     * @tparam N
-     * @param index shape: (x,...,x,d1,..,dN) -> index: (x,...,x)
-     * @return DirectTensorView shape: (d1,..,dN)
-     */
-    template <size_t N>
-    inline const DirectTensorView Tensor::sliceLastNDims(const std::vector<size_t> &index) const
-    {
-        static_assert(N > 0);
-        auto tshape = shape;
-        while (tshape.size() < index.size() + N) tshape.insert(tshape.begin(), 1);
-
-        size_t new_shape[N], off = 0;
-        for (size_t i = 0; i < index.size(); i++)
-        {
-            off = (off + index[i]) * *(tshape.end() - index.size() + i - N + 1);
-            if (index[i] >= *(tshape.end() - index.size() + i - N))
-                throw new std::range_error("Out of bound in Tensor sliceLastNDims()");
-        }
-        for (size_t i = 0; i < N - 1; i++)
-            off *= *(tshape.end() + i - N + 1);
-
-        for (size_t i = 0; i < N; i++)
-            new_shape[i] = *(tshape.end() - N + i);
-
-        return DirectTensorView({new_shape, new_shape + N}, b + off);
     }
 
 

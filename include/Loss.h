@@ -7,6 +7,7 @@ namespace RedFish {
 
     class Loss {
     public:
+        virtual ~Loss() {};
         virtual double forward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
         virtual Tensor backward(const Tensor& prediction, const Tensor& ground_truth) const = 0;
         virtual uint64_t save(std::ofstream& file) const = 0;

@@ -10,15 +10,24 @@ namespace RedFish
     class Optimizer
     {
     public:
-        Optimizer() {}
+        Optimizer() : learning_rate(.01) {}
         Optimizer(const Optimizer&) = delete;
         virtual ~Optimizer() {}
-        virtual size_t allocateParameter(const Tensor&) = 0;
-        virtual void updateParameter(size_t i, Tensor& value, const Tensor& grad) = 0;
+        virtual size_t allocateParameters(Tensor&);
+        virtual void deleteParameters(size_t parameter_id);
         virtual void step() = 0;
-        virtual void setLearningRate(float64) = 0;
+        virtual void setLearningRate(float64 lr) {learning_rate = lr;};
         virtual uint64_t save(std::ofstream& file) const = 0;
+        Tensor& grad(size_t parameter_id);
+        void resetGradients();
 
+    protected:
+        std::vector<Tensor> grads;
+        std::vector<Tensor*> parameters;
+        float64 learning_rate;
+        
+        template<typename LayerType, typename OptType, typename... Args>
+        friend void test_learning(std::vector<size_t>, size_t, Args...);
     };
 
     enum OPTIMIZER : uint32_t {
@@ -31,15 +40,13 @@ namespace RedFish
     public:
         SGD(float64 weight_decay = 0, float64 momentum = 0, float64 dampening = 0, bool nesterov = false);
         SGD(std::ifstream& file);
-        size_t allocateParameter(const Tensor& t) override;
-        void updateParameter(size_t i, Tensor& value, const Tensor& grad) override;
+        size_t allocateParameters(Tensor& t) override;
         void step() override;
-        void setLearningRate(float64 lr) override;
         uint64_t save(std::ofstream& file) const override;
 
     private:
         std::vector<Tensor> b;
-        float64 weight_decay, momentum, dampening, learning_rate;
+        float64 weight_decay, momentum, dampening;
         bool nesterov;
         uint32_t t;
     };
@@ -49,15 +56,13 @@ namespace RedFish
     public:
         Adam();
         Adam(std::ifstream& file);
-        size_t allocateParameter(const Tensor& t) override;
-        void updateParameter(size_t i, Tensor& value, const Tensor& grad) override;
+        size_t allocateParameters(Tensor& t) override;
         void step() override;
-        void setLearningRate(float64 lr) override;
         uint64_t save(std::ofstream& file) const override;
 
     private:
         std::vector<Tensor> mw, vw;
-        float64 im1, im2, learning_rate;
+        float64 im1, im2;
         uint32_t t;
         static constexpr const float64 b1 = 0.9;
         static constexpr const float64 b2 = 0.999;

@@ -4,8 +4,33 @@
 namespace RedFish
 {
     
+    size_t Optimizer::allocateParameters(Tensor& t)
+    {
+        grads.emplace_back(Tensor::zeros_like(t));
+        parameters.emplace_back(&t);
+        return grads.size() - 1;
+    }
+
+    void Optimizer::deleteParameters(size_t parameter_id)
+    {
+        if (parameter_id < grads.size()) grads[parameter_id].resize({0}), parameters[parameter_id] = nullptr;
+        else throw new std::range_error("Gradient id out of range in Optimizer::deleteParameters(size_t parameter_id)");
+    }
+
+    Tensor &Optimizer::grad(size_t parameter_id)
+    {
+        if (parameter_id < grads.size()) return grads[parameter_id];
+        else throw new std::range_error("Gradient id out of range in Optimizer::grad(size_t parameter_id)");
+    }
+
+    void Optimizer::resetGradients()
+    {
+        for (auto& grad : grads)
+            grad.zero();
+    }
+
     SGD::SGD(float64 weight_decay, float64 momentum, float64 dampening, bool nesterov)
-        : b(), weight_decay(weight_decay), momentum(momentum), dampening(dampening), learning_rate(.01), nesterov(nesterov), t(1) {}
+        : b(), weight_decay(weight_decay), momentum(momentum), dampening(dampening), nesterov(nesterov), t(1) {}
 
     SGD::SGD(std::ifstream &file)
     {
@@ -34,39 +59,34 @@ namespace RedFish
             b.emplace_back(file);
     }
 
-    size_t SGD::allocateParameter(const Tensor& t)
+    size_t SGD::allocateParameters(Tensor& t)
     {
         if (momentum) b.emplace_back(Tensor::empty_like(t));
-        return b.size() - 1;
-    }
-
-    void SGD::updateParameter(size_t i, Tensor& value, const Tensor& grad)
-    {
-        if (weight_decay || momentum)
-        {
-            Tensor mgrad(grad);
-            if (weight_decay)
-                mgrad += weight_decay*value;
-            if (momentum)
-            {
-                if (t) b[i] = momentum*b[i] + (1-dampening)*mgrad;
-                else   b[i] = mgrad;
-                if (nesterov) mgrad += momentum*b[i];
-                else mgrad = b[i];
-            }
-            value -= learning_rate*mgrad;
-        }
-        else value -= learning_rate*grad;
+        return Optimizer::allocateParameters(t);
     }
 
     void SGD::step()
     {
+        for (size_t i = 0; i < parameters.size(); i++)
+        {
+            if (weight_decay || momentum)
+            {
+                Tensor mgrad(grads[i]);
+                if (weight_decay)
+                    mgrad += weight_decay* *parameters[i];
+                if (momentum)
+                {
+                    if (t) b[i] = momentum*b[i] + (1-dampening)*mgrad;
+                    else   b[i] = mgrad;
+                    if (nesterov) mgrad += momentum*b[i];
+                    else mgrad = b[i];
+                }
+                *parameters[i] -= learning_rate*mgrad;
+            }
+            else *parameters[i] -= learning_rate*grads[i];
+        }
         t++;
-    }
-    
-    void SGD::setLearningRate(float64 lr)
-    {
-        learning_rate = lr;
+        resetGradients();
     }
 
     uint64_t SGD::save(std::ofstream &file) const
@@ -100,7 +120,7 @@ namespace RedFish
         return size + sizeof(uint64_t) + sizeof(name);
     }
 
-    Adam::Adam() : mw(), vw(), im1(1 / (1 - b1)), im2(1 / (1 - b2)), learning_rate(.01), t(1) {}
+    Adam::Adam() : mw(), vw(), im1(1 / (1 - b1)), im2(1 / (1 - b2)), t(1) {}
 
     Adam::Adam(std::ifstream &file)
     {
@@ -132,43 +152,32 @@ namespace RedFish
         }
     }
 
-    size_t Adam::allocateParameter(const Tensor& t)
+    size_t Adam::allocateParameters(Tensor& t)
     {
         mw.emplace_back(Tensor::zeros_like(t));
         vw.emplace_back(Tensor::zeros_like(t));
-        return mw.size() - 1;
-    }
-
-    void Adam::updateParameter(size_t i, Tensor& value, const Tensor& grad)
-    {
-        mw[i] *= b1;
-        vw[i] *= b2;
-        mw[i] += grad      * one_minus_b1;
-        vw[i] += grad*grad * one_minus_b2; 
-
-        Tensor m_hat = mw[i] * im1; 
-        Tensor v_hat = vw[i] * im2;
-
-        value -= learning_rate * m_hat / (std::sqrt(v_hat) - epsilon);
+        return Optimizer::allocateParameters(t);
     }
 
     void Adam::step()
     {
+        for (size_t i = 0; i < parameters.size(); i++)
+        {
+            mw[i] *= b1;
+            vw[i] *= b2;
+            mw[i] += grads[i]          * one_minus_b1;
+            vw[i] += grads[i]*grads[i] * one_minus_b2;
+
+            Tensor m_hat = mw[i] * im1; 
+            Tensor v_hat = vw[i] * im2;
+
+            *parameters[i] -= learning_rate * m_hat / (std::sqrt(v_hat) - epsilon);
+        }
         t++;
         im1 = 1 / (1 - std::pow(b1, t));
         im2 = 1 / (1 - std::pow(b2, t));
+        resetGradients();
     }
-    
-    void Adam::setLearningRate(float64 lr)
-    {
-        learning_rate = lr;
-    }
-
-    // im1
-    // im2
-    // Lr
-    // t
-    // dim [mw[0], vw[0] ... ]
 
     uint64_t Adam::save(std::ofstream &file) const
     {

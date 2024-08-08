@@ -5,6 +5,7 @@
 #include "ConvLayer.h"
 #include "ActivationLayer.h"
 #include "FlattenLayer.h"
+#include "DropoutLayer.h"
 #include "MaxPoolLayer.h"
 #include "Optimizer.h"
 #include "Loss.h"
@@ -18,6 +19,7 @@ namespace RedFish {
     class Model {
     public:
         Model(const std::vector<Layer::Descriptor>& layers, uint32_t loss = SQUARE_LOSS, uint32_t optimizer = ADAM_OPT);
+        Model(const std::vector<Layer*>& layers, Loss* loss, Optimizer* optimizer);
         Model(const std::string& file_path);
         ~Model();
 

@@ -13,7 +13,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -24,7 +24,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -35,7 +35,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -48,10 +48,10 @@ namespace RedFish::Activation
 
     public:
         PReLU(float64 initial = .25);
-        PReLU(std::ifstream& file, Optimizer* optimizer);
+        PReLU(std::ifstream& file);
 
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -62,7 +62,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -73,7 +73,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -84,7 +84,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -95,7 +95,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -106,7 +106,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
@@ -115,7 +115,7 @@ namespace RedFish::Activation
 
     public:
         Tensor forward(const Tensor& X) override;
-        Tensor backward(const Tensor& X, const Tensor& d) override;
+        Tensor backward(const Tensor& d) override;
         uint64_t save(std::ofstream& file) const override;
 
     };
