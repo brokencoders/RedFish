@@ -1,4 +1,5 @@
 #include "Model.h"
+#include "With.h"
 #include <chrono>
 #include <string>
 #include <matplot/matplot.h>
@@ -66,10 +67,10 @@ namespace RedFish
             if (l) delete l;
     }
 
-    void Model::train(const Tensor &in, const Tensor &out, uint32_t epochs, double learning_rate, size_t mini_batch_size)
+    void Model::train(const Tensor &in, const Tensor &out, uint32_t epochs, double learning_rate, size_t mini_batch_size, bool smooth_lr)
     {
         using namespace matplot;
-        Layer::training = true;
+        With w(Layer::training, true);
         size_t train_time = 0, batching_time = 0;
         float64 /* avg_loss = 0., */ a = .5, b = .5;
         std::vector<float64> avg_loss(1,0);
@@ -77,7 +78,10 @@ namespace RedFish
         long long ttime = 0, btime = 0;
 
         float64 lrstep = learning_rate/5, lrdecay = .99, lr = learning_rate/5;
-        optimizer->setLearningRate(lr);
+        if (smooth_lr)
+            optimizer->setLearningRate(lr);
+        else
+            optimizer->setLearningRate(learning_rate);
 
         size_t training_samples_count = in.getShape()[0];
         size_t batch_count = training_samples_count / mini_batch_size;
@@ -118,8 +122,8 @@ namespace RedFish
                     grad = layers.end()[-j - 1]->backward(grad);
 
                 optimizer->step();
-                optimizer->setLearningRate(lr);
-                std::cout << "lr: " << lr << std::endl;
+                if (smooth_lr) optimizer->setLearningRate(lr);
+                /* std::cout << "lr: " << lr << std::endl; */
 
                 if (i*batch_count+k < 4) lr += lrstep;
                 /* else lr *= lrdecay; */
@@ -139,7 +143,7 @@ namespace RedFish
 
     double Model::test(const Tensor &in, const Tensor &out, std::function<double(const Tensor &, const Tensor &)> accuracy)
     {
-        Layer::training = false;
+        With w(Layer::training, false);
         Tensor ris = this->estimate(in);
         double sum = 0;
         for (size_t i = 0; i < in.getShape()[0]; i++)
@@ -152,7 +156,7 @@ namespace RedFish
 
     Tensor Model::estimate(const Tensor &in)
     {
-        Layer::training = false;
+        With w(Layer::training, false);
         Tensor fw_res = layers.front()->forward(in);
         for (size_t j = 1; j < layers.size(); j++)
             fw_res = layers[j]->forward(fw_res);

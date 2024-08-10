@@ -1,39 +1,56 @@
 #pragma once
+#include "With.h"
+#include <iostream>
 
 namespace RedFish
 {
     
-    template<typename LayerType, typename... Args>
+    template<typename LayerType, typename OptType = SGD, typename... Args>
     void test_grad(std::vector<size_t> input_shape, Args... args)
     {
-        Adam opt;
+        With w(Layer::training, true);
+        OptType opt;
         SquareLoss sl;
-        LayerType layer(args..., &opt);
+        LayerType layer(args...);
+        layer.useOptimizer(opt);
 
-        Tensor a(input_shape);
-        a.randNormal();
+        Tensor a = Tensor::empty_like(input_shape).randNormal();
         Tensor out = layer.forward(a);
-        Tensor gt  = Tensor::empty_like(out);
-        gt.randNormal();
-        Tensor& param = a;
+        Tensor gt  = Tensor::empty_like(out).randNormal();
         Tensor grad = layer.backward(sl.backward(out, gt));
-        Tensor grad_es = Tensor::empty_like(param);
+        Tensor grad_es = Tensor::empty_like(a);
         double loss = sl.forward(out, gt);
-        double delta = 1e-6;
+        double delta = 1e-8;
+        Layer::training = false;
 
         for (size_t i = 0; i < grad_es.getSize(); i++)
         {
-            param(i) += delta;
+            a(i) += delta;
             grad_es(i) = (sl.forward(layer.forward(a), gt) - loss) / delta;
-            param(i) -= delta;
+            a(i) -= delta;
         }
 
-        std::cout << grad << grad_es << (grad - grad_es).squareSum() / grad.getSize();
+        std::cout << "X grad error: " << (grad - grad_es).squareSum() / grad.getSize() << std::endl;
+        
+        for (size_t k = 0; k < opt.grads.size(); k++)
+        {
+            grad_es = Tensor::empty_like(opt.grads[k]);
+            for (size_t i = 0; i < grad_es.getSize(); i++)
+            {
+                Tensor& param = *opt.parameters[k];
+                param(i) += delta;
+                grad_es(i) = (sl.forward(layer.forward(a), gt) - loss) / delta;
+                param(i) -= delta;
+            }
+            std::cout << "Layer grad error: " << (opt.grads[k] - grad_es).squareSum() / grad.getSize() << std::endl;
+        }
     }
 
     template<typename LayerType, typename OptType = SGD, typename... Args>
     void test_learning(std::vector<size_t> input_shape, size_t iterations, Args... args)
     {
+        bool tr = Layer::training;
+        Layer::training = true;
         OptType opt, fake_opt;
         opt.setLearningRate(.01);
         SquareLoss sl;
@@ -62,6 +79,7 @@ namespace RedFish
             std::cout << "loss: " << loss << "\t"
                       << "diff: " << diff << std::endl;
         }
+        Layer::training = tr;
     }
 
 }

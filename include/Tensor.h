@@ -57,6 +57,7 @@ namespace RedFish
         TupleNd() : { for (size_t i = 0; i < N; i++) c[i] = 0; }
         TupleNd operator+(size_t n) { TuplaNd<N> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] + n;}
         TupleNd operator-(size_t n) { TuplaNd<N> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] - n;}
+        size_t operator[](size_t i) { return c[i]; }
         size_t c[N];
     };
 
@@ -67,6 +68,7 @@ namespace RedFish
         TupleNd() : x(0) {}
         TupleNd operator+(size_t n) { return {x+n}; }
         TupleNd operator-(size_t n) { return {x-n}; }
+        size_t operator[](size_t i) { return c[i]; }
         union {
             size_t c[1];
             union { size_t x, w; };
@@ -81,6 +83,7 @@ namespace RedFish
         TupleNd() : y(0), x(0) {}
         TupleNd operator+(size_t n) { return {y+n, x+n}; }
         TupleNd operator-(size_t n) { return {y-n, x-n}; }
+        size_t operator[](size_t i) { return c[i]; }
         union {
             size_t c[2];
             struct {
@@ -98,6 +101,7 @@ namespace RedFish
         TupleNd() : y(0), x(0) {}
         TupleNd operator+(size_t n) { return {z+n, y+n, x+n}; }
         TupleNd operator-(size_t n) { return {z-n, y-n, x-n}; }
+        size_t operator[](size_t i) { return c[i]; }
         union {
             size_t c[3];
             struct {
@@ -195,13 +199,13 @@ namespace RedFish
         Tensor T() const;
         Tensor T(size_t dimension1, size_t dimension2);
 
-        void zero();
-        void ones();
-        void constant(float64 val);
-        void linspace(float64 start, float64 stop);
-        void randBernulli(float64 p = 0.5);
-        void randUniform(float64 a = 0.0, float64 b = 1.0);
-        void randNormal(float64 mean = 0.0, float64 std = 1.0);
+        Tensor& zero();
+        Tensor& ones();
+        Tensor& constant(float64 val);
+        Tensor& linspace(float64 start, float64 stop);
+        Tensor& randBernulli(float64 p = 0.5);
+        Tensor& randUniform(float64 a = 0.0, float64 b = 1.0);
+        Tensor& randNormal(float64 mean = 0.0, float64 std = 1.0);
 
         float64 squareSum() const;
         Tensor  squareSum(size_t dimension, bool collapse_dimension = false) const;
@@ -215,12 +219,12 @@ namespace RedFish
         Tensor  roundShift(size_t dimension, int direction) const;
         
         Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
-        Tensor correlation1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor correlation2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor correlation3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO) const;
-        Tensor convolution3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO) const;
+        Tensor correlation1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor correlation2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor correlation3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor convolution1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor convolution2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor convolution3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
 
         
         uint64_t save(std::ofstream &file) const;
@@ -261,6 +265,9 @@ namespace RedFish
         
         template <float64 (*fn)(float64, float64), size_t fn_device>
         static void ew_or_left_broadcast_assign(Tensor &, const Tensor &, const char *);
+
+        template <size_t N, bool conv>
+        inline Tensor convcorr(const Tensor &kernel, TupleNd<N> padding = 0, TupleNd<N> stride = 1, TupleNd<N> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
 
         friend Tensor operator-(const float64, const Tensor &);
         friend Tensor operator/(const float64, const Tensor &);

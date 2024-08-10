@@ -27,6 +27,8 @@ namespace RedFish
         float64 learning_rate;
         
         template<typename LayerType, typename OptType, typename... Args>
+        friend void test_grad(std::vector<size_t>, Args...);
+        template<typename LayerType, typename OptType, typename... Args>
         friend void test_learning(std::vector<size_t>, size_t, Args...);
     };
 

@@ -23,7 +23,7 @@ namespace RedFish {
         Model(const std::string& file_path);
         ~Model();
 
-        void train(const Tensor& in, const Tensor& out, uint32_t epochs = 100, double learning_rate = .01, size_t mini_batch_size = 3);
+        void train(const Tensor& in, const Tensor& out, uint32_t epochs = 100, double learning_rate = .01, size_t mini_batch_size = 3, bool smooth_lr = true);
         double test(const Tensor& in, const Tensor& out, std::function<double(const Tensor&, const Tensor&)> accuracy);
         Tensor estimate(const Tensor& in);
 

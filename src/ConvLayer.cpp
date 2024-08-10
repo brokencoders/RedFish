@@ -53,7 +53,7 @@ namespace RedFish {
     Tensor Conv1dLayer::forward(const Tensor& X)
     {
         if (training) this->X = X;
-        Tensor result = X.asShapeOneInsert(2).correlation1d(kernels).sum(1, true);
+        Tensor result = X.asShapeOneInsert(2).correlation1d(kernels, 0, 1, 1, ZERO, 1, true);
         result += bias;
 
         return result;
@@ -63,8 +63,8 @@ namespace RedFish {
     {
         auto dd = d.asShapeOneInsert(1), XX = X.asShapeOneInsert(2);
 
-        Tensor grad_X = dd.convolution1d(kernels, kernel_size - 1).sum(2, true);
-        Tensor grad_k = XX.correlation1d(dd).sum(3, true);
+        Tensor grad_X = dd.convolution1d(kernels, kernel_size - 1, 1, 1, ZERO, 2, true);
+        Tensor grad_k = XX.correlation1d(dd, 0, 1, 1, ZERO, 3, true);
         Tensor grad_b = d.sum(0).sum(2, true);
 
         optimizer->grad(k_id) += grad_k;
@@ -162,7 +162,7 @@ namespace RedFish {
     Tensor Conv2dLayer::forward(const Tensor& X)
     {
         if (training) this->X = X;
-        Tensor result = X.asShapeOneInsert(3).correlation2d(kernels).sum(2, true);
+        Tensor result = X.asShapeOneInsert(3).correlation2d(kernels, padding, stride, dilation, ZERO, 2, true);
         result += bias;
 
         return result;
@@ -172,8 +172,8 @@ namespace RedFish {
     {
         auto dd = d.asShapeOneInsert(2), XX = X.asShapeOneInsert(3);
 
-        Tensor grad_X = dd.convolution2d(kernels, kernel_size - 1).sum(3, true);
-        Tensor grad_k = XX.correlation2d(dd).sum(4, true);
+        Tensor grad_X = dd.convolution2d(kernels, kernel_size - 1, 1, 1, ZERO, 3, true);
+        Tensor grad_k = XX.correlation2d(dd, 0, 1, 1, ZERO, 4, true);
         Tensor grad_b = d.sum(0).sum(1).sum(3, true);
 
         optimizer->grad(k_id) += grad_k;
@@ -281,7 +281,7 @@ namespace RedFish {
     Tensor Conv3dLayer::forward(const Tensor &X)
     {
         if (training) this->X = X;
-        Tensor result = X.asShapeOneInsert(4).correlation3d(kernels).sum(3, true);
+        Tensor result = X.asShapeOneInsert(4).correlation3d(kernels, 0, 1, 1, ZERO, 3, true);
         result += bias;
 
         return result;
@@ -291,8 +291,8 @@ namespace RedFish {
     {
         auto dd = d.asShapeOneInsert(3), XX = X.asShapeOneInsert(4);
 
-        Tensor grad_X = dd.convolution3d(kernels, kernel_size - 1).sum(4, true);
-        Tensor grad_k = XX.correlation3d(dd).sum(5, true);
+        Tensor grad_X = dd.convolution3d(kernels, kernel_size - 1, 1, 1, ZERO, 4, true);
+        Tensor grad_k = XX.correlation3d(dd, 0, 1, 1, ZERO, 5, true);
         Tensor grad_b = d.sum(0).sum(1).sum(2).sum(4, true);
 
         optimizer->grad(k_id) += grad_k;
