@@ -4,7 +4,7 @@ namespace RedFish {
 
     /* 1D */
 
-    Conv1dLayer::Conv1dLayer(size_t in_channels, size_t out_channels, size_t kernel_size, size_t stride, size_t padding, size_t dilation, PaddingMode pm)
+    Conv1dLayer::Conv1dLayer(size_t in_channels, size_t out_channels, size_t kernel_size, size_t stride, int64_t padding, size_t dilation, PaddingMode pm)
         : kernels({out_channels,in_channels,kernel_size}), bias({out_channels, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm)
     {
         float64 stdv = 1. / std::sqrt(in_channels*kernel_size);
@@ -53,7 +53,7 @@ namespace RedFish {
     Tensor Conv1dLayer::forward(const Tensor& X)
     {
         if (training) this->X = X;
-        Tensor result = X.asShapeOneInsert(2).correlation1d(kernels, 0, 1, 1, ZERO, 1, true);
+        Tensor result = X.asShapeOneInsert(2).correlation1d(kernels, padding, stride, dilation, ZERO, 1, true);
         result += bias;
 
         return result;
@@ -61,11 +61,23 @@ namespace RedFish {
 
     Tensor Conv1dLayer::backward(const Tensor& d) 
     {
-        auto dd = d.asShapeOneInsert(1), XX = X.asShapeOneInsert(2);
+        Tensor d_unstrided;
+        if (stride > 1)
+        {
+            auto L = X.colSize();
+            auto ushape = d.getShape();
+            if (ushape.size()) ushape.back() = L - dilation*(kernel_size - 1) + 2*padding;
+            d_unstrided = d.dilated(ushape);
+        }
 
-        Tensor grad_X = dd.convolution1d(kernels, kernel_size - 1, 1, 1, ZERO, 2, true);
-        Tensor grad_k = XX.correlation1d(dd, 0, 1, 1, ZERO, 3, true);
+        auto dd = stride == 1 ? d.asShapeOneInsert(1) : d_unstrided.asShapeOneInsert(1);
+        auto XX = X.asShapeOneInsert(2);
+
+        Tensor grad_X = dd.convolution1d(kernels, dilation*(kernel_size - 1) - padding, 1, dilation, ZERO, 2, true);
+        Tensor grad_k = XX.correlation1d(dd, padding, 1, 1, ZERO, 3, true);
         Tensor grad_b = d.sum(0).sum(2, true);
+
+        if (dilation > 1) grad_k.shrink(kernels.getShape(), true);
 
         optimizer->grad(k_id) += grad_k;
         optimizer->grad(b_id) += grad_b;
@@ -109,7 +121,7 @@ namespace RedFish {
 
     /* 2D */
 
-    Conv2dLayer::Conv2dLayer(size_t in_channels, size_t out_channels, TupleNd<2> kernel_size, TupleNd<2> stride, TupleNd<2> padding, TupleNd<2> dilation, PaddingMode pm)
+    Conv2dLayer::Conv2dLayer(size_t in_channels, size_t out_channels, TupleNd<2> kernel_size, TupleNd<2> stride, TupleNd<2, int64_t> padding, TupleNd<2> dilation, PaddingMode pm)
         : kernels({out_channels,in_channels,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm)
     {
         float64 stdv = 1. / std::sqrt(in_channels*kernel_size.x*kernel_size.y);
@@ -170,11 +182,25 @@ namespace RedFish {
 
     Tensor Conv2dLayer::backward(const Tensor& d) 
     {
-        auto dd = d.asShapeOneInsert(2), XX = X.asShapeOneInsert(3);
+        Tensor d_unstrided;
+        if (stride.x > 1 || stride.y > 1)
+        {
+            TupleNd<2> L(X.rowSize(), X.colSize());
+            TupleNd<2> Lo = L-dilation*(kernel_size - 1) + padding*2;
+            auto ushape = d.getShape();
+            if (ushape.size() > 0) ushape.end()[-1] = Lo.x;
+            if (ushape.size() > 1) ushape.end()[-2] = Lo.y;
+            d_unstrided = d.dilated(ushape);
+        }
 
-        Tensor grad_X = dd.convolution2d(kernels, kernel_size - 1, 1, 1, ZERO, 3, true);
-        Tensor grad_k = XX.correlation2d(dd, 0, 1, 1, ZERO, 4, true);
+        auto dd = stride.x == 1 && stride.y == 1 ? d.asShapeOneInsert(2) : d_unstrided.asShapeOneInsert(2);
+        auto XX = X.asShapeOneInsert(3);
+
+        Tensor grad_X = dd.convolution2d(kernels, dilation*(kernel_size - 1) - padding, 1, dilation, ZERO, 3, true);
+        Tensor grad_k = XX.correlation2d(dd, padding, 1, 1, ZERO, 4, true);
         Tensor grad_b = d.sum(0).sum(1).sum(3, true);
+
+        if (dilation.x > 1 || dilation.y > 1) grad_k.shrink(kernels.getShape(), true);
 
         optimizer->grad(k_id) += grad_k;
         optimizer->grad(b_id) += grad_b;
@@ -224,7 +250,7 @@ namespace RedFish {
 
     /* 3D */
 
-    Conv3dLayer::Conv3dLayer(size_t in_channels, size_t out_channels, TupleNd<3> kernel_size, TupleNd<3> stride, TupleNd<3> padding, TupleNd<3> dilation, PaddingMode pm)
+    Conv3dLayer::Conv3dLayer(size_t in_channels, size_t out_channels, TupleNd<3> kernel_size, TupleNd<3> stride, TupleNd<3, int64_t> padding, TupleNd<3> dilation, PaddingMode pm)
         : kernels({out_channels,in_channels,kernel_size.d,kernel_size.h, kernel_size.w}), bias({out_channels, 1, 1, 1}), in_ch(in_channels), out_ch(out_channels), kernel_size(kernel_size), stride(stride), padding(padding), dilation(dilation), pm(pm)
     {
         float64 stdv = 1. / std::sqrt(in_channels*kernel_size.x*kernel_size.y*kernel_size.z);
@@ -281,7 +307,7 @@ namespace RedFish {
     Tensor Conv3dLayer::forward(const Tensor &X)
     {
         if (training) this->X = X;
-        Tensor result = X.asShapeOneInsert(4).correlation3d(kernels, 0, 1, 1, ZERO, 3, true);
+        Tensor result = X.asShapeOneInsert(4).correlation3d(kernels, padding, stride, dilation, ZERO, 3, true);
         result += bias;
 
         return result;
@@ -289,11 +315,26 @@ namespace RedFish {
     
     Tensor Conv3dLayer::backward(const Tensor &d)
     {
-        auto dd = d.asShapeOneInsert(3), XX = X.asShapeOneInsert(4);
+        Tensor d_unstrided;
+        if (stride.x > 1 || stride.y > 1 || stride.z > 1)
+        {
+            TupleNd<3> L(X.NthSize(2), X.rowSize(), X.colSize());
+            TupleNd<3> Lo = L-dilation*(kernel_size - 1) + padding*2;
+            auto ushape = d.getShape();
+            if (ushape.size() > 0) ushape.end()[-1] = Lo.x;
+            if (ushape.size() > 1) ushape.end()[-2] = Lo.y;
+            if (ushape.size() > 2) ushape.end()[-3] = Lo.z;
+            d_unstrided = d.dilated(ushape);
+        }
 
-        Tensor grad_X = dd.convolution3d(kernels, kernel_size - 1, 1, 1, ZERO, 4, true);
-        Tensor grad_k = XX.correlation3d(dd, 0, 1, 1, ZERO, 5, true);
+        auto dd = stride.x == 1 && stride.y == 1 && stride.z == 1 ? d.asShapeOneInsert(3) : d_unstrided.asShapeOneInsert(3);
+        auto XX = X.asShapeOneInsert(4);
+
+        Tensor grad_X = dd.convolution3d(kernels, dilation*(kernel_size - 1) - padding, 1, dilation, ZERO, 4, true);
+        Tensor grad_k = XX.correlation3d(dd, padding, 1, 1, ZERO, 5, true);
         Tensor grad_b = d.sum(0).sum(1).sum(2).sum(4, true);
+
+        if (dilation.x > 1 || dilation.y > 1 || dilation.z > 1) grad_k.shrink(kernels.getShape(), true);
 
         optimizer->grad(k_id) += grad_k;
         optimizer->grad(b_id) += grad_b;

@@ -8,6 +8,11 @@ namespace std
         return RedFish::forEach<std::sqrt>(t);
     }
 
+    RedFish::Tensor abs(const RedFish::Tensor &t)
+    {
+        return RedFish::forEach<std::abs>(t);
+    }
+
     RedFish::Tensor exp(const RedFish::Tensor &t)
     {
         return RedFish::forEach<std::exp>(t);

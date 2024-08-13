@@ -13,71 +13,6 @@
 
 namespace RedFish
 {
-    
-    static class ThreadPool { 
-    public:
-        ThreadPool(size_t num_threads = std::thread::hardware_concurrency())
-            : active_threads(0), size(num_threads)
-        {
-            for (size_t i = 0; i < num_threads; ++i) {
-                threads.emplace_back([this, i] {
-                    while (true) {
-                        std::function<void(size_t)> task;
-                        {
-                            std::unique_lock<std::mutex> lock(queue_mutex);
-                            cv.wait(lock, [this] { return !tasks.empty() || stop; });
-                            if (stop && tasks.empty()) { return; }
-                            task = std::move(tasks.front());
-                            tasks.pop();
-                            active_threads++;
-                        }
-                        task(i);
-                        {
-                            std::unique_lock<std::mutex> lock(queue_mutex);
-                            active_threads--;
-                            thread_done.notify_one();
-                        }
-                    } 
-                }); 
-            } 
-        }
-        ~ThreadPool()
-        {
-            {
-                std::unique_lock<std::mutex> lock(queue_mutex); 
-                stop = true; 
-            }
-
-            cv.notify_all(); 
-            for (auto& thread : threads)
-                thread.join();
-        }
-        void enqueue(std::function<void(size_t)> task) 
-        { 
-            { 
-                std::unique_lock<std::mutex> lock(queue_mutex);
-                if (tasks.size()) thread_done.wait(lock, [this] {return tasks.empty();});
-                tasks.emplace(std::move(task)); 
-            }
-            cv.notify_one();
-        }
-        void waitToFinish()
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex);
-            thread_done.wait(lock, [this] {return active_threads == 0;});
-        }
-    
-    private:
-        std::vector<std::thread> threads; 
-        std::queue<std::function<void(size_t)>> tasks; 
-        std::mutex queue_mutex;
-        std::condition_variable cv, thread_done;
-        bool stop = false;
-        size_t active_threads;
-    public:
-        const size_t size;
-    } thread_pool;
-
 
     template <auto fn>
     static void for_(const size_t size[], const size_t ld[], std::vector<size_t>& index, size_t height, float64* b, size_t depth=0, size_t off=0);
@@ -861,7 +796,7 @@ namespace RedFish
      * 
      * @param new_shape 
      */
-    void Tensor::resize(const std::vector<size_t> &new_shape)
+    Tensor& Tensor::resize(const std::vector<size_t> &new_shape)
     {
         this->shape = new_shape;
         size_t new_size = 1;
@@ -885,6 +820,7 @@ namespace RedFish
             }
         
         size = new_size;
+        return *this;
     }
 
     /**
@@ -892,7 +828,7 @@ namespace RedFish
      * 
      * @param new_shape 
      */
-    void Tensor::reshape(const std::vector<size_t> &new_shape)
+    Tensor& Tensor::reshape(const std::vector<size_t> &new_shape)
     {
         size_t new_size = 1;
         for (size_t i = 0; i < new_shape.size(); i++)
@@ -902,6 +838,357 @@ namespace RedFish
             throw std::length_error("Invalid new shape in Tensor reshape");
 
         this->shape = new_shape;
+        return *this;
+    }
+
+    Tensor& Tensor::dilate(const std::vector<size_t> &new_shape)
+    {
+        size_t new_size = 1, min_size = std::min(new_shape.size(), shape.size());
+        bool same_shape = true;
+        for (size_t i = 0; i < min_size; i++)
+            if (new_shape.end()[-1-i] != shape.end()[-1-i])
+            {
+                same_shape = false;
+                break;
+            }
+            else if (new_shape.end()[-1-i] < shape.end()[-1-i])
+                throw std::length_error("New shape is smaller than original in Tensor::dilate");
+        for (size_t i = min_size; i < shape.size(); i++)
+            if (shape.end()[-1-i] != 1)
+                throw std::length_error("New shape is smaller than original in Tensor::dilate");
+
+        
+        if (!same_shape)
+        {
+            for (size_t i = 0; i < new_shape.size(); i++)
+                new_size *= new_shape[i];
+            
+            auto new_b = alloc(new_size);
+            std::fill(new_b, new_b + new_size, 0);
+            auto dilation = new_shape;
+            for (size_t i = 0; i < min_size; i++)
+                dilation.end()[-1-i] /= shape.end()[-1-i];
+
+            std::function<void(const size_t*,size_t*,size_t*,size_t,size_t,size_t)> copyvals;
+            copyvals = [new_b, this, &copyvals](const size_t* new_shape, size_t* shape, size_t* dilation,
+                                                size_t new_off, size_t off, size_t depth) {
+                if (depth > 1)
+                    for (size_t i = 0; i < *shape; i++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i * *dilation,
+                                 off * *shape + i, depth - 1);
+                else
+                    for (size_t i = 0; i < *shape; i++)
+                        new_b[new_off * *new_shape + i * *dilation] = b[off * *shape + i];
+            };
+
+            copyvals(new_shape.data() + new_shape.size() - min_size,
+                     shape.data()     +     shape.size() - min_size,
+                     dilation.data()  +  dilation.size() - min_size,
+                     0,0, min_size);
+            dealloc(b);
+            b = new_b;
+        }
+
+        size = new_size;
+        this->shape = new_shape;
+        return *this;
+    }
+
+    Tensor Tensor::dilated(const std::vector<size_t> &new_shape) const
+    {
+        size_t new_size = 1, min_size = std::min(new_shape.size(), shape.size());
+        bool same_shape = true;
+        for (size_t i = 0; i < min_size; i++)
+            if (new_shape.end()[-1-i] != shape.end()[-1-i])
+            {
+                same_shape = false;
+                break;
+            }
+            else if (new_shape.end()[-1-i] < shape.end()[-1-i])
+                throw std::length_error("New shape is smaller than original in Tensor::dilated");
+        for (size_t i = min_size; i < shape.size(); i++)
+            if (shape.end()[-1-i] != 1)
+                throw std::length_error("New shape is smaller than original in Tensor::dilated");
+
+        
+        if (!same_shape)
+        {
+            for (size_t i = 0; i < new_shape.size(); i++)
+                new_size *= new_shape[i];
+            
+            Tensor result(new_shape);
+            auto new_b = result.b;
+            std::fill(new_b, new_b + new_size, 0);
+            auto dilation = new_shape;
+            for (size_t i = 0; i < min_size; i++)
+                dilation.end()[-1-i] /= shape.end()[-1-i];
+
+            std::function<void(const size_t*,const size_t*,size_t*,size_t,size_t,size_t)> copyvals;
+            copyvals = [new_b, this, &copyvals](const size_t* new_shape, const size_t* shape, size_t* dilation,
+                                                size_t new_off, size_t off, size_t depth) {
+                if (depth > 1)
+                    for (size_t i = 0; i < *shape; i++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i * *dilation,
+                                 off * *shape + i, depth - 1);
+                else
+                    for (size_t i = 0; i < *shape; i++)
+                        new_b[new_off * *new_shape + i * *dilation] = b[off * *shape + i];
+            };
+
+            copyvals(new_shape.data() + new_shape.size() - min_size,
+                     shape.data()     +     shape.size() - min_size,
+                     dilation.data()  +  dilation.size() - min_size,
+                     0,0, min_size);
+
+            return result;
+        }
+        else return *this;
+    }
+
+    Tensor& Tensor::shrink(const std::vector<size_t> &new_shape, bool max_stride)
+    {
+        size_t new_size = 1, min_size = std::min(new_shape.size(), shape.size());
+        bool same_shape = true;
+        for (size_t i = 0; i < min_size; i++)
+            if (new_shape.end()[-1-i] != shape.end()[-1-i])
+            {
+                same_shape = false;
+                break;
+            }
+            else if (new_shape.end()[-1-i] > shape.end()[-1-i])
+                throw std::length_error("New shape is bigger than original in Tensor::shrink");
+        for (size_t i = min_size; i < new_shape.size(); i++)
+            if (new_shape.end()[-1-i] != 1)
+                throw std::length_error("New shape is bigger than original in Tensor::shrink");
+
+        
+        if (!same_shape)
+        {
+            for (size_t i = 0; i < new_shape.size(); i++)
+                new_size *= new_shape[i];
+            
+            auto new_b = alloc(new_size);
+            auto dilation = shape;
+            for (size_t i = 0; i < min_size; i++)
+            {
+                dilation.end()[-1-i] /= new_shape.end()[-1-i];
+                if ((dilation.end()[-1-i] + 1)*(new_shape.end()[-1-i]-1) + 1 <= shape.end()[-1-i])
+                    dilation.end()[-1-i]++;
+            }
+
+            std::function<void(const size_t*,size_t*,size_t*,size_t,size_t,size_t)> copyvals;
+            copyvals = [new_b, this, &copyvals](const size_t* new_shape, size_t* shape, size_t* dilation,
+                                                size_t new_off, size_t off, size_t depth) {
+                if (depth > 1)
+                    for (size_t i = 0; i < *new_shape; i++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i,
+                                 off * *shape + i * *dilation, depth - 1);
+                else
+                    for (size_t i = 0; i < *new_shape; i++)
+                        new_b[new_off * *new_shape + i] = b[off * *shape + i * *dilation];
+            };
+
+            copyvals(new_shape.data() + new_shape.size() - min_size,
+                     shape.data()     +     shape.size() - min_size,
+                     dilation.data()  +  dilation.size() - min_size,
+                     0,0, min_size);
+            dealloc(b);
+            b = new_b;
+        }
+
+        size = new_size;
+        this->shape = new_shape;
+        return *this;
+    }
+
+    Tensor Tensor::shrinked(const std::vector<size_t> &new_shape, bool max_stride) const
+    {
+        size_t new_size = 1, min_size = std::min(new_shape.size(), shape.size());
+        bool same_shape = true;
+        for (size_t i = 0; i < min_size; i++)
+            if (new_shape.end()[-1-i] != shape.end()[-1-i])
+            {
+                same_shape = false;
+                break;
+            }
+            else if (new_shape.end()[-1-i] > shape.end()[-1-i])
+                throw std::length_error("New shape is bigger than original in Tensor::shrink");
+        for (size_t i = min_size; i < new_shape.size(); i++)
+            if (new_shape.end()[-1-i] != 1)
+                throw std::length_error("New shape is bigger than original in Tensor::shrink");
+
+        
+        if (!same_shape)
+        {
+            for (size_t i = 0; i < new_shape.size(); i++)
+                new_size *= new_shape[i];
+            
+            Tensor result(new_shape);
+            auto new_b = result.b;
+            auto dilation = shape;
+            for (size_t i = 0; i < min_size; i++)
+            {
+                dilation.end()[-1-i] /= new_shape.end()[-1-i];
+                if ((dilation.end()[-1-i] + 1)*(new_shape.end()[-1-i]-1) + 1 <= shape.end()[-1-i])
+                    dilation.end()[-1-i]++;
+            }
+
+            std::function<void(const size_t*,const size_t*,size_t*,size_t,size_t,size_t)> copyvals;
+            copyvals = [new_b, this, &copyvals](const size_t* new_shape, const size_t* shape, size_t* dilation,
+                                                size_t new_off, size_t off, size_t depth) {
+                if (depth > 1)
+                    for (size_t i = 0; i < *new_shape; i++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i,
+                                 off * *shape + i * *dilation, depth - 1);
+                else
+                    for (size_t i = 0; i < *new_shape; i++)
+                        new_b[new_off * *new_shape + i] = b[off * *shape + i * *dilation];
+            };
+
+            copyvals(new_shape.data() + new_shape.size() - min_size,
+                     shape.data()     +     shape.size() - min_size,
+                     dilation.data()  +  dilation.size() - min_size,
+                     0,0, min_size);
+            return result;
+        }
+        else return *this;
+    }
+
+    Tensor& Tensor::stretch(const std::vector<size_t> &new_shape)
+    {
+        if (shape.size() < new_shape.size()) shape.insert(shape.begin(), new_shape.size() - shape.size(), 1);
+        size_t new_size = 1, min_size = std::min(new_shape.size(), shape.size());
+        bool same_shape = true;
+        for (size_t i = 0; i < min_size; i++)
+            if (new_shape.end()[-1-i] != shape.end()[-1-i])
+            {
+                same_shape = false;
+                break;
+            }
+            else if (new_shape.end()[-1-i] < shape.end()[-1-i])
+                throw std::length_error("New shape is smaller than original in Tensor::stretch");
+        for (size_t i = min_size; i < shape.size(); i++)
+            if (shape.end()[-1-i] != 1)
+                throw std::length_error("New shape is smaller than original in Tensor::stretch");
+
+        
+        if (!same_shape)
+        {
+            for (size_t i = 0; i < new_shape.size(); i++)
+                new_size *= new_shape[i];
+            
+            auto new_b = alloc(new_size);
+            std::fill(new_b, new_b + new_size, 0);
+            auto dilation = new_shape;
+            for (size_t i = 0; i < min_size; i++)
+                dilation.end()[-1-i] /= shape.end()[-1-i];
+
+            std::function<void(const size_t*,size_t*,size_t*,size_t,size_t,size_t)> copyvals;
+            copyvals = [new_b, this, &copyvals](const size_t* new_shape, size_t* shape, size_t* dilation,
+                                                size_t new_off, size_t off, size_t depth) {
+                if (depth > 1)
+                {
+                    for (size_t i = 0; i < *shape; i++)
+                    for (size_t d = 0; d < *dilation; d++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i * *dilation + d,
+                                 off * *shape + i, depth - 1);
+                    for (size_t i = *shape * *dilation; i < *new_shape; i++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i,
+                                 (off+1) * *shape - 1, depth - 1);
+                }
+                else
+                {
+                    for (size_t i = 0; i < *shape; i++)
+                    for (size_t d = 0; d < *dilation; d++)
+                        new_b[new_off * *new_shape + i * *dilation + d] = b[off * *shape + i];
+                    for (size_t i = *shape * *dilation; i < *new_shape; i++)
+                        new_b[new_off * *new_shape + i] = b[(off+1) * *shape - 1];
+                }
+            };
+
+            copyvals(new_shape.data() + new_shape.size() - min_size,
+                     shape.data()     +     shape.size() - min_size,
+                     dilation.data()  +  dilation.size() - min_size,
+                     0,0, min_size);
+            dealloc(b);
+            b = new_b;
+        }
+
+        size = new_size;
+        this->shape = new_shape;
+        return *this;
+    }
+
+    Tensor Tensor::stretched(const std::vector<size_t> &new_shape) const
+    {
+        auto shape = this->shape;
+        if (shape.size() < new_shape.size()) shape.insert(shape.begin(), new_shape.size() - shape.size(), 1);
+        size_t new_size = 1, min_size = std::min(new_shape.size(), shape.size());
+        bool same_shape = true;
+        for (size_t i = 0; i < min_size; i++)
+            if (new_shape.end()[-1-i] != shape.end()[-1-i])
+            {
+                same_shape = false;
+                break;
+            }
+            else if (new_shape.end()[-1-i] < shape.end()[-1-i])
+                throw std::length_error("New shape is smaller than original in Tensor::stretched");
+        for (size_t i = min_size; i < shape.size(); i++)
+            if (shape.end()[-1-i] != 1)
+                throw std::length_error("New shape is smaller than original in Tensor::stretched");
+
+        
+        if (!same_shape)
+        {
+            for (size_t i = 0; i < new_shape.size(); i++)
+                new_size *= new_shape[i];
+            
+            Tensor result(new_shape);
+            auto new_b = result.b;
+            std::fill(new_b, new_b + new_size, 0);
+            auto dilation = new_shape;
+            for (size_t i = 0; i < min_size; i++)
+                dilation.end()[-1-i] /= shape.end()[-1-i];
+
+            std::function<void(const size_t*,const size_t*,size_t*,size_t,size_t,size_t)> copyvals;
+            copyvals = [new_b, this, &copyvals](const size_t* new_shape, const size_t* shape, size_t* dilation,
+                                                size_t new_off, size_t off, size_t depth) {
+                if (depth > 1)
+                {
+                    for (size_t i = 0; i < *shape; i++)
+                    for (size_t d = 0; d < *dilation; d++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i * *dilation + d,
+                                 off * *shape + i, depth - 1);
+                    for (size_t i = *shape * *dilation; i < *new_shape; i++)
+                        copyvals(new_shape + 1, shape + 1, dilation + 1,
+                                 new_off * *new_shape + i,
+                                 (off+1) * *shape - 1, depth - 1);
+                }
+                else
+                {
+                    for (size_t i = 0; i < *shape; i++)
+                    for (size_t d = 0; d < *dilation; d++)
+                        new_b[new_off * *new_shape + i * *dilation + d] = b[off * *shape + i];
+                    for (size_t i = *shape * *dilation; i < *new_shape; i++)
+                        new_b[new_off * *new_shape + i] = b[(off+1) * *shape - 1];
+                }
+            };
+
+            copyvals(new_shape.data() + new_shape.size() - min_size,
+                     shape.data()     +     shape.size() - min_size,
+                     dilation.data()  +  dilation.size() - min_size,
+                     0,0, min_size);
+            
+            return result;
+        }
+        else return *this;
     }
 
     DirectTensorView Tensor::asShape(const std::vector<size_t> &new_shape)
@@ -1266,26 +1553,6 @@ namespace RedFish
 
         return result;
     }
-    
-    inline static void broadcast_operation_async(const size_t* Ashape, const size_t* Bshape, const size_t* Cshape,
-                                           size_t depth, const std::function<void(size_t,size_t,size_t,size_t)>& operation,
-                                           size_t Aoff = 0, size_t Boff = 0, size_t Coff = 0)
-    {
-        if (depth)
-        {
-            size_t bdc1 = (*Ashape == *Cshape) * ((size_t)-1);
-            size_t bdc2 = (*Bshape == *Cshape) * ((size_t)-1);
-            for (size_t i = 0; i < *Cshape; i++)
-                broadcast_operation_async(
-                    Ashape + 1, Bshape + 1, Cshape + 1,
-                    depth - 1, operation,
-                    Aoff * *Ashape + (i & bdc1),
-                    Boff * *Bshape + (i & bdc2),
-                    Coff * *Cshape + i);
-        }
-        else
-            thread_pool.enqueue(std::bind(operation, Aoff, Boff, Coff, std::placeholders::_1));
-    }
 
     inline static void broadcast_operation(const size_t* Ashape, const size_t* Bshape, const size_t* Cshape,
                                            size_t depth, const std::function<void(size_t,size_t,size_t)>& operation,
@@ -1436,7 +1703,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
 
     template <size_t N, bool conv>
     Tensor Tensor::convcorr(const Tensor &kernel,
-                            TupleNd<N> padding,
+                            TupleNd<N, int64_t> padding,
                             TupleNd<N> stride,
                             TupleNd<N> dilation,
                             PaddingMode pm,
@@ -1445,19 +1712,21 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
     {
         auto Ashape = shape, Bshape = kernel.shape;
         if (Ashape.size() < N) Ashape.insert(Ashape.begin(), N-Ashape.size(), 1);
-        if (Bshape.size() < N) Bshape.insert(Bshape.begin(), N-Ashape.size(), 1);
+        if (Bshape.size() < N) Bshape.insert(Bshape.begin(), N-Bshape.size(), 1);
 
-        long long ilen[N], iilen[N], klen[N], kklen[N], olen[N], fftlen[N], rs[N+1], cs[N+1];
-        size_t isize = 1, iisize = 1, ksize = 1, kksize = 1, osize = 1;
+        int64_t ilen[N], iilen[N], klen[N], kklen[N], olen[N], fftlen[N], rs[N+1], cs[N+1];
+        int64_t isize = 1, iisize = 1, ksize = 1, kksize = 1, osize = 1;
         std::copy(Ashape.end() - N, Ashape.end(), iilen);
         std::copy(Bshape.end() - N, Bshape.end(), kklen);
         Ashape.erase(Ashape.end() - N, Ashape.end());
         Bshape.erase(Bshape.end() - N, Bshape.end());
+        TupleNd<N, int64_t> positive_padding;
 
         for (size_t i = 0; i < N; i++)
         {
-            ilen[i]    = iilen[i] + 2*padding[i];
-            klen[i]    = kklen[i] * dilation[i] + 1 - dilation[i];
+            positive_padding[i] = std::max<int64_t>(padding[i], 0);
+            ilen[i]    = std::max<int64_t>(iilen[i] + 2*padding[i], 0);
+            klen[i]    = (kklen[i] - 1) * dilation[i] + 1;
             olen[i]    = klen[i] > ilen[i] ? 0 : (ilen[i] + 1 - klen[i]) / stride[i];
             fftlen[i]  = std::max(ilen[i], klen[i]);
             isize     *= ilen[i];
@@ -1476,7 +1745,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
         rs[0] = cs[0] = 0;
 
         std::vector<size_t> Cshape = broadcast_shape(Ashape, Bshape);
-        size_t Asize = 1, Bsize = 1, Csize = 1, fft_stride = 1;
+        int64_t Asize = 1, Bsize = 1, Csize = 1, fft_stride = 1;
         float64 fft_backward_scale = 1;
         
         if (sum_dimension >= N && sum_dimension < N + Cshape.size()) Cshape.end()[N - sum_dimension - 1] = 1;
@@ -1507,54 +1776,50 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
 
         /* 0: prepare inputs */
 
-        for (size_t i = 0; i < Asize; i++)
+        for (int64_t i = 0; i < Asize; i++)
         {
             /* copy */
             if constexpr (N == 1)
             {
-                for (size_t x = 0; x < iilen[N-1]; x++)
-                    I.b[i*fft_stride + x+padding[N-1]] = b[i*iisize + x];
-                    
-                for (size_t x = 0; x < padding[N-1]; x++)
+                for (int64_t x = 0; x < padding[N-1]; x++)
                     I.b[i*fft_stride + x] = 0;
-                for (size_t x = padding[N-1] + iilen[N-1]; x < rs[N-1]; x++)
+                for (int64_t x = positive_padding[N-1]; x < iilen[N-1] + 2*padding[N-1] - positive_padding[N-1]; x++)
+                    I.b[i*fft_stride + x] = b[i*iisize + x - padding[N-1]];
+                for (int64_t x = padding[N-1] + iilen[N-1]; x < fftlen[N-1]; x++)
                     I.b[i*fft_stride + x] = 0;
 
             }
             if constexpr (N == 2)
             {
-                for (size_t y = 0; y < iilen[N-2]; y++)
+                for (int64_t y = positive_padding[N-2]; y < iilen[N-2] + 2*padding[N-2] - positive_padding[N-2]; y++)
                 {
-                    for (size_t x = 0; x < iilen[N-1]; x++)
-                        I.b[i*fft_stride + (y+padding[N-2])*rs[N-1] + x+padding[N-1]] = b[i*iisize + y*iilen[N-1] + x];
-
-                    for (size_t x = 0; x < padding[N-1]; x++)
-                        I.b[i*fft_stride + (y+padding[N-2])*rs[N-1] + x] = 0;
-                    for (size_t x = padding[N-1] + iilen[N-1]; x < rs[N-1]; x++)
-                        I.b[i*fft_stride + (y+padding[N-2])*rs[N-1] + x] = 0;
+                    for (int64_t x = 0; x < padding[N-1]; x++)
+                        I.b[i*fft_stride + y*rs[N-1] + x] = 0;
+                    for (int64_t x = positive_padding[N-1]; x < iilen[N-1] + 2*padding[N-1] - positive_padding[N-1]; x++)
+                        I.b[i*fft_stride + y*rs[N-1] + x] = b[i*iisize + (y - padding[N-2])*iilen[N-1] + x - padding[N-1]];
+                    for (int64_t x = padding[N-1] + iilen[N-1]; x < fftlen[N-1]; x++)
+                        I.b[i*fft_stride + y*rs[N-1] + x] = 0;
                 }
-                for (size_t x = 0; x < padding[N-2]*rs[N-1]; x++)
+                for (int64_t x = 0; x < padding[N-2]*rs[N-1]; x++)
                     I.b[i*fft_stride + x] = I.b[i*fft_stride + (padding[N-2] + iilen[N-2])*rs[N-1] + x] = 0;
             }
             if constexpr (N == 3)
             {
-                for (size_t z = 0; z < iilen[N-3]; z++)
+                for (int64_t z = positive_padding[N-3]; z < iilen[N-3] + 2*padding[N-3] - positive_padding[N-3]; z++)
                 {
-                    for (size_t y = 0; y < iilen[N-2]; y++)
+                    for (int64_t y = positive_padding[N-2]; y < iilen[N-2] + 2*padding[N-2] - positive_padding[N-2]; y++)
                     {
-                        for (size_t x = 0; x < iilen[N-1]; x++)
-                            I.b[i*fft_stride + (z+padding[N-3])*rs[N-2] + (y+padding[N-2])*rs[N-1] + x+padding[N-1]] = b[i*iisize + (z*iilen[N-2] + y)*iilen[N-1] + x];
-
-                        for (size_t x = 0; x < padding[N-1]; x++)
-                            I.b[i*fft_stride + (z+padding[N-3])*rs[N-2] + (y+padding[N-2])*rs[N-1] + x] = 0;
-                        for (size_t x = padding[N-1] + iilen[N-1]; x < rs[N-1]; x++)
-                            I.b[i*fft_stride + (z+padding[N-3])*rs[N-2] + (y+padding[N-2])*rs[N-1] + x] = 0;
+                        for (int64_t x = 0; x < padding[N-1]; x++)
+                            I.b[i*fft_stride + z*rs[N-2] + y*rs[N-1] + x] = 0;
+                        for (int64_t x = positive_padding[N-1]; x < iilen[N-1] + 2*padding[N-1] - positive_padding[N-1]; x++)
+                            I.b[i*fft_stride + z*rs[N-2] + y*rs[N-1] + x] = b[i*iisize + ((z - padding[N-3])*iilen[N-2] + y - padding[N-2])*iilen[N-1] + x - padding[N-1]];
+                        for (int64_t x = padding[N-1] + iilen[N-1]; x < fftlen[N-1]; x++)
+                            I.b[i*fft_stride + z*rs[N-2] + y*rs[N-1] + x] = 0;
                     }
-                    for (size_t x = 0; x < padding[N-2]*rs[N-1]; x++)
-                        I.b[i*fft_stride + (z+padding[N-3])*rs[N-2] + x] =
-                        I.b[i*fft_stride + (z+padding[N-3])*rs[N-2] + (padding[N-2] + iilen[N-2])*rs[N-1] + x] = 0;
+                    for (int64_t x = 0; x < padding[N-2]*rs[N-1]; x++)
+                        I.b[i*fft_stride + z*rs[N-2] + x] = I.b[i*fft_stride + z*rs[N-2] + (padding[N-2] + iilen[N-2])*rs[N-1] + x] = 0;
                 }
-                for (size_t x = 0; x < padding[N-3]*rs[N-2]; x++)
+                for (int64_t x = 0; x < padding[N-3]*rs[N-2]; x++)
                     I.b[i*fft_stride + x] = I.b[i*fft_stride + (padding[N-3] + iilen[N-3])*rs[N-2] + x] = 0;
             }
 
@@ -1660,7 +1925,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
                     for (size_t z = 0; z < olen[N-3]; z++)
                     for (size_t y = 0; y < olen[N-2]; y++)
                     for (size_t x = 0; x < olen[N-1]; x++)
-                        result.b[i*osize + (z*olen[N-2] + y)*olen[N-1] + x] = result.b[i*fft_stride + (z*stride[N-3] + klen[N-2] - 1)*rs[N-2] + (y*stride[N-2] + klen[N-2] - 1)*rs[N-1] + x*stride[N-1] + klen[N-1] - 1];
+                        result.b[i*osize + (z*olen[N-2] + y)*olen[N-1] + x] = result.b[i*fft_stride + (z*stride[N-3] + klen[N-3] - 1)*rs[N-2] + (y*stride[N-2] + klen[N-2] - 1)*rs[N-1] + x*stride[N-1] + klen[N-1] - 1];
             }
             else
             {
@@ -1680,7 +1945,6 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
 
         Cshape.insert(Cshape.end(), olen, olen + N);
         result.resize(Cshape);
-        /* Cshape.erase(Cshape.end() - N, Cshape.end()); */
 
         if (sum_dimension < N)
             result = result.sum(sum_dimension, collapse);
@@ -1701,7 +1965,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
      * @return Tensor 
      */
     Tensor Tensor::correlation1d(const Tensor &kernel,
-                                 TupleNd<1> padding,
+                                 TupleNd<1, int64_t> padding,
                                  TupleNd<1> stride,
                                  TupleNd<1> dilation,
                                  PaddingMode pm,
@@ -1722,7 +1986,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
      * @return Tensor 
      */
     Tensor Tensor::correlation2d(const Tensor &kernel,
-                                 TupleNd<2> padding,
+                                 TupleNd<2, int64_t> padding,
                                  TupleNd<2> stride,
                                  TupleNd<2> dilation,
                                  PaddingMode pm,
@@ -1743,7 +2007,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
      * @return Tensor 
      */
     Tensor Tensor::correlation3d(const Tensor &kernel,
-                                 TupleNd<3> padding,
+                                 TupleNd<3, int64_t> padding,
                                  TupleNd<3> stride,
                                  TupleNd<3> dilation,
                                  PaddingMode pm,
@@ -1764,7 +2028,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
      * @return Tensor 
      */
     Tensor Tensor::convolution1d(const Tensor &kernel,
-                                 TupleNd<1> padding,
+                                 TupleNd<1, int64_t> padding,
                                  TupleNd<1> stride,
                                  TupleNd<1> dilation,
                                  PaddingMode pm,
@@ -1785,7 +2049,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
      * @return Tensor 
      */
     Tensor Tensor::convolution2d(const Tensor &kernel,
-                                 TupleNd<2> padding,
+                                 TupleNd<2, int64_t> padding,
                                  TupleNd<2> stride,
                                  TupleNd<2> dilation,
                                  PaddingMode pm,
@@ -1806,7 +2070,7 @@ void print_ctime() { std::cout << "conv time: " << (float)ctime * 1e-9 << "s\n";
      * @return Tensor 
      */
     Tensor Tensor::convolution3d(const Tensor &kernel,
-                                 TupleNd<3> padding,
+                                 TupleNd<3, int64_t> padding,
                                  TupleNd<3> stride,
                                  TupleNd<3> dilation,
                                  PaddingMode pm,

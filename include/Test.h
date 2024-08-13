@@ -20,7 +20,7 @@ namespace RedFish
         Tensor grad = layer.backward(sl.backward(out, gt));
         Tensor grad_es = Tensor::empty_like(a);
         double loss = sl.forward(out, gt);
-        double delta = 1e-8;
+        double delta = 1e-6;
         Layer::training = false;
 
         for (size_t i = 0; i < grad_es.getSize(); i++)
@@ -30,7 +30,7 @@ namespace RedFish
             a(i) -= delta;
         }
 
-        std::cout << "X grad error: " << (grad - grad_es).squareSum() / grad.getSize() << std::endl;
+        std::cout << "X grad error: " << std::abs(grad - grad_es).sum() / grad.getSize() << std::endl;
         
         for (size_t k = 0; k < opt.grads.size(); k++)
         {
@@ -42,7 +42,7 @@ namespace RedFish
                 grad_es(i) = (sl.forward(layer.forward(a), gt) - loss) / delta;
                 param(i) -= delta;
             }
-            std::cout << "Layer grad error: " << (opt.grads[k] - grad_es).squareSum() / grad.getSize() << std::endl;
+            std::cout << "Layer grad error: " << std::abs(opt.grads[k] - grad_es).sum() / grad.getSize() << std::endl;
         }
     }
 

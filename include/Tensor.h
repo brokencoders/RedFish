@@ -24,6 +24,7 @@ namespace RedFish
 namespace std
 {
     RedFish::Tensor sqrt(const RedFish::Tensor &);
+    RedFish::Tensor abs(const RedFish::Tensor &);
     RedFish::Tensor exp(const RedFish::Tensor &);
     RedFish::Tensor log(const RedFish::Tensor &);
     RedFish::Tensor pow(const RedFish::Tensor &, RedFish::float64);
@@ -50,64 +51,91 @@ namespace RedFish
         CIRCULAR
     };
 
-    template<size_t N>
+    template<size_t N, typename type=size_t>
     struct TupleNd
     {
-        TupleNd(size_t n) : { for (size_t i = 0; i < N; i++) c[i] = n; }
+        TupleNd(type n) : { for (size_t i = 0; i < N; i++) c[i] = n; }
         TupleNd() : { for (size_t i = 0; i < N; i++) c[i] = 0; }
-        TupleNd operator+(size_t n) { TuplaNd<N> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] + n;}
-        TupleNd operator-(size_t n) { TuplaNd<N> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] - n;}
-        size_t operator[](size_t i) { return c[i]; }
-        size_t c[N];
+        TupleNd operator+(type n) { TuplaNd<N, type> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] + n;}
+        TupleNd operator-(type n) { TuplaNd<N, type> tp; for (size_t i = 0; i < N; i++) tp.c[i] = c[i] - n;}
+        type& operator[](size_t i) { return c[i]; }
+        type c[N];
     };
 
-    template<>
-    struct TupleNd<1>
+    template<typename type>
+    struct TupleNd<1, type>
     {
-        TupleNd(size_t n) : x(n) {}
+        template<typename t2>
+        TupleNd(TupleNd<1, t2> t) : x(t.x) {}
+        TupleNd(type n) : x(n) {}
         TupleNd() : x(0) {}
-        TupleNd operator+(size_t n) { return {x+n}; }
-        TupleNd operator-(size_t n) { return {x-n}; }
-        size_t operator[](size_t i) { return c[i]; }
+        TupleNd operator+(type n) { return {x+n}; }
+        TupleNd operator-(type n) { return {x-n}; }
+        TupleNd operator*(type n) { return {x*n}; }
+        template<typename t2>
+        TupleNd operator+(TupleNd<1,t2> tp) { return {x+tp.x}; }
+        template<typename t2>
+        TupleNd operator-(TupleNd<1,t2> tp) { return {x-tp.x}; }
+        template<typename t2>
+        TupleNd operator*(TupleNd<1,t2> tp) { return {x*tp.x}; }
+        type& operator[](size_t i) { return c[i]; }
         union {
-            size_t c[1];
-            union { size_t x, w; };
+            type c[1];
+            union { type x, w; };
         };
     };
 
-    template<>
-    struct TupleNd<2>
+    template<typename type>
+    struct TupleNd<2, type>
     {
-        TupleNd(size_t y, size_t x) : y(y), x(x) {}
-        TupleNd(size_t n) : y(n), x(n) {}
+        template<typename t2>
+        TupleNd(TupleNd<2, t2> t) : y(t.y), x(t.x) {}
+        TupleNd(type y, type x) : y(y), x(x) {}
+        TupleNd(type n) : y(n), x(n) {}
         TupleNd() : y(0), x(0) {}
-        TupleNd operator+(size_t n) { return {y+n, x+n}; }
-        TupleNd operator-(size_t n) { return {y-n, x-n}; }
-        size_t operator[](size_t i) { return c[i]; }
+        TupleNd operator+(type n) { return {y+n, x+n}; }
+        TupleNd operator-(type n) { return {y-n, x-n}; }
+        TupleNd operator*(type n) { return {y*n, x*n}; }
+        template<typename t2>
+        TupleNd operator+(TupleNd<2,t2> tp) { return {y+tp.y, x+tp.x}; }
+        template<typename t2>
+        TupleNd operator-(TupleNd<2,t2> tp) { return {y-tp.y, x-tp.x}; }
+        template<typename t2>
+        TupleNd operator*(TupleNd<2,t2> tp) { return {y*tp.y, x*tp.x}; }
+        type& operator[](size_t i) { return c[i]; }
         union {
-            size_t c[2];
+            type c[2];
             struct {
-                union { size_t y, h; };
-                union { size_t x, w; };
+                union { type y, h; };
+                union { type x, w; };
             };
         };
     };
 
-    template<>
-    struct TupleNd<3>
+    template<typename type>
+    struct TupleNd<3, type>
     {
-        TupleNd(size_t z, size_t y, size_t x) : z(z), y(y), x(x) {}
-        TupleNd(size_t n) : z(n), y(n), x(n) {}
-        TupleNd() : y(0), x(0) {}
-        TupleNd operator+(size_t n) { return {z+n, y+n, x+n}; }
-        TupleNd operator-(size_t n) { return {z-n, y-n, x-n}; }
-        size_t operator[](size_t i) { return c[i]; }
+        template<typename t2>
+        TupleNd(TupleNd<3, t2> t) : z(t.z), y(t.y), x(t.x) {}
+        TupleNd(type z, type y, type x) : z(z), y(y), x(x) {}
+        TupleNd(type n) : z(n), y(n), x(n) {}
+        TupleNd() : z(0), y(0), x(0) {}
+        TupleNd operator+(type n) { return {z+n, y+n, x+n}; }
+        TupleNd operator-(type n) { return {z-n, y-n, x-n}; }
+        TupleNd operator*(type n) { return {z*n, y*n, x*n}; }
+        template<typename t2>
+        TupleNd operator+(TupleNd<3,t2> tp) { return {z+tp.z, y+tp.y, x+tp.x}; }
+        template<typename t2>
+        TupleNd operator-(TupleNd<3,t2> tp) { return {z-tp.z, y-tp.y, x-tp.x}; }
+        template<typename t2>
+        TupleNd operator*(TupleNd<3,t2> tp) { return {z*tp.z, y*tp.y, x*tp.x}; }
+        type& operator[](size_t i) { return c[i]; }
         union {
-            size_t c[3];
+            type c[3];
             struct {
-                union { size_t z, d; };
-                union { size_t y, h; };
-                union { size_t x, w; };
+                union { type z, d; };
+                union { type y, h; };
+                union { type x, w; };
             };
         };
     };
@@ -138,8 +166,9 @@ namespace RedFish
         void fromDevice();
 
         /* Get */
-        size_t colSize() const { return this->shape.back(); }
-        size_t rowSize() const { return *(this->shape.end() - 2); }
+        size_t colSize() const { if (shape.size()) return shape.back(); else return 1; }
+        size_t rowSize() const { if (shape.size() > 1) return shape.end()[-2]; else return 1; }
+        size_t NthSize(size_t n) const { if (shape.size() > n) return shape.end()[-n-1]; else return 1; }
         size_t getSize() const { return size; }
         const std::vector<size_t>& getShape() const { return shape; }
 
@@ -189,8 +218,14 @@ namespace RedFish
         const DirectTensorView getMatrix(const std::vector<size_t> &index) const;
         const DirectTensorView sliceLastNDims(const std::vector<size_t> &index, size_t N) const;
 
-        void resize(const std::vector<size_t> &new_shape);
-        void reshape(const std::vector<size_t> &new_shape);
+        Tensor& resize(const std::vector<size_t> &new_shape);
+        Tensor& reshape(const std::vector<size_t> &new_shape);
+        Tensor& dilate(const std::vector<size_t> &new_shape);
+        Tensor  dilated(const std::vector<size_t> &new_shape) const;
+        Tensor& shrink(const std::vector<size_t> &new_shape, bool use_max_stride = false);
+        Tensor  shrinked(const std::vector<size_t> &new_shape, bool use_max_stride = false) const;
+        Tensor& stretch(const std::vector<size_t> &new_shape);
+        Tensor  stretched(const std::vector<size_t> &new_shape) const;
         DirectTensorView asShape(const std::vector<size_t> &new_shape);
         const DirectTensorView asShape(const std::vector<size_t> &new_shape) const;
         DirectTensorView asShapeOneInsert(size_t where, size_t count = 1);
@@ -219,12 +254,12 @@ namespace RedFish
         Tensor  roundShift(size_t dimension, int direction) const;
         
         Tensor matmul(const Tensor &t, const Transpose transpose = NONE) const;
-        Tensor correlation1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
-        Tensor correlation2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
-        Tensor correlation3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
-        Tensor convolution1d(const Tensor &kernel, TupleNd<1> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
-        Tensor convolution2d(const Tensor &kernel, TupleNd<2> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
-        Tensor convolution3d(const Tensor &kernel, TupleNd<3> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor correlation1d(const Tensor &kernel, TupleNd<1, int64_t> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor correlation2d(const Tensor &kernel, TupleNd<2, int64_t> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor correlation3d(const Tensor &kernel, TupleNd<3, int64_t> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor convolution1d(const Tensor &kernel, TupleNd<1, int64_t> padding = 0, TupleNd<1> stride = 1, TupleNd<1> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor convolution2d(const Tensor &kernel, TupleNd<2, int64_t> padding = 0, TupleNd<2> stride = 1, TupleNd<2> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        Tensor convolution3d(const Tensor &kernel, TupleNd<3, int64_t> padding = 0, TupleNd<3> stride = 1, TupleNd<3> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
 
         
         uint64_t save(std::ofstream &file) const;
@@ -267,7 +302,7 @@ namespace RedFish
         static void ew_or_left_broadcast_assign(Tensor &, const Tensor &, const char *);
 
         template <size_t N, bool conv>
-        inline Tensor convcorr(const Tensor &kernel, TupleNd<N> padding = 0, TupleNd<N> stride = 1, TupleNd<N> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
+        inline Tensor convcorr(const Tensor &kernel, TupleNd<N, int64_t> padding = 0, TupleNd<N> stride = 1, TupleNd<N> dilation = 1, PaddingMode pm = ZERO, size_t sum_dimension = -1, bool collapse = false) const;
 
         friend Tensor operator-(const float64, const Tensor &);
         friend Tensor operator/(const float64, const Tensor &);
@@ -285,6 +320,7 @@ namespace RedFish
         
         
         friend Tensor std::sqrt(const Tensor &);
+        friend Tensor std::abs(const Tensor &);
         friend Tensor std::exp(const Tensor &);
         friend Tensor std::log(const Tensor &);
         friend Tensor std::pow(const Tensor &, RedFish::float64);
